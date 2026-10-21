@@ -1,0 +1,45 @@
+{#- SPDX-FileCopyrightText: Copyright (c) 2026 cautem -#}
+{#- SPDX-License-Identifier: Apache-2.0 -#}
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {{ super() }}
+  {% if page %}
+    {% set social_title = page.meta.title | default(page.title, true) | default(config.site_name, true) %}
+    {% set social_description = page.meta.description | default(config.site_description, true) %}
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ config.site_name | e }}">
+    <meta property="og:title" content="{{ social_title | e }}">
+    <meta property="og:description" content="{{ social_description | e }}">
+    <meta property="og:url" content="{{ page.canonical_url | e }}">
+    <meta property="og:image" content="{{ config.site_url }}assets/images/cautem-app-icon.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1317">
+    <meta property="og:image:height" content="1194">
+    <meta property="og:locale" content="{{ 'ru_RU' if page.url.startswith('ru/') else 'en_US' }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ social_title | e }}">
+    <meta name="twitter:description" content="{{ social_description | e }}">
+    <meta name="twitter:image" content="{{ config.site_url }}assets/images/cautem-app-icon.png">
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {% if page and page.url.startswith("ru/") %}
+    <script>
+      (() => {
+        const originalOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url, ...options) {
+          const requestURL = new URL(url, document.baseURI);
+          const indexPath = "/search/search_index.json";
+          if (requestURL.pathname.endsWith(indexPath)) {
+            const siteRoot = requestURL.pathname.slice(0, -indexPath.length);
+            requestURL.pathname = `${siteRoot}/ru${indexPath}`;
+          }
+          return originalOpen.call(this, method, requestURL.href, ...options);
+        };
+      })();
+    </script>
+  {% endif %}
+  {{ super() }}
+{% endblock %}

@@ -1,0 +1,122 @@
+name: macos
+
+on:
+  workflow_dispatch:
+    inputs:
+      notarize:
+        description: "Notarize release artifacts"
+        type: boolean
+        default: false
+  push:
+    branches: [master]
+    tags: ["v*"]
+    paths:
+      - "quarshell-*/**"
+      - "deploy/macos/**"
+      - ".github/workflows/macos.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+
+      - name: Toolchain
+        run: |
+          go version
+          sw_vers
+          sysctl kern.hv_support || true
+
+      - name: Build
+        run: |
+          go -C quarshell-gateway build ./...
+          go -C quarshell-cli build ./...
+          go -C quarshell-driver build ./...
+
+      - name: Test
+        run: |
+          go -C quarshell-gateway test ./... -count=1
+          go -C quarshell-cli test ./... -count=1
+          go -C quarshell-sdk test ./... -count=1
+
+      - name: HVF check
+        run: |
+          support="$(sysctl -n kern.hv_support 2>/dev/null || echo 0)"
+          echo "kern.hv_support=$support"
+          if [ "$support" != "1" ]; then
+            echo "::warning::GitHub-hosted macOS runner does not expose HVF; VM live acceptance remains blocked until an HVF-capable hosted runner is available"
+          fi
+
+  sign:
+    needs: build-test
+    if: startsWith(github.ref, 'refs/tags/') || inputs.notarize
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          GOOS=darwin GOARCH=arm64 go -C quarshell-gateway build -o "$PWD/dist/quarshell-gateway" ./cmd/quarshell-gateway
+          GOOS=darwin GOARCH=arm64 go -C quarshell-cli build -o "$PWD/dist/quarshell" ./cmd/quarshell
+
+      - name: Import signing certificate
+        env:
+          CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          if [ -z "$CERT_P12" ]; then echo "no certificate configured"; exit 0; fi
+          KEYCHAIN="$RUNNER_TEMP/quarshell.keychain-db"
+          security create-keychain -p actions "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p actions "$KEYCHAIN"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k actions "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN"
+
+      - name: Codesign
+        env:
+          IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+        run: |
+          if [ -z "$IDENTITY" ]; then echo "no signing identity configured"; exit 0; fi
+          for binary in dist/quarshell-gateway dist/quarshell; do
+            codesign --force --options runtime --timestamp \
+              --entitlements deploy/macos/vm.entitlements \
+              --sign "$IDENTITY" "$binary"
+            codesign --verify --strict --verbose=2 "$binary"
+          done
+
+      - name: Notarize
+        if: ${{ inputs.notarize || startsWith(github.ref, 'refs/tags/') }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          if [ -z "$APPLE_ID" ]; then echo "notarization secrets are not configured"; exit 0; fi
+          ditto -c -k --keepParent dist dist.zip
+          xcrun notarytool submit dist.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple dist/quarshell-gateway || true
+          xcrun stapler staple dist/quarshell || true
+
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: quarshell-macos-arm64
+          path: dist/

@@ -1,0 +1,3 @@
+version: 1
+landlock:
+  compatibility: best_effortt

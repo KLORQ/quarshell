@@ -1,0 +1,359 @@
+{
+  "schema_version": 1,
+  "baseline": {
+    "version": "v0.1.4",
+    "commit": "5a7728c304b5528e954e9ae900cf21f84e1a12b1",
+    "source": "tools/upstream/openshell-v0.1.4"
+  },
+  "entries": [
+    {
+      "id": "vm.lifecycle.create-start-stop-delete",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::create_sandbox/start_sandbox/stop_sandbox/delete_sandbox",
+      "cautem": "quarshell-driver-vm/vm/lifecycle.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/lifecycle_test.go",
+        "quarshell-driver-vm/vm/vm_test.go::TestCreateWithBootstrapImagePersistsSeparatePinnedDisks",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "quarshell-driver-vm/vmguest/agent_linux_test.go::TestNaturalWorkloadExitPowersOffGuest",
+        "quarshell-gateway/internal/application/sandbox/service_test.go::TestStartAndStopCallRuntimeAfterPersistingIntent"
+      ]
+    },
+    {
+      "id": "vm.gateway.restart-intent",
+      "upstream": "e2e/rust/tests/vm_gateway_start.rs::vm_gateway_restart_preserves_running_and_stopped_intent",
+      "cautem": "quarshell-gateway/internal/application/lifecycle/reconciler.go;quarshell-gateway/internal/application/reconcile/reconcile.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-gateway/internal/application/sandbox/service_test.go",
+        "quarshell-gateway/internal/application/reconcile/reconcile_test.go::TestRunRestoresPersistedRunningIntent"
+      ]
+    },
+    {
+      "id": "vm.overlay.persistence",
+      "upstream": "e2e/rust/tests/vm_overlay.rs::vm_overlay",
+      "cautem": "quarshell-driver-vm/vm/overlay.go;quarshell-driver/driver/backend.go;quarshell-gateway/internal/application/sandbox/service.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/overlay_test.go",
+        "quarshell-gateway/internal/application/sandbox/service_test.go"
+      ]
+    },
+    {
+      "id": "vm.identity-status",
+      "upstream": "e2e/rust/tests/vm_overlay.rs::vm_identity_matches_status_and_rejects_conflicts",
+      "cautem": "quarshell-driver-vm/vm/state.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-runtime/internal/app/supervisor/run_test_unix_test.go::TestRunPublishesReadinessAfterInitializerHandshake",
+        "quarshell-driver-vm/vm/lifecycle_test.go::TestVMStartExecCopyLogsStopDeleteLifecycle",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveWorkloadIdentity"
+      ]
+    },
+    {
+      "id": "vm.gateway-create-ready",
+      "upstream": "e2e/rust/e2e-vm.sh",
+      "cautem": "quarshell-driver-vm/vm/spec.go",
+      "status": "blocked",
+      "evidence": []
+    },
+    {
+      "id": "vm.bootstrap-image",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::validate_sandbox",
+      "cautem": "quarshell-driver-vm/vm/prep_vm.go;quarshell-driver-vm/vm/oci_image.go;quarshell-driver-vm/vm/rootfs_image.go;quarshell-driver-vm/vm/vm.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/vm_test.go::TestCreateWithBootstrapImagePersistsSeparatePinnedDisks",
+        "quarshell-driver-vm/vm/vm_test.go::TestCreateUsesTrustedDefaultImageAsBootstrapWhenUnset",
+        "quarshell-driver-vm/vm/prep_vm_test.go::TestGuestImagePrepFailureDoesNotPublishCacheEntry",
+        "quarshell-driver-vm/vm/prep_vm_test.go::TestGuestImagePrepCanceledBeforeBuildDoesNotStagePayload",
+        "quarshell-driver-vm/vm/lifecycle_test.go::TestValidateSandboxArtifactsChecksOptionalWorkloadDisk",
+        "quarshell-driver-vm/vm/local_image_test.go::TestPrepareLocalOCIImageImportsPinnedDockerArchiveAndRestoresConfig",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestPrepareOCIWorkloadDiskPlacesGuestRootAtImageRootfs",
+        "quarshell-driver-vm/vm/rootfs_image_test.go::TestPrepareRootfsTarWorkloadDiskPlacesArchiveUnderImageRootfs",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
+      ]
+    },
+    {
+      "id": "vm.registry-layer-concurrency",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::registry_layer_download_concurrency_value",
+      "cautem": "quarshell-driver-vm/vm/oci_image.go",
+      "status": "implemented",
+      "evidence": [
+        "quarshell-driver-vm/vm/oci_image_test.go::TestRegistryLayerDownloadConcurrencyMatchesUpstreamBounds",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestDownloadOCIImageLayersRunsBoundedParallelWorkers",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestDownloadOCIImageLayersWaitsForCancellationCleanup"
+      ]
+    },
+    {
+      "id": "vm.registry-cache",
+      "upstream": "crates/openshell-driver-vm/src/registry_cache_tests.rs",
+      "cautem": "quarshell-driver-vm/vm/image_cache.go",
+      "status": "implemented",
+      "evidence": [
+        "quarshell-driver-vm/vm/image_cache_test.go",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestOCIImageTagIsPinnedBetweenHeadAndManifestGet",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestOCIImagePullPreservesPlatformManifestDigestAlgorithm",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestOCIImageDigestPinSupportsSHA512WithoutHead",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestOCIImageRegistryRetriesTransientHeadAndManifestFailures",
+        "quarshell-driver-vm/vm/oci_image_test.go::TestOCIImageIndexRejectsChangedPlatformChildBeforeBlobDownload"
+      ]
+    },
+    {
+      "id": "vm.local-container-image",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::resolve_local_container_image",
+      "cautem": "quarshell-driver-vm/vm/local_image.go;quarshell-driver-vm/vm/oci_image.go;quarshell-driver-vm/vm/state.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/local_image_test.go",
+        "quarshell-driver-vm/vm/state_test.go",
+        "quarshell-driver-vm/vm/oci_image_linux_test.go::TestApplyOCILayerPreservesUnixSpecialPermissionBits",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
+      ]
+    },
+    {
+      "id": "vm.rootfs-tar-staging",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::validate_rootfs_tar_path",
+      "cautem": "quarshell-driver/driver/backend.go;quarshell-driver-vm/vm/rootfs_path.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/rootfs_path_test.go",
+        "quarshell-driver-vm/vm/spec_test.go",
+        "quarshell-driver-vm/vm/vm_test.go"
+      ]
+    },
+    {
+      "id": "vm.exec-pty-signals",
+      "upstream": "crates/openshell-sandbox",
+      "cautem": "quarshell-driver-vm/vm/terminal.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/live_acceptance_test.go"
+      ]
+    },
+    {
+      "id": "vm.gateway-exec-timeout",
+      "upstream": "crates/openshell-cli/tests/sandbox_exec_streaming_integration.rs",
+      "cautem": "quarshell-gateway/internal/transport/applicationgrpc/exec.go;quarshell-driver-vm/vm/terminal.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveGuestExec"
+      ]
+    },
+    {
+      "id": "vm.ssh-connect",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::spawn_host_supervisor",
+      "cautem": "quarshell-driver-vm/vm/network_broker_unix.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestRelayStreamReturnsWhenGuestTargetCloses"
+      ]
+    },
+    {
+      "id": "vm.service-forward",
+      "upstream": "crates/openshell-driver-vm/src/isolation/mod.rs",
+      "cautem": "quarshell-driver-vm/vm",
+      "status": "partial",
+      "evidence": [
+        "quarshell-cli/internal/service/forward_live.go::ForwardStart",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveSSHDirectTCPForward",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveSSHRelay"
+      ]
+    },
+    {
+      "id": "vm.file-transfer",
+      "upstream": "crates/openshell-sandbox",
+      "cautem": "quarshell-driver-vm/vm/lifecycle.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/live_acceptance_test.go"
+      ]
+    },
+    {
+      "id": "vm.logs-watch",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::watch_sandboxes",
+      "cautem": "quarshell-driver-vm/vm/lifecycle.go;quarshell-gateway/internal/transport/applicationgrpc/runtime.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/live_acceptance_test.go"
+      ]
+    },
+    {
+      "id": "vm.host-supervisor-isolation",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::spawn_host_supervisor;crates/openshell-driver-vm/src/rootfs.rs::extract_host_supervisor;rfc/0012-isolation-backend",
+      "cautem": "quarshell-core/isolation;quarshell-driver-vm/vm/lifecycle.go;quarshell-runtime/internal/app/supervisor;quarshell-runtime/relayclient",
+      "status": "partial",
+      "evidence": [
+        "quarshell-core/isolation/contract_test.go",
+        "quarshell-driver-vm/vm/lifecycle.go::startLocked",
+        "quarshell-driver-vm/vm/isolation_descriptor.go::buildVMIsolationDescriptor",
+        "quarshell-driver-vm/vm/spec.go::validateGatewayRuntime",
+        "quarshell-driver-vm/vmguest/agent_linux_test.go::TestStartWorkloadWaitsForSupervisorReadiness",
+        "quarshell-runtime/internal/app/wsinit/start_gate_test.go::TestWaitForHostStartGateReadsOneShotPipeConfirmation",
+        "quarshell-runtime/internal/app/supervisor/run_test_unix_test.go::TestWaitForHostStartGateAcceptsPrivateConfirmation",
+        "quarshell-runtime/internal/app/supervisor/run_test.go::TestValidateGatewayVerificationKeyFileConsumesPrivateEd25519KeySet",
+        "quarshell-runtime/internal/app/supervisor/run_test.go::TestHasSandboxSessionEnvironmentDetectsPartialCredentialInjection",
+        "quarshell-runtime/internal/app/supervisor/session_token_test.go::TestVerifyGatewaySandboxToken",
+        "quarshell-runtime/internal/app/supervisor/run_test_unix_test.go::TestRunPublishesReadinessAfterStartingWorkloadAndDoesNotLeakMarkerPath",
+        "quarshell-runtime/relayclient/session_refresh_test.go",
+        "quarshell-runtime/relayclient/control_tls_test.go::TestBeginWaitsForGatewaySupervisorSession",
+        "quarshell-runtime/relayclient/isolation.go::validateIsolationDescriptor",
+        "quarshell-runtime/relayclient/isolation_test.go::TestValidateIsolationDescriptorBindsHostSupervisorIdentity",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveIsolationDescriptor",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "quarshell-driver-vm/vm/worker_parent_liveness_unix_test.go::TestParentLivenessWatchKillsWorkerWhenParentExits",
+        "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayWorkerSignatureRequiresConfiguredTrustedTeam"
+      ]
+    },
+    {
+      "id": "vm.host-supervisor-bootstrap",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::spawn_host_supervisor",
+      "cautem": "quarshell-driver-vm/vm/lifecycle.go;quarshell-cli/internal/service/proxy.go",
+      "status": "blocked",
+      "evidence": [
+        "quarshell-driver-vm/vm/spec.go::validateGatewayRuntime",
+        "quarshell-driver-vm/vm/lifecycle.go::startLocked",
+        "quarshell-driver-vm/vmguest/agent_linux_test.go::TestStartWorkloadWaitsForSupervisorReadiness",
+        "quarshell-driver-vm/vm/network_broker_unix_test.go::TestPrepareBrokerCredentialWritesDescriptorBoundAuthBundle",
+        "quarshell-core/isolation/auth_bundle_test.go::TestHostAuthBundleRoundTripAndDescriptorBinding",
+        "quarshell-cli/internal/service/proxy_token_test.go::TestSandboxTokenFromDescriptorBoundAuthBundle",
+        "quarshell-runtime/relayclient/isolation_test.go::TestValidateIsolationDescriptorBindsHostSupervisorIdentity",
+        "quarshell-runtime/relayclient/isolation_test.go::TestValidateIsolationDescriptorRequiredForVMIdentity",
+        "plans/evidence/runs/vm-hvf-local-2026-10-22.md"
+      ]
+    },
+    {
+      "id": "vm.authenticated-vsock",
+      "upstream": "crates/openshell-isolation-interface; rfc/0012-isolation-backend",
+      "cautem": "quarshell-driver-vm/vm/control.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/control_test.go",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestSandboxTokensAreRestrictedToSupervisorMethods",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestRefreshSandboxTokenRequiresCurrentGeneration",
+        "quarshell-gateway/internal/application/token/service_test.go::TestTokenRefreshPreservesSandboxGeneration",
+        "quarshell-gateway/internal/application/token/service_test.go::TestJWTMatchesOpenShellSessionClaimAndJOSEContract",
+        "quarshell-driver-vm/vm/lifecycle_test.go::TestRuntimeLaunchCredentialsRequireUpstreamVerificationKeySet",
+        "quarshell-gateway/internal/application/token/service_test.go::TestStrictJSONRejectsDuplicateFields",
+        "quarshell-gateway/internal/application/token/service_test.go::TestIssueForAudienceSeparatesGatewayAndSandboxTokens",
+        "quarshell-gateway/internal/application/token/service_test.go::TestRefreshPreservesCredentialEpoch",
+        "quarshell-gateway/internal/application/sandbox/service_test.go::TestStartIssuesGenerationBoundTokenOnlyToRuntime",
+        "quarshell-runtime/internal/app/supervisor/run_test.go::TestValidateGatewayVerificationKeyFileConsumesPrivateEd25519KeySet",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_test.go::TestRefreshSandboxTokenIsBoundToRunningGeneration",
+        "quarshell-runtime/tests/integration/supervisor_contract_test.go::TestCompatSupervisorReconnectsAfterControlStreamLoss",
+        "quarshell-runtime/relayclient/session_refresh_test.go::TestCompatSessionRefreshesSupervisorToken",
+        "quarshell-gateway/internal/sshrelay/hub_test.go::TestRegisterSupervisorUsesConnectionEpochOwnership",
+        "quarshell-gateway/internal/sshrelay/hub_test.go::TestSupervisorOwnerLeaseSurvivesDisconnectAndExpires"
+      ]
+    },
+    {
+      "id": "vm.policy-egress",
+      "upstream": "e2e/rust/tests/vm_corporate_proxy.rs::vm_corporate_proxy_routes_approved_tls_egress",
+      "cautem": "quarshell-driver-vm/vm/network_broker_unix.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
+      ]
+    },
+    {
+      "id": "vm.corporate-proxy-ca",
+      "upstream": "e2e/rust/tests/vm_corporate_proxy.rs::vm_corporate_proxy_trusts_ca_bundle_for_https_proxy",
+      "cautem": "quarshell-proxy",
+      "status": "partial",
+      "evidence": [
+        "quarshell-proxy/proxy/upstream_test.go::TestDialViaHTTPSProxyUsesConfiguredCABundle",
+        "quarshell-driver-vm/vm/proxy_ca_guest_test.go::TestGuestProxyCABundleValidatesAndLoadsOperatorCertificate",
+        "quarshell-driver-vm/vm/proxy_ca_guest_test.go::TestGuestInitDoesNotReceiveProxyCABundleInEnvironment",
+        "quarshell-driver-vm/vmguest/proxy_ca_linux_test.go::TestInstallProxyCABundleWritesRootOwnedTrustMaterialAndUpdatesStore",
+        "quarshell-driver-vm/vmguest/proxy_ca_linux_test.go::TestGuestTrustStoreFallbackAppendsCAIdempotently",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
+      ]
+    },
+    {
+      "id": "vm.corporate-proxy-config-validation",
+      "upstream": "e2e/rust/tests/vm_corporate_proxy.rs::vm_corporate_proxy_rejects_incoherent_configuration",
+      "cautem": "quarshell-gateway/internal/gatewayconfig/load.go;quarshell-driver-vm/vm/network_broker_unix.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-gateway/internal/gatewayconfig/load_test.go::TestVMCorporateProxyConfigurationValidation",
+        "quarshell-driver-vm/vm/network_broker_unix_test.go::TestValidateNetworkBrokerConfigRequiresPrivatePolicyAndSafeEnvironment"
+      ]
+    },
+    {
+      "id": "vm.spiffe-workload-api-endpoint",
+      "upstream": "crates/openshell-core/src/spiffe.rs::workload_api_endpoint;crates/openshell-driver-vm/README.md::provider_spiffe_allow_guest_tcp",
+      "cautem": "quarshell-gateway/internal/gatewayconfig/load.go;quarshell-credentials/spiffe_source.go;quarshell-driver-vm/vm/network_broker_unix.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-gateway/internal/gatewayconfig/load_test.go::TestVMCorporateProxyConfigurationValidation",
+        "quarshell-credentials/spiffe_source_test.go"
+      ]
+    },
+    {
+      "id": "vm.policy-revision-ack",
+      "upstream": "crates/openshell-supervisor-network",
+      "cautem": "quarshell-gateway/internal/transport/applicationgrpc/policy_revisions.go;quarshell-driver-vm/vm/live_acceptance_test.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/live_acceptance_test.go"
+      ]
+    },
+    {
+      "id": "vm.gpu-vfio-inventory-allocation",
+      "upstream": "crates/openshell-driver-vm/src/gpu.rs",
+      "cautem": "quarshell-driver-vm/vm/backend_capabilities.go",
+      "status": "unsupported",
+      "evidence": [
+        "quarshell-driver-vm/vm/v014_contract_test.go::TestCompatVMRejectsGPUBeforeRootfsOrStateSideEffects"
+      ]
+    },
+    {
+      "id": "vm.gpu-vfio-crash-recovery",
+      "upstream": "crates/openshell-driver-vm/src/gpu.rs::reconcile_stale_bindings",
+      "cautem": "quarshell-driver-vm/vm/state.go",
+      "status": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "vm.lifecycle-extensions",
+      "upstream": "crates/openshell-driver-vm/src/lifecycle.rs;crates/openshell-driver-vm/src/extensions/mod.rs",
+      "cautem": "quarshell-driver/driver/backend.go;quarshell-driver-vm/vm/lifecycle_extensions.go;quarshell-driver-vm/vm/lifecycle.go;quarshell-driver-vm/vm/overlay.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/lifecycle_extensions_test.go::TestLifecycleExtensionRegistryActivationOrderingAndCleanup",
+        "quarshell-driver-vm/vm/lifecycle_extensions_test.go::TestLifecycleExtensionRegistryRejectsBadRegistrationAndLaunchPlan",
+        "quarshell-driver-vm/vm/lifecycle_extensions_test.go::TestLifecycleExtensionActivationLabelsRequireRegisteredPolicyLabel",
+        "quarshell-driver-vm/vm/overlay_test.go::TestCreateSandboxOverlayWithDropinsFormatsPrivateExecutableHooks",
+        "quarshell-driver-vm/vm/vm_test.go::TestCreateWithBootstrapImagePersistsSeparatePinnedDisks",
+        "quarshell-driver-vm/vm/lifecycle_test.go::TestVMStartExecCopyLogsStopDeleteLifecycle",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "quarshell-driver-vm/vm/lifecycle_extensions_test.go::TestAfterRestoreFailureCleansExtensionResources"
+      ]
+    },
+    {
+      "id": "vm.resource-capabilities",
+      "upstream": "crates/openshell-driver-vm/src/driver.rs::capabilities",
+      "cautem": "quarshell-driver-vm/vm/backend_capabilities.go",
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/backend_capabilities_test.go"
+      ]
+    },
+    {
+      "id": "vm.managed-driver-install",
+      "upstream": "crates/openshell-driver-vm/README.md::Releases",
+      "cautem": "quarshell-driver/scripts/build-vm-runtime.sh",
+      "status": "open",
+      "evidence": []
+    },
+    {
+      "id": "vm.installed-upgrade-rollback",
+      "upstream": "crates/openshell-driver-vm/README.md::Releases",
+      "cautem": "quarshell-driver/.github/workflows/live-vm-kvm.yml",
+      "status": "open",
+      "evidence": []
+    }
+  ]
+}

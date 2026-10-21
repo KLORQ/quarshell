@@ -1,0 +1,259 @@
+package applicationgrpc
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"reflect"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/KLORQ/quarshell-core/domain"
+	"github.com/KLORQ/quarshell-driver/driver"
+	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
+	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
+	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
+)
+
+type execTestRuntime struct {
+	request         driver.ExecRequest
+	result          driver.ExecResult
+	err             error
+	terminalRequest driver.ExecTerminalRequest
+	terminal        driver.ExecTerminalSession
+}
+
+func (*execTestRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
+	return "", nil
+}
+func (*execTestRuntime) Start(context.Context, sandboxruntime.Sandbox) error  { return nil }
+func (*execTestRuntime) Stop(context.Context, sandboxruntime.Sandbox) error   { return nil }
+func (*execTestRuntime) Delete(context.Context, sandboxruntime.Sandbox) error { return nil }
+func (*execTestRuntime) Inspect(context.Context, sandboxruntime.Sandbox) (driver.Info, error) {
+	return driver.Info{}, nil
+}
+func (r *execTestRuntime) Exec(_ context.Context, _ sandboxruntime.Sandbox, request driver.ExecRequest) (driver.ExecResult, error) {
+	r.request = request
+	return r.result, r.err
+}
+func (r *execTestRuntime) OpenExecTerminal(_ context.Context, _ sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecTerminalSession, error) {
+	r.terminalRequest = request
+	return r.terminal, r.err
+}
+
+type execTestStream struct {
+	grpc.ServerStreamingServer[gatewayv1.ExecSandboxEvent]
+	ctx    context.Context
+	events []*gatewayv1.ExecSandboxEvent
+}
+
+func (s *execTestStream) Context() context.Context { return s.ctx }
+func (s *execTestStream) Send(event *gatewayv1.ExecSandboxEvent) error {
+	s.events = append(s.events, event)
+	return nil
+}
+
+func TestExecSandboxRPC(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sandboxes.Create(ctx, sandbox.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "busybox"}); err != nil {
+		t.Fatalf("Create sandbox: %v", err)
+	}
+	runtime := &execTestRuntime{result: driver.ExecResult{ExitCode: 7, Stdout: []byte("out"), Stderr: []byte("err")}}
+	sandboxes.Runtime = runtime
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	stream := &execTestStream{ctx: ctx}
+	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	err = server.ExecSandbox(&gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: selector, Sandbox: "sb", Command: []string{"printf", "hello"},
+		Workdir: "/workspace", Environment: map[string]string{"Z": "last", "A": "first"},
+		Stdin: []byte("input"), Tty: true, Cols: 100, Rows: 40, NoLoginShell: true, ExecutionTimeout: durationpb.New(5 * time.Second),
+	}, stream)
+	if err != nil {
+		t.Fatalf("ExecSandbox: %v", err)
+	}
+	if !reflect.DeepEqual(runtime.request.Argv, []string{"printf", "hello"}) || !reflect.DeepEqual(runtime.request.Env, []string{"A=first", "Z=last"}) || string(runtime.request.Stdin) != "input" || !runtime.request.TTY || runtime.request.Columns != 100 || runtime.request.Rows != 40 || !runtime.request.NoLoginShell || runtime.request.WorkDir != "/workspace" {
+		t.Fatalf("driver request = %+v", runtime.request)
+	}
+	if len(stream.events) != 3 || string(stream.events[0].GetStdout().GetData()) != "out" || string(stream.events[1].GetStderr().GetData()) != "err" || stream.events[2].GetExit().GetExitCode() != 7 {
+		t.Fatalf("events = %+v", stream.events)
+	}
+}
+
+func TestExecSandboxRPCValidationAndErrors(t *testing.T) {
+	server := New("test", nil, nil, nil, nil, nil, nil, nil)
+	stream := &execTestStream{ctx: context.Background()}
+	if err := server.ExecSandbox(&gatewayv1.ExecSandboxRequest{}, stream); status.Code(err) != codes.Unavailable {
+		t.Fatalf("missing sandbox service status = %v", err)
+	}
+
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sandboxes.Create(context.Background(), sandbox.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "busybox"}); err != nil {
+		t.Fatal(err)
+	}
+	runtime := &execTestRuntime{err: domain.ErrUnavailable}
+	sandboxes.Runtime = runtime
+	server.Sandboxes = sandboxes
+	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	request := &gatewayv1.ExecSandboxRequest{WorkspaceScope: selector, Sandbox: "sb", Command: []string{"true"}}
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.Unavailable {
+		t.Fatalf("runtime error status = %v", err)
+	}
+	request.Environment = map[string]string{"BAD=KEY": "value"}
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("invalid environment status = %v", err)
+	}
+	request.Environment = nil
+	request.ExecutionTimeout = durationpb.New(-1)
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("invalid timeout status = %v", err)
+	}
+	request.ExecutionTimeout = nil
+	request.RequestId = "retry-key"
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.Unimplemented {
+		t.Fatalf("request_id status = %v", err)
+	}
+	request.RequestId = ""
+	request.Cols = 80
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("dimensions without tty status = %v", err)
+	}
+}
+
+type interactiveExecTestStream struct {
+	grpc.ServerStream
+	ctx    context.Context
+	inputs chan *gatewayv1.ExecSandboxInput
+	mu     sync.Mutex
+	events []*gatewayv1.ExecSandboxEvent
+}
+
+func (s *interactiveExecTestStream) Context() context.Context { return s.ctx }
+func (s *interactiveExecTestStream) Recv() (*gatewayv1.ExecSandboxInput, error) {
+	input, ok := <-s.inputs
+	if !ok {
+		return nil, io.EOF
+	}
+	return input, nil
+}
+func (s *interactiveExecTestStream) Send(event *gatewayv1.ExecSandboxEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, event)
+	return nil
+}
+
+type interactiveExecTestSession struct {
+	output        *bytes.Reader
+	stdin         bytes.Buffer
+	columns, rows uint32
+	stdinClosed   bool
+	inputDone     chan struct{}
+	closeOnce     sync.Once
+}
+
+func (s *interactiveExecTestSession) Read(p []byte) (int, error) {
+	<-s.inputDone
+	return s.output.Read(p)
+}
+func (s *interactiveExecTestSession) Write(p []byte) (int, error) { return s.stdin.Write(p) }
+func (s *interactiveExecTestSession) Resize(_ context.Context, columns, rows uint32) error {
+	s.columns, s.rows = columns, rows
+	return nil
+}
+func (s *interactiveExecTestSession) Wait(context.Context) (int, error) { return 7, nil }
+func (s *interactiveExecTestSession) CloseStdin() error {
+	s.stdinClosed = true
+	s.closeOnce.Do(func() { close(s.inputDone) })
+	return nil
+}
+func (*interactiveExecTestSession) Close() error { return nil }
+
+func TestExecSandboxInteractiveRelaysInputResizeOutputAndExit(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sandboxes.Create(ctx, sandbox.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "busybox"}); err != nil {
+		t.Fatal(err)
+	}
+	session := &interactiveExecTestSession{output: bytes.NewReader([]byte("terminal output")), inputDone: make(chan struct{})}
+	runtime := &execTestRuntime{terminal: session}
+	sandboxes.Runtime = runtime
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	stream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 3)}
+	stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: &gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: selector, Sandbox: "sb", Command: []string{"sh", "-i"}, Tty: true,
+		Cols: 100, Rows: 40, Stdin: []byte("initial"), Environment: map[string]string{"Z": "last", "A": "first"},
+	}}}
+	stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: []byte(" input")}}
+	stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Resize{Resize: &gatewayv1.ExecSandboxWindowResize{Cols: 120, Rows: 50}}}
+	close(stream.inputs)
+	if err := server.ExecSandboxInteractive(stream); err != nil {
+		t.Fatalf("interactive exec: %v", err)
+	}
+	if !reflect.DeepEqual(runtime.terminalRequest.Argv, []string{"sh", "-i"}) || !reflect.DeepEqual(runtime.terminalRequest.Env, []string{"A=first", "Z=last"}) || runtime.terminalRequest.Columns != 100 || runtime.terminalRequest.Rows != 40 {
+		t.Fatalf("terminal request = %+v", runtime.terminalRequest)
+	}
+	if got := session.stdin.String(); got != "initial input" || !session.stdinClosed || session.columns != 120 || session.rows != 50 {
+		t.Fatalf("session stdin=%q closed=%v size=%dx%d", got, session.stdinClosed, session.columns, session.rows)
+	}
+	if len(stream.events) != 2 || string(stream.events[0].GetStdout().GetData()) != "terminal output" || stream.events[1].GetExit().GetExitCode() != 7 {
+		t.Fatalf("events = %+v", stream.events)
+	}
+}
+
+func TestExecSandboxInteractiveRejectsInvalidStarts(t *testing.T) {
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	valid := func() *gatewayv1.ExecSandboxRequest {
+		return &gatewayv1.ExecSandboxRequest{Sandbox: "sb", Command: []string{"true"}, Tty: true}
+	}
+	cases := []struct {
+		name  string
+		start *gatewayv1.ExecSandboxRequest
+		want  codes.Code
+	}{
+		{name: "missing start", want: codes.InvalidArgument},
+		{name: "tty required", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Tty = false; return r }(), want: codes.InvalidArgument},
+		{name: "durable admission unsupported", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.RequestId = "launch-key"; return r }(), want: codes.Unimplemented},
+		{name: "dimension limit", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Cols = 65536; return r }(), want: codes.InvalidArgument},
+		{name: "invalid environment", start: func() *gatewayv1.ExecSandboxRequest {
+			r := valid()
+			r.Environment = map[string]string{"BAD=KEY": "value"}
+			return r
+		}(), want: codes.InvalidArgument},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			stream := &interactiveExecTestStream{ctx: context.Background(), inputs: make(chan *gatewayv1.ExecSandboxInput, 1)}
+			if test.start != nil {
+				stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: test.start}}
+			}
+			close(stream.inputs)
+			if err := server.ExecSandboxInteractive(stream); status.Code(err) != test.want {
+				t.Fatalf("status = %v, want %s", err, test.want)
+			}
+		})
+	}
+}
+
+var _ sandboxruntime.Runtime = (*execTestRuntime)(nil)

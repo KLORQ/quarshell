@@ -1,0 +1,36 @@
+policy: |
+  version: 1
+  network_policies:
+    read:
+      endpoints:
+        - host: read.example.com
+          port: 443
+          protocol: rest
+          access: read-only
+    write:
+      endpoints:
+        - host: write.example.com
+          port: 443
+          protocol: rest
+          access: read-write
+network:
+  - host: read.example.com
+    port: 443
+    protocol: rest
+    method: GET
+    path: /
+  - host: read.example.com
+    port: 443
+    protocol: rest
+    method: POST
+    path: /
+  - host: write.example.com
+    port: 443
+    protocol: rest
+    method: PUT
+    path: /
+  - host: write.example.com
+    port: 443
+    protocol: rest
+    method: DELETE
+    path: /

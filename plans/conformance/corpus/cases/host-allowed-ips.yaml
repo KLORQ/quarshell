@@ -1,0 +1,9 @@
+version: 1
+network_policies:
+  api:
+    endpoints:
+      -
+        allowed_ips: [192.0.2.1]
+        port: 443
+        protocol: rest
+        access: read-only

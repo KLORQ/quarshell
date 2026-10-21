@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.2
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: typescript/package-lock.json
+      - name: Install Buf
+        run: go install github.com/bufbuild/buf/cmd/buf@v1.66.0
+      - name: Verify and materialize pinned OpenShell schema
+        run: |
+          ./scripts/check-openshell-proto-source.sh
+          ./scripts/check-typescript-package-notices.sh
+          python3 scripts/materialize-openshell-protos.py
+      - name: Validate schema
+        run: buf lint
+      - name: Generate Go and TypeScript clients
+        run: |
+          go mod tidy
+          npm ci --prefix typescript
+          buf generate --template buf.gen.openshell.yaml --path proto/openshell
+          buf generate --template buf.gen.yaml
+          npm run generate --prefix typescript
+          npm run build --prefix typescript
+      - name: Test generated Go packages
+        run: go test ./...
+      - name: Check generated sources
+        run: |
+          test -z "$(git status --porcelain -- proto/openshell gen/go typescript/src/gen go.mod go.sum)"

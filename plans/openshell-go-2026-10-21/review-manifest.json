@@ -1,0 +1,174 @@
+{
+  "review_date": "2026-10-21",
+  "root": ".",
+  "baseline_version": "v0.1.4",
+  "baseline_commit": "5a7728c304b5528e954e9ae900cf21f84e1a12b1",
+  "modules": [
+    {
+      "name": "quarshell-cli",
+      "head": "1ffe76cb3132e138aa9bfb6e6feea64bbca8859c",
+      "dirty_entries": 159,
+      "go_source_files": 159,
+      "go_test_files": 127
+    },
+    {
+      "name": "quarshell-core",
+      "head": "81a360eeafb9fc924e671605cb734836a51b4142",
+      "dirty_entries": 34,
+      "go_source_files": 34,
+      "go_test_files": 23
+    },
+    {
+      "name": "quarshell-display",
+      "head": "83527b275b2e57473334790bba42b657791a8cbb",
+      "dirty_entries": 11,
+      "go_source_files": 2,
+      "go_test_files": 0
+    },
+    {
+      "name": "quarshell-docs",
+      "head": "160417100d14f06aafebce19224f3e6c937e0e89",
+      "dirty_entries": 54,
+      "go_source_files": 0,
+      "go_test_files": 0
+    },
+    {
+      "name": "quarshell-driver",
+      "head": "e2055b7664c0bfe9ed1d53d33c1cd8a4a5f92d85",
+      "dirty_entries": 157,
+      "go_source_files": 295,
+      "go_test_files": 207
+    },
+    {
+      "name": "quarshell-gateway",
+      "head": "c9590ac9f12a782bf74512ae83d1e46b456a8494",
+      "dirty_entries": 250,
+      "go_source_files": 119,
+      "go_test_files": 84
+    },
+    {
+      "name": "quarshell-org-profile",
+      "head": "113eac0a97cf7f28ea97194be44f5f5ed1616535",
+      "dirty_entries": 1,
+      "go_source_files": 0,
+      "go_test_files": 0
+    },
+    {
+      "name": "quarshell-proto",
+      "head": "f116012bb1c2a5b89bb693ac898262cf78f18e81",
+      "dirty_entries": 32,
+      "go_source_files": 27,
+      "go_test_files": 1
+    },
+    {
+      "name": "quarshell-providers",
+      "head": "4f0872d6d47953f95d89d5b22db6c1d4bbaa365a",
+      "dirty_entries": 12,
+      "go_source_files": 5,
+      "go_test_files": 1
+    },
+    {
+      "name": "quarshell-proxy",
+      "head": "3eb55a798cfbcae471b070901f9e802e8231fd96",
+      "dirty_entries": 51,
+      "go_source_files": 37,
+      "go_test_files": 30
+    },
+    {
+      "name": "quarshell-python",
+      "head": "cfb8738cefd8869e2eab5a2bbbed7568aeacfaa5",
+      "dirty_entries": 31,
+      "go_source_files": 0,
+      "go_test_files": 0
+    },
+    {
+      "name": "quarshell-runtime",
+      "head": "86c56b387d41bcc113332025103e941fe5f4ff25",
+      "dirty_entries": 83,
+      "go_source_files": 57,
+      "go_test_files": 34
+    },
+    {
+      "name": "quarshell-sdk",
+      "head": "77d8fd7d3ee02679d3445d81766a0e5bfca07153",
+      "dirty_entries": 65,
+      "go_source_files": 31,
+      "go_test_files": 15
+    },
+    {
+      "name": "quarshell-slogx",
+      "head": "d8bc237907e78fe3a6202553a4cdad396af4fb20",
+      "dirty_entries": 20,
+      "go_source_files": 26,
+      "go_test_files": 5
+    },
+    {
+      "name": "quarshell-ui",
+      "head": "5aff01400e0daefa1385214c610c449b0f103e11",
+      "dirty_entries": 19,
+      "go_source_files": 0,
+      "go_test_files": 0
+    }
+  ],
+  "missing_matrix_references": [
+    {
+      "feature": "P0-RPC-CONFORMANCE",
+      "missing_ref": "quarshell-gateway/internal/httpapi/remote_compute_engine_test.go"
+    },
+    {
+      "feature": "P0-RPC-CONFORMANCE",
+      "missing_ref": "quarshell-driver/driver/backend_test.go"
+    },
+    {
+      "feature": "P1-SUPERVISOR-EVENTS",
+      "missing_ref": "quarshell-gateway/internal/httpapi/remote_compute_engine_test.go"
+    },
+    {
+      "feature": "P1-SUPERVISOR-EVENTS",
+      "missing_ref": "quarshell-driver/driver/backend_test.go"
+    },
+    {
+      "feature": "P0-MAIN-PROCESS-RESTART-POLICY",
+      "missing_ref": "quarshell-gateway/internal/httpapi/remote_compute_engine_test.go"
+    }
+  ],
+  "upstream_crates": [
+    "openshell-binary-identity",
+    "openshell-bootstrap",
+    "openshell-cli",
+    "openshell-conformance",
+    "openshell-core",
+    "openshell-driver-db-credstore",
+    "openshell-driver-docker",
+    "openshell-driver-kubernetes",
+    "openshell-driver-kubernetes-secrets",
+    "openshell-driver-mxc",
+    "openshell-driver-podman",
+    "openshell-driver-vault",
+    "openshell-driver-vm",
+    "openshell-extension-core",
+    "openshell-gateway",
+    "openshell-gateway-interceptors",
+    "openshell-isolation-interface",
+    "openshell-ocsf",
+    "openshell-otel",
+    "openshell-otel-test-support",
+    "openshell-policy",
+    "openshell-policy-schema",
+    "openshell-prover",
+    "openshell-prover-cli",
+    "openshell-providers",
+    "openshell-sandbox",
+    "openshell-sandbox-backend",
+    "openshell-sdk",
+    "openshell-server",
+    "openshell-server-macros",
+    "openshell-supervisor",
+    "openshell-supervisor-middleware",
+    "openshell-supervisor-middleware-builtins",
+    "openshell-supervisor-network",
+    "openshell-supervisor-process",
+    "openshell-tui",
+    "openshell-vfio"
+  ]
+}

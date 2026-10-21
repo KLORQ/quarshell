@@ -1,0 +1,9 @@
+version: 1
+network_policies:
+  mcp:
+    endpoints:
+      - host: mcp.example.com
+        port: 443
+        protocol: mcp
+        mcp:
+          versions: [2025-06-18, 2025-06-18]

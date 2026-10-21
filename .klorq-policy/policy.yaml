@@ -1,0 +1,459 @@
+version: 1
+filesystem_policy:
+    include_workdir: true
+    read_only:
+        - /usr
+        - /lib
+        - /proc
+        - /dev/urandom
+        - /app
+        - /etc
+        - /var/log
+        - /tmp
+        - /AGENTS.md
+    read_write:
+        - /tmp
+        - /dev/null
+        - /workspace
+        - /KLORQ/data
+        - /sandbox
+landlock:
+    compatibility: best_effort
+network_policies:
+    cursor-blob:
+        name: cursor-blob
+        endpoints:
+            - host: cursor.blob.core.windows.net
+              port: 443
+    cursor-com:
+        name: cursor-com
+        endpoints:
+            - host: '**.cursor.com'
+              port: 443
+    cursor-com-apex:
+        name: cursor-com-apex
+        endpoints:
+            - host: cursor.com
+              port: 443
+    cursor-downloads:
+        name: cursor-downloads
+        endpoints:
+            - host: downloads.cursor.com
+              port: 443
+    cursor-ms-cdn:
+        name: cursor-ms-cdn
+        endpoints:
+            - host: cursor.download.prss.microsoft.com
+              port: 443
+    cursor-sh:
+        name: cursor-sh
+        endpoints:
+            - host: '**.cursor.sh'
+              port: 443
+    debian-cdn:
+        name: debian-cdn
+        endpoints:
+            - host: cdn-fastly.deb.debian.org
+              ports:
+                - 80
+                - 443
+    debian-deb:
+        name: debian-deb
+        endpoints:
+            - host: deb.debian.org
+              ports:
+                - 80
+                - 443
+    debian-security:
+        name: debian-security
+        endpoints:
+            - host: security.debian.org
+              ports:
+                - 80
+                - 443
+    ghcr:
+        name: ghcr
+        endpoints:
+            - host: ghcr.io
+              port: 443
+    github:
+        name: github
+        endpoints:
+            - host: github.com
+              port: 443
+    github-api:
+        name: github-api
+        endpoints:
+            - host: api.github.com
+              port: 443
+    github-api-klorq:
+        name: github-api-klorq
+        endpoints:
+            - host: api.github.com
+              port: 443
+              protocol: rest
+              tls: terminate
+              rules:
+                - allow:
+                    method: GET
+                    path: /repos/KLORQ/**
+                - allow:
+                    method: HEAD
+                    path: /repos/KLORQ/**
+                - allow:
+                    method: POST
+                    path: /repos/KLORQ/**
+                - allow:
+                    method: PUT
+                    path: /repos/KLORQ/**
+                - allow:
+                    method: PATCH
+                    path: /repos/KLORQ/**
+                - allow:
+                    method: DELETE
+                    path: /repos/KLORQ/**
+                - allow:
+                    method: POST
+                    path: /orgs/KLORQ/repos
+                - allow:
+                    method: GET
+                    path: /orgs/KLORQ
+                - allow:
+                    method: GET
+                    path: /orgs/KLORQ/**
+                - allow:
+                    method: POST
+                    path: /user/repos
+                - allow:
+                    method: GET
+                    path: /user
+                - allow:
+                    method: GET
+                    path: /user/**
+              enforcement: enforce
+              credential_keys:
+                - GITHUB_TOKEN
+                - GH_TOKEN
+        binaries:
+            - path: /usr/bin/gh
+            - path: /usr/local/bin/gh
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+            - path: /usr/bin/git
+            - path: /usr/local/bin/git
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /opt/cursor-agent/versions/*/node
+    github-git-klorq:
+        name: github-git-klorq
+        endpoints:
+            - host: github.com
+              port: 443
+              protocol: rest
+              tls: terminate
+              rules:
+                - allow:
+                    method: GET
+                    path: /KLORQ/**
+                - allow:
+                    method: HEAD
+                    path: /KLORQ/**
+                - allow:
+                    method: OPTIONS
+                    path: /KLORQ/**
+                - allow:
+                    method: POST
+                    path: /KLORQ/**/git-upload-pack
+                - allow:
+                    method: POST
+                    path: /KLORQ/**/git-receive-pack
+              enforcement: enforce
+              credential_keys:
+                - GITHUB_TOKEN
+                - GH_TOKEN
+        binaries:
+            - path: /usr/bin/git
+            - path: /usr/local/bin/git
+    github-graphql:
+        name: github-graphql
+        endpoints:
+            - host: api.github.com
+              port: 443
+              protocol: graphql
+              tls: terminate
+              access: read-write
+              path: /graphql
+              enforcement: enforce
+              credential_keys:
+                - GITHUB_TOKEN
+                - GH_TOKEN
+        binaries:
+            - path: /usr/bin/gh
+            - path: /usr/local/bin/gh
+    github-objects:
+        name: github-objects
+        endpoints:
+            - host: objects.githubusercontent.com
+              port: 443
+    github-release-assets:
+        name: github-release-assets
+        endpoints:
+            - host: release-assets.githubusercontent.com
+              port: 443
+    github-usercontent:
+        name: github-usercontent
+        endpoints:
+            - host: '**.githubusercontent.com'
+              port: 443
+    go-dev:
+        name: go-dev
+        endpoints:
+            - host: go.dev
+              port: 443
+    go-dl:
+        name: go-dl
+        endpoints:
+            - host: dl.google.com
+              port: 443
+    go-proxy:
+        name: go-proxy
+        endpoints:
+            - host: proxy.golang.org
+              port: 443
+    go-sum:
+        name: go-sum
+        endpoints:
+            - host: sum.golang.org
+              port: 443
+    goproxy-io:
+        name: goproxy-io
+        endpoints:
+            - host: goproxy.io
+              port: 443
+    provider.cursor.api:
+        name: provider.cursor.api
+        endpoints:
+            - host: api.cursor.sh
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.api2:
+        name: provider.cursor.api2
+        endpoints:
+            - host: api2.cursor.sh
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.blob:
+        name: provider.cursor.blob
+        endpoints:
+            - host: cursor.blob.core.windows.net
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.cursor-com:
+        name: provider.cursor.cursor-com
+        endpoints:
+            - host: '**.cursor.com'
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.cursor-com-apex:
+        name: provider.cursor.cursor-com-apex
+        endpoints:
+            - host: cursor.com
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.cursor-sh:
+        name: provider.cursor.cursor-sh
+        endpoints:
+            - host: '**.cursor.sh'
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.download-sh:
+        name: provider.cursor.download-sh
+        endpoints:
+            - host: download.cursor.sh
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.downloads:
+        name: provider.cursor.downloads
+        endpoints:
+            - host: downloads.cursor.com
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.cursor.ms-cdn:
+        name: provider.cursor.ms-cdn
+        endpoints:
+            - host: cursor.download.prss.microsoft.com
+              port: 443
+              credential_keys:
+                - CURSOR_API_KEY
+        binaries:
+            - path: /usr/bin/agent
+            - path: /usr/local/bin/agent
+            - path: /usr/local/bin/cursor-agent
+            - path: /opt/cursor-agent/**
+            - path: /opt/cursor-agent/versions/*/node
+            - path: /opt/cursor-agent/versions/*/cursor-agent
+            - path: /usr/bin/curl
+            - path: /usr/local/bin/curl
+    provider.gh.api:
+        name: provider.gh.api
+        endpoints:
+            - host: api.github.com
+              port: 443
+              protocol: rest
+              tls: terminate
+              access: read-only
+              enforcement: enforce
+              credential_keys:
+                - GITHUB_TOKEN
+        binaries:
+            - path: /usr/bin/gh
+            - path: /usr/local/bin/gh
+            - path: /usr/bin/git
+            - path: /usr/local/bin/git
+    provider.gh.git:
+        name: provider.gh.git
+        endpoints:
+            - host: github.com
+              port: 443
+              protocol: rest
+              tls: terminate
+              rules:
+                - allow:
+                    method: GET
+                    path: '**'
+                - allow:
+                    method: HEAD
+                    path: '**'
+                - allow:
+                    method: OPTIONS
+                    path: '**'
+                - allow:
+                    method: POST
+                    path: /**/git-upload-pack
+              enforcement: enforce
+              credential_keys:
+                - GITHUB_TOKEN
+        binaries:
+            - path: /usr/bin/gh
+            - path: /usr/local/bin/gh
+            - path: /usr/bin/git
+            - path: /usr/local/bin/git
+    provider.gh.graphql:
+        name: provider.gh.graphql
+        endpoints:
+            - host: api.github.com
+              port: 443
+              protocol: graphql
+              tls: terminate
+              access: read-only
+              path: /graphql
+              enforcement: enforce
+              credential_keys:
+                - GITHUB_TOKEN
+        binaries:
+            - path: /usr/bin/gh
+            - path: /usr/local/bin/gh
+            - path: /usr/bin/git
+            - path: /usr/local/bin/git
+    storage-googleapis:
+        name: storage-googleapis
+        endpoints:
+            - host: storage.googleapis.com
+              port: 443
+inference:
+    providers:
+        - anthropic
+        - openai
+display:
+    mode: none
+    publish: 127.0.0.1
+    port: 6080
+    auth: password
+    browser: chromium
+credentials:
+    env_allow:
+        - TERM
+        - LANG
+        - COLORTERM
+        - GITHUB_TOKEN
+        - GH_TOKEN

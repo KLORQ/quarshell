@@ -1,0 +1,16 @@
+version: 1
+network_policies:
+  gh:
+    endpoints:
+      - host: api.github.com
+        port: 443
+        protocol: graphql
+        graphql_persisted_queries:
+          GetRepo:
+            operation_type: query
+            operation_name: GetRepo
+            fields: [name]
+        rules:
+          - allow:
+              operation_type: query
+              operation_name: GetRepo

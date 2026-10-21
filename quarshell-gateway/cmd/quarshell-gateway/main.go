@@ -1,0 +1,264 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"flag"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/KLORQ/quarshell-core/domain"
+	_ "github.com/KLORQ/quarshell-driver-vm/vm"
+	"github.com/KLORQ/quarshell-driver/driver"
+	_ "github.com/KLORQ/quarshell-driver/driver/all"
+	"github.com/KLORQ/quarshell-gateway/internal/application/endpoint"
+	"github.com/KLORQ/quarshell-gateway/internal/application/eventlog"
+	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
+	policyapp "github.com/KLORQ/quarshell-gateway/internal/application/policy"
+	"github.com/KLORQ/quarshell-gateway/internal/application/provider"
+	"github.com/KLORQ/quarshell-gateway/internal/application/quota"
+	"github.com/KLORQ/quarshell-gateway/internal/application/reconcile"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
+	"github.com/KLORQ/quarshell-gateway/internal/application/settings"
+	"github.com/KLORQ/quarshell-gateway/internal/application/template"
+	"github.com/KLORQ/quarshell-gateway/internal/application/token"
+	"github.com/KLORQ/quarshell-gateway/internal/application/workspace"
+	applicationgrpc "github.com/KLORQ/quarshell-gateway/internal/transport/applicationgrpc"
+	applicationhttp "github.com/KLORQ/quarshell-gateway/internal/transport/applicationhttp"
+	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc"
+)
+
+var gatewayVersion = "0.0.0-dev"
+
+func envOrDefault(name, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func runtimeWorkspaceKind(name string) driver.WorkspaceKind {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "kubernetes":
+		return driver.WorkspaceGatewayManaged
+	case "vm":
+		return driver.WorkspaceGuestOverlay
+	default:
+		return driver.WorkspaceHostPath
+	}
+}
+
+func main() {
+	listen := flag.String("listen", "127.0.0.1:7443", "HTTP listen address")
+	tokenValue := flag.String("token", os.Getenv("QUARSHELL_TOKEN"), "bearer token (or QUARSHELL_TOKEN)")
+	dataPath := flag.String("data", "", "SQLite path; empty uses in-memory state")
+	name := flag.String("name", "quarshell", "gateway name")
+	gatewayID := flag.String("gateway-id", envOrDefault("QUARSHELL_GATEWAY_ID", "openshell"), "stable OpenShell Gateway identity used in session JWTs")
+	grpcListen := flag.String("grpc-listen", "127.0.0.1:7444", "gRPC listen address; empty disables")
+	runtimeName := flag.String("runtime", "docker", "compute backend; empty disables")
+	runtimeConfig := flag.String("runtime-config", "{}", "backend config JSON (rootless/mounts/etc.)")
+	publicGatewayURL := flag.String("gateway-public-url", os.Getenv("QUARSHELL_GATEWAY_PUBLIC_URL"), "public Gateway URL reachable from runtime guests")
+	sessionSigningKey := os.Getenv("QUARSHELL_SESSION_SIGNING_KEY")
+	runtimeInit := flag.String("runtime-init-binary", os.Getenv("QUARSHELL_RUNTIME_INIT_BINARY"), "guest cautem-init binary")
+	runtimeSupervisor := flag.String("runtime-supervisor-binary", os.Getenv("QUARSHELL_RUNTIME_SUPERVISOR_BINARY"), "guest cautem-supervisor binary")
+	runtimeSSHD := flag.String("runtime-sshd-binary", os.Getenv("QUARSHELL_RUNTIME_SSHD_BINARY"), "guest cautem-sshd binary")
+	runtimeProxy := flag.String("runtime-proxy-binary", os.Getenv("QUARSHELL_RUNTIME_PROXY_BINARY"), "host cautem proxy binary for VM guest egress and relay")
+	runtimePolicy := flag.String("runtime-policy-path", os.Getenv("QUARSHELL_RUNTIME_POLICY_PATH"), "host policy YAML used by VM proxy and guest supervisor")
+	flag.Parse()
+
+	if strings.TrimSpace(*tokenValue) == "" {
+		log.Fatal("quarshell-gateway: --token or QUARSHELL_TOKEN is required")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var store lifecycle.Store
+	var closer func() error
+	if strings.TrimSpace(*dataPath) == "" {
+		store = lifecycle.NewMemoryStore()
+		log.Printf("quarshell-gateway: using in-memory lifecycle state")
+	} else {
+		sqlite, err := lifecycle.NewSQLiteStore(ctx, *dataPath)
+		if err != nil {
+			log.Fatalf("open store: %v", err)
+		}
+		store = sqlite
+		closer = sqlite.Close
+	}
+	if closer != nil {
+		defer func() { _ = closer() }()
+	}
+
+	workspaces, err := workspace.NewService(store)
+	if err != nil {
+		log.Fatalf("workspace service: %v", err)
+	}
+	sandboxes, err := sandbox.NewService(store)
+	if err != nil {
+		log.Fatalf("sandbox service: %v", err)
+	}
+	var sandboxRuntime sandboxruntime.Runtime
+	var dockerRuntime *sandboxruntime.Docker
+	if strings.TrimSpace(*runtimeName) != "" {
+		config := map[string]any{}
+		if err := json.Unmarshal([]byte(*runtimeConfig), &config); err != nil {
+			log.Fatalf("runtime-config: %v", err)
+		}
+		backend, registered, err := driver.OpenRegisteredBackendWithConfig(*runtimeName, config)
+		if err != nil || !registered {
+			log.Printf("sandbox runtime %q unavailable: %v", *runtimeName, err)
+		} else if runtime := sandboxruntime.NewForBackend(backend, runtimeWorkspaceKind(*runtimeName)); runtime == nil {
+			log.Printf("sandbox runtime adapter: invalid backend")
+		} else {
+			runtime.GatewayURL = strings.TrimSpace(*publicGatewayURL)
+			if strings.EqualFold(strings.TrimSpace(*runtimeName), "vm") {
+				runtime.Runtime = driver.RuntimeAssets{
+					InitBinary: strings.TrimSpace(*runtimeInit), SupervisorBinary: strings.TrimSpace(*runtimeSupervisor),
+					SSHBinary: strings.TrimSpace(*runtimeSSHD), EnableSSH: strings.TrimSpace(*runtimeSSHD) != "",
+				}
+				if strings.TrimSpace(*runtimeProxy) != "" || strings.TrimSpace(*runtimePolicy) != "" {
+					runtime.Proxy = &driver.ProxySpec{Binary: strings.TrimSpace(*runtimeProxy), PolicyPath: strings.TrimSpace(*runtimePolicy), Port: 3128}
+				}
+			}
+			sandboxes.Runtime = runtime
+			sandboxRuntime = runtime
+			dockerRuntime = runtime
+			log.Printf("sandbox runtime: %s", *runtimeName)
+		}
+	}
+	policies, err := policyapp.NewService(store)
+	if err != nil {
+		log.Fatalf("policy service: %v", err)
+	}
+	chunks, err := policyapp.NewChunkService(store, policies)
+	if err != nil {
+		log.Fatalf("policy chunks: %v", err)
+	}
+	templates, err := template.NewService(store)
+	if err != nil {
+		log.Fatalf("template service: %v", err)
+	}
+	settingsService, err := settings.NewService(store)
+	if err != nil {
+		log.Fatalf("settings service: %v", err)
+	}
+	quotas, err := quota.NewService(store)
+	if err != nil {
+		log.Fatalf("quota service: %v", err)
+	}
+	providers, err := provider.NewService(store)
+	if err != nil {
+		log.Fatalf("provider service: %v", err)
+	}
+	providerDefs, err := provider.NewRegistry(store)
+	if err != nil {
+		log.Fatalf("provider registry: %v", err)
+	}
+	services, err := endpoint.NewServiceRegistry(store)
+	if err != nil {
+		log.Fatalf("service registry: %v", err)
+	}
+	forwards, err := endpoint.NewForwardRegistry(store)
+	if err != nil {
+		log.Fatalf("forward registry: %v", err)
+	}
+	events := eventlog.NewMemoryLog(10000)
+	if strings.TrimSpace(sessionSigningKey) == "" {
+		sessionSigningKey = *tokenValue
+	}
+	tokens, err := token.NewServiceForGateway([]byte(sessionSigningKey), strings.TrimSpace(*gatewayID), time.Hour)
+	if err != nil {
+		log.Fatalf("token service: %v", err)
+	}
+	sandboxes.Tokens = tokens
+
+	if err := reconcile.Run(ctx, workspaces, sandboxes, sandboxRuntime); err != nil {
+		log.Printf("sandbox reconcile: %v", err)
+	}
+
+	api, err := applicationhttp.New(workspaces, sandboxes, *tokenValue)
+	if err != nil {
+		log.Fatalf("http transport: %v", err)
+	}
+	api.Policies = policies
+	api.PolicyChunks = chunks
+	api.Templates = templates
+	api.Settings = settingsService
+	api.Quotas = quotas
+	api.Providers = providers
+	api.ProviderDefs = providerDefs
+	api.Services = services
+	api.Forwards = forwards
+	api.Events = events
+	api.Tokens = tokens
+	if dockerRuntime != nil {
+		api.Logs = func(ctx context.Context, ref domain.SandboxRef) (io.ReadCloser, error) {
+			current, err := sandboxes.Get(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+			return dockerRuntime.Logs(ctx, sandboxruntime.Sandbox{Workspace: current.Workspace, Sandbox: current.Sandbox, RuntimeID: current.RuntimeID})
+		}
+		api.PTY = func(ctx context.Context, ref domain.SandboxRef, columns, rows uint32) (io.ReadWriteCloser, error) {
+			current, err := sandboxes.Get(ctx, ref)
+			if err != nil {
+				return nil, err
+			}
+			return dockerRuntime.PTY(ctx, sandboxruntime.Sandbox{Workspace: current.Workspace, Sandbox: current.Sandbox, RuntimeID: current.RuntimeID}, columns, rows)
+		}
+	}
+	api.GatewayName = *name
+	api.Capabilities = []string{"workspaces", "sandboxes", "policies", "templates", "settings", "quotas", "providers", "services", "forwards", "tokens", "events"}
+
+	server := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	listener, err := net.Listen("tcp", *listen)
+	if err != nil {
+		log.Fatalf("listen: %v", err)
+	}
+	log.Printf("quarshell-gateway listening on %s", listener.Addr())
+	var grpcServer *grpc.Server
+	if strings.TrimSpace(*grpcListen) != "" {
+		grpcListener, err := net.Listen("tcp", *grpcListen)
+		if err != nil {
+			log.Fatalf("grpc listen: %v", err)
+		}
+		grpcServer = grpc.NewServer(
+			grpc.UnaryInterceptor(applicationgrpc.UnaryAuthInterceptorWithSandboxTokens(*tokenValue, "gateway-client", tokens)),
+			grpc.StreamInterceptor(applicationgrpc.StreamAuthInterceptorWithSandboxTokens(*tokenValue, "gateway-client", tokens)),
+		)
+		grpcApplication := applicationgrpc.New(gatewayVersion, workspaces, sandboxes, chunks, templates, settingsService, providerDefs, services)
+		grpcApplication.Tokens = tokens
+		grpcApplication.ProviderBindings = providers
+		grpcApplication.PolicyRevisions = policies
+		gatewayv1.RegisterOpenShellServer(grpcServer, grpcApplication)
+		go func() {
+			if err := grpcServer.Serve(grpcListener); err != nil {
+				log.Printf("grpc serve: %v", err)
+			}
+		}()
+		log.Printf("quarshell-gateway gRPC listening on %s", grpcListener.Addr())
+	}
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+		if grpcServer != nil {
+			grpcServer.GracefulStop()
+		}
+	}()
+	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatalf("serve: %v", err)
+	}
+}

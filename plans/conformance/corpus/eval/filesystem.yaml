@@ -1,0 +1,22 @@
+policy: |
+  version: 1
+  filesystem_policy:
+    include_workdir: true
+    read_only: [/usr, /lib]
+    read_write: [/workspace]
+filesystem:
+  - path: /usr/bin/curl
+    access: read
+  - path: /usr/bin/curl
+    access: exec
+  - path: /etc/passwd
+    access: read
+  - path: /workspace/a.txt
+    access: write
+  - path: /usr/a.txt
+    access: write
+  - path: /usr/../etc/passwd
+    access: read
+  - path: /repo/a.txt
+    access: write
+    workdir: /repo

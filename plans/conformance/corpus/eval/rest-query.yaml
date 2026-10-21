@@ -1,0 +1,41 @@
+policy: |
+  version: 1
+  network_policies:
+    search:
+      endpoints:
+        - host: api.example.com
+          port: 443
+          protocol: rest
+          rules:
+            - allow:
+                method: GET
+                path: /search
+                query:
+                  repo: NVIDIA/*
+                  tag:
+                    any: [prod-*, staging-*]
+network:
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: GET
+    path: /search
+    query: {repo: NVIDIA/x, tag: prod-a}
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: GET
+    path: /search
+    query: {repo: NVIDIA/x, tag: staging-a}
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: GET
+    path: /search
+    query: {repo: NVIDIA/x, tag: dev-a}
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: GET
+    path: /search
+    query: {repo: NVIDIA/x}

@@ -1,0 +1,9 @@
+version: 1
+network_policies:
+  mcp:
+    endpoints:
+      - host: mcp.example.com
+        port: 443
+        protocol: MCP
+        mcp:
+          allow_all_known_mcp_methods: true

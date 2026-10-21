@@ -1,0 +1,166 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: mkdocs build --strict
+      - name: Check site output
+        run: |
+          set -eux
+          for f in index.html ru/index.html \
+                   get-started/index.html get-started/gateway/index.html get-started/first-sandbox/index.html \
+                   ru/get-started/index.html ru/get-started/gateway/index.html ru/get-started/first-sandbox/index.html \
+                   providers/docker/index.html providers/docker/resources/index.html ru/providers/docker/resources/index.html \
+                   providers/kubernetes/index.html ru/providers/microvm/index.html \
+                   assets/stylesheets/extra-20261009.css assets/stylesheets/mascot.css assets/images/under-construction.svg \
+                   assets/images/hero.svg assets/images/cautem-app-icon.png \
+                   assets/images/mascot.svg assets/images/mascot.png \
+                   assets/images/mascot-violet.svg \
+                   assets/images/mascot-scenes/working.png assets/images/mascot-scenes/containers.png \
+                   assets/images/mascot-scenes/remote.png assets/images/mascot-scenes/fast.png \
+                   assets/images/mascot-scenes/flexible.png assets/images/mascot-scenes/happy.png \
+                   assets/images/cautem-mascot.png \
+                   assets/images/cautem-mascot-no-tablet.png \
+                   assets/images/cautem-gopher-peek.svg \
+                   assets/images/mascot-cutouts/clean.png assets/images/mascot-cutouts/nav.png \
+                   assets/images/mascot-cutouts/containers.png \
+                   assets/images/mascot-cutouts/remote.png assets/images/mascot-cutouts/fast.png \
+                   assets/images/mascot-cutouts/flexible.png assets/images/mascot-cutouts/happy.png \
+                   assets/images/mascot-cutouts/docker.png assets/images/mascot-cutouts/podman.png \
+                   assets/images/mascot-cutouts/security.png assets/images/mascot-cutouts/gateway.png \
+                   assets/images/mascot-cutouts/worker.png \
+                   assets/javascripts/hero.js \
+                   search/search_index.json ru/sitemap.xml; do
+            test -s "site/$f"
+          done
+          for f in concepts guides reference providers ru/concepts ru/guides ru/reference ru/providers; do
+            test ! -e "site/$f/index.html"
+          done
+          for lang in "" ru/; do
+            page="site/${lang}index.html"
+            grep -q 'class="ws-hero"' "$page"
+            grep -q 'id="how-it-works"' "$page"
+            grep -q 'class="mermaid"' "$page"
+            grep -q 'class="ws-mac-terminal ws-flow"' "$page"
+            grep -q 'cautem term' "$page"
+            grep -q 'ws-hero__mascot-track' "$page"
+            grep -q 'ws-hero__mascot-art' "$page"
+            grep -q 'ws-hero__pupil--left' "$page"
+            grep -q 'ws-hero__pupil--right' "$page"
+            grep -q 'cautem-mascot-no-tablet.png' "$page"
+            ! grep -q 'cautem-mascot.png' "$page"
+            ! grep -q 'ws-hero__mascot-canvas' "$page"
+            grep -q 'assets/javascripts/hero.js' "$page"
+            ! grep -q 'hero-3d.js' "$page"
+          done
+          grep -q 'Sandboxes for coding agents' site/index.html
+          grep -q 'Песочницы для coding-агентов' site/ru/index.html
+          grep -q 'property="og:title" content="cautem Sandbox — Sandboxes for coding agents"' site/index.html
+          grep -q 'property="og:title" content="cautem Sandbox — песочницы для coding-агентов"' site/ru/index.html
+          grep -q 'property="og:locale" content="en_US"' site/index.html
+          grep -q 'property="og:locale" content="ru_RU"' site/ru/index.html
+          grep -q 'cautem-app-icon.png' site/index.html
+          grep -q 'cautem-app-icon.png' site/ru/index.html
+          grep -q 'extra-20261009.css' site/ru/index.html
+          grep -q 'mascot.css' site/ru/index.html
+          grep -q 'hero.js' site/ru/index.html
+          grep -q 'ws-hero__wave' site/ru/index.html
+          grep -q 'hreflang="ru"' site/index.html
+          grep -q 'lang="ru"' site/ru/index.html
+          for lang in "" ru/; do
+            page="site/${lang}index.html"
+            grep -q 'property="og:title"' "$page"
+            grep -q 'property="og:description"' "$page"
+            grep -q 'property="og:url"' "$page"
+            grep -q 'property="og:image" content="https://klorq.github.io/sandbox.dev/assets/images/cautem-app-icon.png"' "$page"
+            grep -q 'property="og:image:width" content="1317"' "$page"
+            grep -q 'property="og:image:height" content="1194"' "$page"
+            grep -q 'name="twitter:image" content="https://klorq.github.io/sandbox.dev/assets/images/cautem-app-icon.png"' "$page"
+            grep -q 'name="twitter:card" content="summary_large_image"' "$page"
+          done
+          grep -q 'Start the gateway' site/get-started/index.html
+          grep -q 'Первая песочница' site/ru/get-started/index.html
+          grep -q 'id="with-installer"' site/get-started/index.html
+          grep -q 'language-bash' site/get-started/gateway/index.html
+          grep -q 'md-status--soon' site/providers/docker/index.html
+          grep -q 'ws-badge--soon' site/ru/providers/docker/index.html
+          grep -q 'under-construction.svg' site/ru/providers/microvm/index.html
+          grep -q 'class="mermaid"' site/concepts/architecture/index.html
+          grep -q 'mascot-cutouts/gateway.png' site/concepts/architecture/index.html
+          grep -q 'mascot-cutouts/security.png' site/ru/concepts/security/index.html
+          grep -q 'mascot-cutouts/docker.png' site/providers/docker/index.html
+          grep -q 'mascot-cutouts/podman.png' site/providers/podman/index.html
+          grep -q 'mascot-cutouts/worker.png' site/providers/kubernetes/index.html
+          grep -q 'mascot-cutouts/docker.png' site/get-started/first-sandbox/index.html
+          ! grep -R -q 'src="/assets/images/mascot-cutouts/' site
+          grep -q 'CAUTEM_VERSION' site/get-started/index.html
+          grep -q 'v0.1.6' site/get-started/index.html
+          ! grep -q 'v0.1.0-beta.1' site/get-started/index.html
+          grep -q 'CAUTEM_VERSION' site/ru/get-started/index.html
+          grep -q 'v0.1.6' site/ru/get-started/index.html
+          ! grep -q 'v0.1.0-beta.1' site/ru/get-started/index.html
+          python -c 'from pathlib import Path; files = list(Path("site/assets/images/mascot-cutouts").glob("*.png")); assert len(files) == 12; assert all(p.read_bytes()[25] == 6 for p in files), "Mascot cutouts must be RGBA PNGs"'
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          import zlib
+
+          data = Path("site/assets/images/cautem-app-icon.png").read_bytes()
+          assert data[:8] == b"\x89PNG\r\n\x1a\n", "App icon must be a PNG"
+          offset = 8
+          compressed = bytearray()
+          while offset < len(data):
+              size = struct.unpack(">I", data[offset:offset + 4])[0]
+              name = data[offset + 4:offset + 8]
+              chunk = data[offset + 8:offset + 8 + size]
+              if name == b"IHDR":
+                  assert chunk[8] == 8 and chunk[9] == 6 and chunk[12] == 0, "App icon must be non-interlaced RGBA"
+              elif name == b"IDAT":
+                  compressed.extend(chunk)
+              elif name == b"IEND":
+                  break
+              offset += size + 12
+          first_row = zlib.decompress(compressed)
+          assert first_row[0] <= 4 and first_row[4] == 0, "App icon's outer corner must be transparent"
+          PY
+          grep -q 'class="ws-mascot-illustration"' site/assets/images/mascot-violet.svg
+          grep -q 'cautem-mascot.png' site/assets/images/mascot-violet.svg
+          test ! -e site/assets/images/mascot-violet-atlas.png
+          test ! -e site/assets/images/mascot-violet.png
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

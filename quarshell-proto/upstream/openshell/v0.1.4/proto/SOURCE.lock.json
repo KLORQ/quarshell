@@ -1,0 +1,71 @@
+{
+  "upstream": "https://github.com/NVIDIA/OpenShell/tree/v0.1.4",
+  "commit": "5a7728c304b5528e954e9ae900cf21f84e1a12b1",
+  "files": [
+    {
+      "path": "compute_driver.proto",
+      "sha256": "2e2a074427d74964f12c60675e4e5ebd024d2ae14f287921a3a46f6a153ab535",
+      "source": "NVIDIA/OpenShell v0.1.4:compute_driver.proto"
+    },
+    {
+      "path": "credential_driver.proto",
+      "sha256": "b71f239a1b7fa6b458c70874717e53b44cf385eef69f0009d3ab8c0f13ab4750",
+      "source": "NVIDIA/OpenShell v0.1.4:credential_driver.proto"
+    },
+    {
+      "path": "datamodel.proto",
+      "sha256": "e50bd875a760f54b80269c65ee47984cae424fb623b7f59551ba62550c23e70b",
+      "source": "NVIDIA/OpenShell v0.1.4:datamodel.proto"
+    },
+    {
+      "path": "extension.proto",
+      "sha256": "60f28ee9dc846d41152f4db7e82a439c78d024786efaceb464900d1d1ad129ad",
+      "source": "NVIDIA/OpenShell v0.1.4:extension.proto"
+    },
+    {
+      "path": "gateway_interceptor.proto",
+      "sha256": "905df827e50abb54ca1d2745341f38ad769cb3453c8c7301182590525f1da86f",
+      "source": "NVIDIA/OpenShell v0.1.4:gateway_interceptor.proto"
+    },
+    {
+      "path": "openshell.proto",
+      "sha256": "eca4c0201ae623590c9deb6b0027a86b5193eb727d0e79c6852b40704d1a4d7d",
+      "source": "NVIDIA/OpenShell v0.1.4:openshell.proto"
+    },
+    {
+      "path": "options.proto",
+      "sha256": "b0e03562c92777978f6f3e0f46260cdb82f1d88d1c1837eab0e53cdd0f195eb7",
+      "source": "NVIDIA/OpenShell v0.1.4:options.proto"
+    },
+    {
+      "path": "pagination.proto",
+      "sha256": "f15b7642a7c40169ba5b2802e57fff8ca1542ab9241fc8ef00641d0f89130c92",
+      "source": "NVIDIA/OpenShell v0.1.4:pagination.proto"
+    },
+    {
+      "path": "sandbox-backend/openshell_sandbox.proto",
+      "sha256": "5aa37f8056b017fce5df96f4437687e3f4394892c9b2f6f451f0950e6290f000",
+      "source": "NVIDIA/OpenShell v0.1.4:sandbox-backend/openshell_sandbox.proto"
+    },
+    {
+      "path": "sandbox.proto",
+      "sha256": "d06089ccd15b57519adb3236e7a4c16661c7c52c9f184f2f826246c62e090839",
+      "source": "NVIDIA/OpenShell v0.1.4:sandbox.proto"
+    },
+    {
+      "path": "server/storage.proto",
+      "sha256": "7fcf61a7f7dfb53a34fb098684647c541ce7919742c7e7d5d24ca2e2f19ee6d7",
+      "source": "NVIDIA/OpenShell v0.1.4:server/storage.proto"
+    },
+    {
+      "path": "supervisor_middleware.proto",
+      "sha256": "b3c2037a6b51285b48a39025b85e79a4c717a2b95accb89cf43dbe6079831c75",
+      "source": "NVIDIA/OpenShell v0.1.4:supervisor_middleware.proto"
+    },
+    {
+      "path": "test.proto",
+      "sha256": "2b6d4add9dc42f0690e4dbfcc8244237aea7e7d6e08c902efb25d2ffe7c270fb",
+      "source": "NVIDIA/OpenShell v0.1.4:test.proto"
+    }
+  ]
+}

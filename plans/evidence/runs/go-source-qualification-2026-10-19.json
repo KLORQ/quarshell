@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-10-19T09:20:52+00:00",
+  "manifest_digest_sha256": "abbefa8990cddfe512cf1eac4f30a7bcdc54c262043e0bb7a1b1d3b97ac49337",
+  "go_source_set_sha256": "6584034844c62a98326132815377fc1efaa33c433ff0bf4cae4605b225ab1f93",
+  "qualifier_sha256": "b5cfd6b96ea2b335ef39a140f57b38bcbfa3dd4563299d03ec8e2d2365d7344a",
+  "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+  "go_module_count": 10,
+  "checked_out_cli": {
+    "repository": "quarshell-cli",
+    "source": "checked-out-release",
+    "status": "PASS",
+    "commit_sha": "b0e27ec19b3691efa46b87265375199784106211",
+    "worktree_clean": true,
+    "worktree_patch_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "changed_path_count": 0,
+    "module_path": "github.com/KLORQ/quarshell-cli",
+    "commands": [
+      "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "GOWORK=off CGO_ENABLED=0 go build -mod=readonly ./..."
+    ],
+    "command_output_sha256": [
+      "fdbe0e646fd14f7d0dd3100a4b17673f3c4151c877f12695aa6d7e959c95a874",
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ]
+  },
+  "result": "PASS",
+  "modules": [
+    {
+      "repository": "quarshell-core",
+      "url": "https://github.com/KLORQ/quarshell-core.git",
+      "commit_sha": "84cad904b50b98eebc5949482e2f6609fbb90cee",
+      "version": "v0.4.0",
+      "status": "PASS",
+      "checkout_sha": "84cad904b50b98eebc5949482e2f6609fbb90cee",
+      "module_path": "github.com/KLORQ/quarshell-core",
+      "duration_seconds": 1.48,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "c72ecbd5ed993c48ce1f7ab3047b47a23deea93cbb318d44c808bfaf81008843",
+      "test_duration_seconds": 1.35
+    },
+    {
+      "repository": "quarshell-display",
+      "url": "https://github.com/KLORQ/quarshell-display.git",
+      "commit_sha": "84b73068da627be117fd6af1b50879f9c814659e",
+      "version": "v0.1.7",
+      "status": "PASS",
+      "checkout_sha": "84b73068da627be117fd6af1b50879f9c814659e",
+      "module_path": "github.com/KLORQ/quarshell-display",
+      "duration_seconds": 1.28,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "136bcc9886891cfc5a4a5d54f4427b327f2e18771734f3685c3c5e423cc40c79",
+      "test_duration_seconds": 0.14
+    },
+    {
+      "repository": "quarshell-driver",
+      "url": "https://github.com/KLORQ/quarshell-driver.git",
+      "commit_sha": "c57dccd7bd687bc587ee0c05bdbff4de979baf7c",
+      "version": "v0.4.0",
+      "status": "PASS",
+      "checkout_sha": "c57dccd7bd687bc587ee0c05bdbff4de979baf7c",
+      "module_path": "github.com/KLORQ/quarshell-driver",
+      "duration_seconds": 1.84,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "3066c1c581fccced16f73fe0598434ccf900e0ad50a62cc6c65b8c10dc2c3740",
+      "test_duration_seconds": 10.98
+    },
+    {
+      "repository": "quarshell-gateway",
+      "url": "https://github.com/KLORQ/quarshell-gateway.git",
+      "commit_sha": "36136139c8aa5eb5df772026bdd94dd54ada3cab",
+      "version": "v0.4.0",
+      "status": "PASS",
+      "checkout_sha": "36136139c8aa5eb5df772026bdd94dd54ada3cab",
+      "module_path": "github.com/KLORQ/quarshell-gateway",
+      "duration_seconds": 1.63,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "d02e76f222443be418b8eea6fe9da57fce3ca928646a0ce9a97e1c52766f89e4",
+      "test_duration_seconds": 9.9
+    },
+    {
+      "repository": "quarshell-proto",
+      "url": "https://github.com/KLORQ/quarshell-proto.git",
+      "commit_sha": "1665c3e56035854dadc068da8bee3a7e7527a37a",
+      "version": "v0.2.1",
+      "status": "PASS",
+      "checkout_sha": "1665c3e56035854dadc068da8bee3a7e7527a37a",
+      "module_path": "github.com/KLORQ/quarshell-proto",
+      "duration_seconds": 1.41,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "0a55e66d49e96a554228ee9e89585dd0a068816542c0f3ad5086137b12bbf1db",
+      "test_duration_seconds": 1.07
+    },
+    {
+      "repository": "quarshell-providers",
+      "url": "https://github.com/KLORQ/quarshell-providers.git",
+      "commit_sha": "58c132d1d47c8551b03ed37a8d7583db395d5276",
+      "version": "v0.1.9",
+      "status": "PASS",
+      "checkout_sha": "58c132d1d47c8551b03ed37a8d7583db395d5276",
+      "module_path": "github.com/KLORQ/quarshell-providers",
+      "duration_seconds": 1.29,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "f4283d0c007371c244c2df869f0d566f540724f65eb697704cd440bfafc5d81d",
+      "test_duration_seconds": 0.51
+    },
+    {
+      "repository": "quarshell-proxy",
+      "url": "https://github.com/KLORQ/quarshell-proxy.git",
+      "commit_sha": "3af1bc5a22fa167120fd87d8d53e22ff53429c45",
+      "version": "v0.3.1",
+      "status": "PASS",
+      "checkout_sha": "3af1bc5a22fa167120fd87d8d53e22ff53429c45",
+      "module_path": "github.com/KLORQ/quarshell-proxy",
+      "duration_seconds": 1.32,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "c7e8243c06f27d00a08982d918349242ab6d9e3119777f532b829dde7562f28b",
+      "test_duration_seconds": 1.82
+    },
+    {
+      "repository": "quarshell-runtime",
+      "url": "https://github.com/KLORQ/quarshell-runtime.git",
+      "commit_sha": "d58a910d9e882252ec3524b42ff1606dbb400cca",
+      "version": "v0.4.0",
+      "status": "PASS",
+      "checkout_sha": "d58a910d9e882252ec3524b42ff1606dbb400cca",
+      "module_path": "github.com/KLORQ/quarshell-runtime",
+      "duration_seconds": 1.4,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "006fbf4b08ef54db2ccb8e23efd537bc0569730a832e23733d63eaf0d63e10bb",
+      "test_duration_seconds": 4.04
+    },
+    {
+      "repository": "quarshell-sdk",
+      "url": "https://github.com/KLORQ/quarshell-sdk.git",
+      "commit_sha": "f984e040d0abf3d9ee712d61824567e84e831e28",
+      "version": "v0.3.1",
+      "status": "PASS",
+      "checkout_sha": "f984e040d0abf3d9ee712d61824567e84e831e28",
+      "module_path": "github.com/KLORQ/quarshell-sdk",
+      "duration_seconds": 1.25,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "dcd5adb5d74585e845e4d797a7109cc4d182e16886a00a9d625d95cbf408030c",
+      "test_duration_seconds": 1.42
+    },
+    {
+      "repository": "quarshell-slogx",
+      "url": "https://github.com/KLORQ/quarshell-slogx.git",
+      "commit_sha": "259d0347e17d8bcd02769a5e2b5e581094691de0",
+      "version": "v0.1.4",
+      "status": "PASS",
+      "checkout_sha": "259d0347e17d8bcd02769a5e2b5e581094691de0",
+      "module_path": "github.com/KLORQ/quarshell-slogx",
+      "duration_seconds": 1.24,
+      "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
+      "test_output_sha256": "0ff8d3e98c6aef113b51e7d2d2ea3e3b143dac581bec9a8fae26d40a10d9435c",
+      "test_duration_seconds": 1.28
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+package vm
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"slices"
+
+	core "github.com/KLORQ/quarshell-core"
+	"github.com/KLORQ/quarshell-driver/driver"
+)
+
+var _ driver.Backend = (*Driver)(nil)
+var _ driver.RuntimeLaunchSpecRestorer = (*Driver)(nil)
+var _ driver.RuntimeContractValidator = (*Driver)(nil)
+var _ driver.RuntimeRootfsTarStager = (*Driver)(nil)
+var _ driver.RuntimeTokenStarter = (*Driver)(nil)
+var _ driver.RuntimeCredentialStarter = (*Driver)(nil)
+
+func (d *Driver) ValidateRuntimeContract(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("vm backend: ValidateRuntimeContract context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return d.validateGatewayRuntime(ctx)
+}
+
+func (d *Driver) ID() driver.BackendID { return "vm" }
+
+func (d *Driver) Capabilities(ctx context.Context) (driver.BackendInfo, error) {
+	if ctx == nil {
+		return driver.BackendInfo{}, fmt.Errorf("vm backend: Capabilities context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return driver.BackendInfo{}, err
+	}
+	return d.backendInfo(), nil
+}
+
+func (d *Driver) ValidateCreate(ctx context.Context, request driver.BackendCreateRequest) error {
+	if ctx == nil {
+		return fmt.Errorf("vm backend: ValidateCreate context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := d.validateBackendDriverConfig(request.Config); err != nil {
+		return err
+	}
+	spec, err := vmSpecFromBackendRequest(ctx, request)
+	if err != nil {
+		return fmt.Errorf("vm backend request: %w", err)
+	}
+	return d.validateCreateSpec(spec)
+}
+
+func (d *Driver) Create(ctx context.Context, request driver.BackendCreateRequest) (driver.Handle, error) {
+	if ctx == nil {
+		return driver.Handle{}, fmt.Errorf("vm backend: Create context is nil")
+	}
+	if err := d.validateBackendDriverConfig(request.Config); err != nil {
+		return driver.Handle{}, err
+	}
+	spec, err := vmSpecFromBackendRequest(ctx, request)
+	if err != nil {
+		return driver.Handle{}, fmt.Errorf("vm backend request: %w", err)
+	}
+	return d.createSandbox(ctx, spec)
+}
+
+func (d *Driver) RestoreLaunchSpec(ctx context.Context, id core.ID, request driver.BackendCreateRequest) error {
+	if ctx == nil {
+		return fmt.Errorf("vm backend: RestoreLaunchSpec context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := d.validateBackendDriverConfig(request.Config); err != nil {
+		return err
+	}
+	spec, err := vmSpecFromBackendRequest(ctx, request)
+	if err != nil {
+		return fmt.Errorf("vm backend restore request: %w", err)
+	}
+	return d.restoreLaunchSpec(ctx, id, spec)
+}
+
+func (d *Driver) validateBackendDriverConfig(config any) error {
+	if d == nil {
+		return fmt.Errorf("vm backend: driver is nil")
+	}
+	if config == nil || d.host.AllowDriverConfig {
+		return nil
+	}
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("encode VM driver config: %w", err)
+	}
+	trimmed := bytes.TrimSpace(encoded)
+	if bytes.Equal(trimmed, []byte("{}")) || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	if !d.host.AllowDriverConfig {
+		return fmt.Errorf("caller driver_config is disabled; a gateway administrator must enable allow_driver_config")
+	}
+	return nil
+}
+
+// vmSpecFromBackendRequest maps the modular domain request into the current
+// VM launch model. It lives here so VM behavior validates every modular
+// backend field and rejects values it cannot honor.
+func vmSpecFromBackendRequest(ctx context.Context, request driver.BackendCreateRequest) (vmCreateSpec, error) {
+	if request.Name == "" {
+		return vmCreateSpec{}, fmt.Errorf("sandbox name is required")
+	}
+	if request.SandboxID != "" && request.SandboxID != core.ID(request.Name) {
+		return vmCreateSpec{}, fmt.Errorf("VM backend cannot honor a distinct sandbox id")
+	}
+	if request.Workspace.Kind != driver.WorkspaceGuestOverlay {
+		return vmCreateSpec{}, fmt.Errorf("VM backend requires workspace kind %q", driver.WorkspaceGuestOverlay)
+	}
+	if request.Workspace.HostPath != "" {
+		return vmCreateSpec{}, fmt.Errorf("VM guest-overlay workspace must not include a host path")
+	}
+	if !request.Workspace.Persist {
+		return vmCreateSpec{}, fmt.Errorf("VM backend requires a persistent guest-overlay workspace")
+	}
+	// The VM state store owns one persistent overlay per sandbox. Workspace.ID
+	// stays a control-plane association and does not select a host directory.
+	if len(request.Mounts) != 0 {
+		return vmCreateSpec{}, fmt.Errorf("VM backend does not support host mount requests")
+	}
+	configJSON := ""
+	if request.Config != nil {
+		encoded, err := json.Marshal(request.Config)
+		if err != nil {
+			return vmCreateSpec{}, fmt.Errorf("encode VM driver config: %w", err)
+		}
+		configJSON = string(encoded)
+	}
+	env := driver.SupervisorTelemetryEnvironment(ctx, request.Runtime.TelemetryEndpoint, request.Workload.Environment)
+	spec := vmCreateSpec{
+		Name: request.Name, Image: request.Workload.Image,
+		Command: slices.Clone(request.Workload.Command), TTY: request.Workload.TTY,
+		MainProcessRestartPolicy: request.Workload.RestartPolicy,
+		Env:                      env,
+		GatewayURL:               request.Network.GatewayURL,
+		// Gateway identity remains control-plane-owned. The URL is used by the
+		// guest relay when the driver config has no explicit endpoint.
+		PersistVolume: request.Workspace.Persist,
+		GPU:           request.Resources.GPU, GPUCount: request.Resources.GPUCount,
+		CDIDevices: slices.Clone(request.Resources.CDIDevices),
+		CPU:        request.Resources.CPUCores, MemoryBytes: request.Resources.MemoryBytes,
+		PidsLimit: request.Resources.PIDs,
+		InitBin:   request.Runtime.InitBinary, SupervisorBin: request.Runtime.SupervisorBinary,
+		NoHarden: request.Runtime.NoHarden, EnableSSH: request.Runtime.EnableSSH,
+		SSHBin:      request.Runtime.SSHBinary,
+		DisplayMode: request.Runtime.DisplayMode, DisplayPort: request.Runtime.DisplayPort,
+		DisplayPassword: request.Runtime.DisplayPassword,
+		Labels:          extensionActivationLabels(request.Labels), IKnow: request.AllowUnsafeMount,
+		ExtraHosts:       slices.Clone(request.Network.ExtraHosts),
+		PublishPorts:     slices.Clone(request.Network.PortPublish),
+		DriverConfigJSON: configJSON,
+	}
+	if request.Network.Proxy != nil {
+		spec.ProxyBin = request.Network.Proxy.Binary
+		spec.ProxyImage = request.Network.Proxy.Image
+		spec.PolicyPath = request.Network.Proxy.PolicyPath
+		spec.ProxyPort = request.Network.Proxy.Port
+		spec.ProxyEnv = slices.Clone(request.Network.Proxy.Environment)
+	}
+	return spec, nil
+}

@@ -1,0 +1,12 @@
+[package]
+name = "policy-oracle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+openshell-policy = { path = "../upstream/openshell-v0.1.4/crates/openshell-policy" }
+
+[[bin]]
+name = "policy-oracle"
+path = "src/main.rs"

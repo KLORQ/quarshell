@@ -1,0 +1,41 @@
+policy: |
+  version: 1
+  network_policies:
+    api:
+      endpoints:
+        - host: '**.example.com'
+          port: 443
+          protocol: rest
+          rules:
+            - allow:
+                method: GET
+                path: /v1/*
+          deny_rules:
+            - method: DELETE
+              path: /v1/secret
+network:
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: GET
+    path: /v1/models
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: POST
+    path: /v1/models
+  - host: api.example.com
+    port: 443
+    protocol: rest
+    method: DELETE
+    path: /v1/secret
+  - host: evil.example.net
+    port: 443
+    protocol: rest
+    method: GET
+    path: /v1/models
+  - host: api.example.com
+    port: 80
+    protocol: rest
+    method: GET
+    path: /v1/models

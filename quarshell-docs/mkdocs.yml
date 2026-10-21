@@ -1,0 +1,204 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+# SPDX-License-Identifier: Apache-2.0
+
+site_name: cautem Sandbox
+site_description: Policy-bound sandboxes for coding agents on Docker and Podman
+site_url: https://klorq.github.io/sandbox.dev/
+repo_url: https://github.com/KLORQ/sandbox.dev
+repo_name: GitHub
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 cautem &middot; Apache-2.0 License
+
+theme:
+  name: material
+  custom_dir: overrides
+  logo: assets/images/cautem-app-icon.png
+  favicon: assets/images/cautem-app-icon.png
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  font:
+    text: IBM Plex Sans
+    code: IBM Plex Mono
+  features:
+    - announce.dismiss
+    - content.action.edit
+    - content.action.view
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+    - content.tooltips
+    - navigation.footer
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+
+hooks:
+  - hooks/search_index.py
+  - hooks/mascot_illustrations.py
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: ru
+          name: Русский
+          build: true
+          nav_translations:
+            Home: Главная
+            Get started: Быстрый старт
+            Installation: Установка
+            Start the gateway: Запуск gateway
+            Your first sandbox: Первая песочница
+            Overview: Обзор
+            Concepts: Концепции
+            Architecture: Архитектура
+            Architecture decisions: Архитектурные решения
+            ADR 0001: ADR 0001
+            Security: Безопасность
+            Providers: Провайдеры
+            Planned: В планах
+            Prerequisites: Требования
+            Create a sandbox: Создание sandbox
+            Resources and limits: Ресурсы и лимиты
+            Logging: Логирование
+            Troubleshooting: Устранение неполадок
+            Limitations: Ограничения
+            Guides: Руководства
+            Credential providers: Credential-провайдеры
+            Provider profiles: Профили провайдеров
+            Policy: Политика
+            Cursor agent: Cursor Agent
+            Recreate a sandbox: Пересоздание sandbox
+            Reference: Справка
+            Images: Образы
+            Environment: Окружение
+            Development: Разработка
+            OpenShell compatibility: Совместимость с OpenShell
+            Runtime acceptance: Runtime acceptance
+            Rename and release plan: Переименование и релиз
+
+extra_css:
+  - assets/stylesheets/extra-20261009.css
+  - assets/stylesheets/mascot.css
+
+extra_javascript:
+  - assets/javascripts/hero.js
+
+extra:
+  status:
+    soon: Coming soon
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/KLORQ
+      name: cautem on GitHub
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - Home: index.md
+  - Get started:
+      - Installation: get-started/index.md
+      - Start the gateway: get-started/gateway.md
+      - Your first sandbox: get-started/first-sandbox.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Architecture decisions:
+          - ADR 0001: concepts/decisions/0001-domain-and-backend-spi.md
+      - Security: concepts/security.md
+  - Providers:
+      - Docker:
+          - Overview: providers/docker/index.md
+          - Prerequisites: providers/docker/prerequisites.md
+          - Create a sandbox: providers/docker/create-sandbox.md
+          - Resources and limits: providers/docker/resources.md
+          - Logging: providers/docker/logging.md
+          - Troubleshooting: providers/docker/troubleshooting.md
+      - Podman:
+          - Overview: providers/podman/index.md
+          - Prerequisites: providers/podman/prerequisites.md
+          - Create a sandbox: providers/podman/create-sandbox.md
+          - Limitations: providers/podman/limitations.md
+          - Troubleshooting: providers/podman/troubleshooting.md
+      - Planned:
+          - Kubernetes: providers/kubernetes.md
+          - MicroVM: providers/microvm.md
+          - MicroVM release plan: providers/microvm-release-plan.md
+  - Guides:
+      - Credential providers: guides/credentials.md
+      - Provider profiles: guides/provider-profiles.md
+      - Gateway: guides/gateway.md
+      - Policy: guides/policy.md
+      - Cursor agent: guides/cursor.md
+      - Recreate a sandbox: guides/recreate-sandbox.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Images: reference/images.md
+      - Environment: reference/environment.md
+      - Development: reference/development.md
+      - OpenShell compatibility: reference/openshell-compatibility.md
+      - Runtime acceptance: reference/runtime-acceptance.md
+      - Rename and release plan: reference/renaming-and-release.md

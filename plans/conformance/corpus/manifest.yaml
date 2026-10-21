@@ -1,0 +1,363 @@
+candidate: "go run github.com/KLORQ/quarshell-policy/cmd/quarshell-policy-validate"
+eval_candidate: "go run github.com/KLORQ/quarshell-policy/cmd/quarshell-policy-eval"
+version: 1
+cases:
+  - id: minimal
+    file: cases/minimal.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: valid-nested
+    file: cases/valid-nested.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: null-process
+    file: cases/null-process.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-network
+    file: cases/null-network.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-filesystem
+    file: cases/null-filesystem.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-endpoint
+    file: cases/null-endpoint.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: unknown-field
+    file: cases/unknown-field.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: duplicate-version
+    file: cases/duplicate-version.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: merge-key
+    file: cases/merge-key.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: version-2
+    file: cases/version-2.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: bytes-limit-minus-one
+    generate:
+      prefix: "version: 1\n#"
+      fill: "x"
+      count: 4194290
+      suffix: "\n"
+    expect:
+      accepted: true
+      version: 1
+  - id: bytes-limit-exact
+    generate:
+      prefix: "version: 1\n#"
+      fill: "x"
+      count: 4194291
+      suffix: "\n"
+    expect:
+      accepted: true
+      version: 1
+  - id: bytes-limit-plus-one
+    generate:
+      prefix: "version: 1\n#"
+      fill: "x"
+      count: 4194292
+      suffix: "\n"
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: alias-budget
+    file: cases/alias-budget.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: empty-object
+    file: cases/empty-object.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: empty-list
+    file: cases/empty-list.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: false-value
+    file: cases/false-value.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: zero-value
+    file: cases/zero-value.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-scalar
+    file: cases/null-scalar.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: depth-64
+    file: cases/depth-64.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: depth-65
+    file: cases/depth-65.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: valid-mcp
+    file: cases/valid-mcp.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: valid-graphql
+    file: cases/valid-graphql.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: valid-middleware
+    file: cases/valid-middleware.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: null-list
+    file: cases/null-list.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-tool
+    file: cases/null-tool.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-mcp-versions
+    file: cases/null-mcp-versions.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-middleware-order
+    file: cases/null-middleware-order.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: null-landlock
+    file: cases/null-landlock.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: missing-version
+    file: cases/missing-version.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: root-sequence
+    file: cases/root-sequence.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: port-string
+    file: cases/port-string.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: port-65536
+    file: cases/port-65536.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mcp-empty-versions
+    file: cases/mcp-empty-versions.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mcp-unknown-version
+    file: cases/mcp-unknown-version.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mcp-duplicate-version
+    file: cases/mcp-duplicate-version.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mcp-on-rest
+    file: cases/mcp-on-rest.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mcp-no-versions
+    file: cases/mcp-no-versions.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: mcp-uppercase-protocol
+    file: cases/mcp-uppercase-protocol.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: mode-tls-terminate
+    file: cases/mode-tls-terminate.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mode-tls-uppercase
+    file: cases/mode-tls-uppercase.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mode-tls-skip
+    file: cases/mode-tls-skip.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: mode-enforcement-invalid
+    file: cases/mode-enforcement-invalid.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mode-enforcement-audit
+    file: cases/mode-enforcement-audit.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: mode-access-invalid
+    file: cases/mode-access-invalid.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: mode-access-full
+    file: cases/mode-access-full.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: host-missing
+    file: cases/host-missing.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: host-allowed-ips
+    file: cases/host-allowed-ips.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: tcp-ip-literal
+    file: cases/tcp-ip-literal.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: tcp-empty-host
+    file: cases/tcp-empty-host.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: host-tld-wildcard
+    file: cases/host-tld-wildcard.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: host-wildcard-invalid
+    file: cases/host-wildcard-invalid.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: host-wildcard-valid
+    file: cases/host-wildcard-valid.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: mcp-allow-all-no-versions
+    file: cases/mcp-allow-all-no-versions.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: process-root
+    file: cases/process-root.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: landlock-invalid
+    file: cases/landlock-invalid.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: fs-relative
+    file: cases/fs-relative.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: fs-traversal
+    file: cases/fs-traversal.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: fs-root-write
+    file: cases/fs-root-write.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: filesystem-too-many
+    file: cases/filesystem-too-many.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+  - id: filesystem-long-path
+    file: cases/filesystem-long-path.yaml
+    expect:
+      accepted: true
+      version: 1
+  - id: tcp-invalid-dns
+    file: cases/tcp-invalid-dns.yaml
+    expect:
+      accepted: false
+      error_code: invalid
+eval_cases:
+  - id: eval-filesystem
+    file: eval/filesystem.yaml
+    expect:
+      filesystem: [allow, allow, deny, allow, deny, deny, allow]
+  - id: eval-network
+    file: eval/network.yaml
+    expect:
+      network: [allow, deny, deny, deny, deny]
+  - id: eval-process
+    file: eval/process.yaml
+    expect:
+      process: [allow, deny, deny]
+  - id: eval-graphql
+    file: eval/graphql.yaml
+    expect:
+      network: [allow, deny, deny]
+  - id: eval-mcp
+    file: eval/mcp.yaml
+    expect:
+      network: [allow, allow, deny, deny]
+  - id: eval-sql
+    file: eval/sql.yaml
+    expect:
+      network: [allow, deny]
+  - id: eval-jsonrpc
+    file: eval/jsonrpc.yaml
+    expect:
+      network: [allow, deny]
+  - id: eval-rest-query
+    file: eval/rest-query.yaml
+    expect:
+      network: [allow, allow, deny, deny]
+  - id: eval-access-preset
+    file: eval/access-preset.yaml
+    expect:
+      network: [allow, deny, allow, deny]

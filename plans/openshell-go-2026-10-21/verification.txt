@@ -1,0 +1,70 @@
+OpenShell → Go review verification, 2026-10-21
+Host: darwin/arm64. Installed Go: go1.27.2.
+Workspace: repository root
+No product source files edited. Builds used a writable temporary GOCACHE.
+
+Common environment:
+GOCACHE=<temporary writable cache>
+GOPROXY=off
+GOSUMDB=off
+GOTOOLCHAIN=local
+
+1. Existing policy suite
+Directory: quarshell-core
+Command: go test ./policy
+Result: PASS
+Output: ok github.com/cautem/quarshell-core/policy 0.401s
+
+2. Independent policy probe
+Directory: quarshell-core (existing workspace resolves current source)
+Command: go run plans/openshell-go-2026-10-21/examples/policy_probe.go
+Result: four policy inputs accepted by current Go parser + validator.
+over_upstream_4MiB: bytes=4194317 error=<nil>
+null_process: bytes=25 error=<nil>
+null_network: bytes=34 error=<nil>
+null_filesystem: bytes=35 error=<nil>
+Expected upstream rejection is established by reading the pinned Rust parser
+limits and reject_null_objects list. Upstream Rust executable was NOT run.
+
+3. Selected gateway suite including TCP-backed external compute watch
+Directory: quarshell-gateway
+Command: go test ./internal/httpapi -run 'TestCompatRPCInventoryMatchesPinnedServiceAndHandlers|TestWatchSandbox' -count=1
+Result: BLOCKED BY ENVIRONMENT / process exit 1
+TestWatchSandboxBridgesExternalComputePlatformEvents:
+rpc_watch_test.go:101: listen tcp 127.0.0.1:0: bind: operation not permitted
+This is not evidence of an application bug.
+
+4. Isolated gateway checks without the blocked network listener
+Directory: quarshell-gateway
+Command: go test ./internal/httpapi -run '^(TestCompatRPCInventoryMatchesPinnedServiceAndHandlers|TestWatchSandboxReplaysTailAndStreamsLiveLogs|TestWatchSandboxStopsOnReadyAndStreamsLocalLifecycleEvents)$' -count=1 -v
+Result: PASS
+TestCompatRPCInventoryMatchesPinnedServiceAndHandlers: PASS (0.05s)
+TestWatchSandboxReplaysTailAndStreamsLiveLogs: PASS (0.03s)
+TestWatchSandboxStopsOnReadyAndStreamsLocalLifecycleEvents: PASS (0.28s)
+ok github.com/cautem/quarshell-gateway/internal/httpapi 0.731s
+
+5. Standalone design examples
+Directory: examples/design in this artifact
+Additional environment: GOWORK=off
+Commands: gofmt -w patterns.go; go build ./...; go vet ./...
+Result: both build and vet exit 0, no diagnostics.
+The examples are design patterns, not a complete sandbox or storage implementation.
+
+6. Inventory/evidence inspection
+15 product repositories inspected for HEAD and dirty status.
+37 upstream crate manifests mapped.
+108 current inventory RPCs + 2 IsolationBoundary RPCs = 110 rows.
+5 broken matrix references to 2 distinct missing files confirmed.
+Gateway fixture statuses: 79 partial, 4 missing.
+Remaining current inventory fixture statuses: 25 missing.
+No claims of full behavioral parity derive from these counts.
+
+Not executed:
+Full workspace tests, all-module race/fuzz, full upstream conformance,
+Linux isolation execution, Docker/Podman/Kubernetes E2E, KVM/HVF/MXC,
+GPU/VFIO, release artifacts, published dependency checks.
+
+7. Artifact integrity
+All local Markdown links validated outside code fences.
+All 1377 recorded product source fingerprints unchanged after review.
+All 37 upstream crates mapped; CSV has 110 RPC records.

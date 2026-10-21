@@ -1,0 +1,7 @@
+version: 1
+network_policies:
+  api:
+    endpoints:
+      -
+        port: 5432
+        protocol: tcp

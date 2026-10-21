@@ -1,0 +1,133 @@
+name: linux
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "quarshell-*/**"
+      - "quarshell-docs/**"
+      - "scripts/**"
+      - "tools/**"
+      - "Taskfile.yml"
+      - ".github/workflows/linux.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      - name: Linux kernel and toolchain
+        run: |
+          go version
+          uname -a
+          cat /etc/os-release
+      - name: Workspace and Linux isolation checks
+        run: |
+          task workspace:check
+          task dag:check
+          task isolation:linux-build
+          go test -C quarshell-isolation ./... -count=1
+          go test -C quarshell-supervisor ./... -count=1
+      - name: Go tests and policy conformance
+        run: |
+          task conformance:check
+          task test
+
+  docker-e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      - name: Docker engine
+        run: docker info
+      - name: Docker driver lifecycle acceptance
+        run: task e2e:docker
+
+  podman-e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      - name: Docker engine for disposable Podman host
+        run: docker info
+      - name: Podman rootful and rootless acceptance
+        run: task e2e:podman
+
+  gateway-image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build Gateway image
+        run: docker build --file quarshell-gateway/Dockerfile --tag quarshell-gateway:ci .
+      - name: Verify clean Compose installation
+        run: |
+          set -eu
+          export QUARSHELL_TOKEN=ci-smoke-token-0123456789abcdef
+          export CAUTEM_GATEWAY_BIND_IP=127.0.0.1
+          export CAUTEM_GATEWAY_PORT=$((20000 + GITHUB_RUN_ID % 10000))
+          export CAUTEM_GRPC_PORT=$((CAUTEM_GATEWAY_PORT + 1))
+          project="quarshell-gateway-ci-${GITHUB_RUN_ID}"
+          compose=(docker compose -p "$project" -f quarshell-gateway/compose/docker-compose.yml)
+          docker tag quarshell-gateway:ci quarshell-gateway:local
+          cleanup() { "${compose[@]}" down --volumes >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          "${compose[@]}" config --quiet
+          "${compose[@]}" up -d --no-build
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "http://127.0.0.1:${CAUTEM_GATEWAY_PORT}/v1/healthz" >/dev/null \
+              && container_id=$("${compose[@]}" ps -q quarshell-gateway) \
+              && [ "$(docker inspect --format '{{.State.Health.Status}}' "$container_id")" = healthy ]; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != 1 ]; then
+            "${compose[@]}" ps
+            "${compose[@]}" logs --no-color
+            exit 1
+          fi
+          "${compose[@]}" exec -T quarshell-gateway sh -c 'test -s /var/lib/openshell/state.db'
+          python3 - <<'PY'
+          import os
+          import socket
+
+          with socket.create_connection(("127.0.0.1", int(os.environ["CAUTEM_GRPC_PORT"])), timeout=5):
+              pass
+          PY
+
+  docs:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      - name: Build English and Russian docs with strict validation
+        run: task docs:strict

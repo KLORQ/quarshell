@@ -1,0 +1,42 @@
+version: v2
+modules:
+  - path: proto
+lint:
+  use:
+    - STANDARD
+  # The pinned OpenShell files retain upstream service/message names and
+  # source layout so generated descriptors and wire identifiers stay intact.
+  # Exempt only the upstream files and lint rules that those names violate.
+  ignore_only:
+    PACKAGE_DIRECTORY_MATCH:
+      - proto/openshell/gateway/v1/openshell.proto
+      - proto/openshell/pagination/v1/pagination.proto
+      - proto/openshell/sandbox_protocol/v1/openshell_sandbox.proto
+    RPC_REQUEST_RESPONSE_UNIQUE:
+      - proto/openshell/gateway/v1/openshell.proto
+      - proto/openshell/sandbox_protocol/v1/openshell_sandbox.proto
+    RPC_REQUEST_STANDARD_NAME:
+      - proto/openshell/credentials/v1/credential_driver.proto
+      - proto/openshell/gateway/v1/openshell.proto
+      - proto/openshell/gateway_interceptor/v1/gateway_interceptor.proto
+      - proto/openshell/middleware/v1/supervisor_middleware.proto
+      - proto/openshell/sandbox_protocol/v1/openshell_sandbox.proto
+    RPC_RESPONSE_STANDARD_NAME:
+      - proto/openshell/compute/v1/compute_driver.proto
+      - proto/openshell/credentials/v1/credential_driver.proto
+      - proto/openshell/gateway/v1/openshell.proto
+      - proto/openshell/gateway_interceptor/v1/gateway_interceptor.proto
+      - proto/openshell/middleware/v1/supervisor_middleware.proto
+      - proto/openshell/sandbox_protocol/v1/openshell_sandbox.proto
+    SERVICE_SUFFIX:
+      - proto/openshell/compute/v1/compute_driver.proto
+      - proto/openshell/credentials/v1/credential_driver.proto
+      - proto/openshell/gateway/v1/openshell.proto
+      - proto/openshell/gateway_interceptor/v1/gateway_interceptor.proto
+      - proto/openshell/middleware/v1/supervisor_middleware.proto
+      - proto/openshell/sandbox_protocol/v1/openshell_sandbox.proto
+breaking:
+  use:
+    - FILE
+  except:
+    - FILE_SAME_GO_PACKAGE

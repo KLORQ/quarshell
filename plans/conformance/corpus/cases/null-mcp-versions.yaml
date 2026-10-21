@@ -1,0 +1,8 @@
+version: 1
+network_policies:
+  x:
+    endpoints:
+      - host: a
+        port: 1
+        mcp:
+          versions: null

@@ -1,0 +1,112 @@
+name: platform-backends
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "quarshell-driver/**"
+      - "quarshell-driver-vm/**"
+      - "quarshell-driver-mxc/**"
+      - "plans/ci-matrix.md"
+      - ".github/workflows/platform-backends.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-kvm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+      - name: Build and test VM packages
+        run: go test -C quarshell-driver-vm ./... -count=1
+      - name: Check hosted KVM access
+        id: kvm
+        shell: bash
+        run: |
+          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && [ "$(id -u)" -ne 0 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            ls -l /dev/kvm
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::GitHub-hosted ubuntu-24.04 has no usable non-root /dev/kvm; live KVM acceptance remains unverified"
+            ls -l /dev/kvm 2>/dev/null || true
+          fi
+      - name: Run live KVM lifecycle acceptance
+        if: steps.kvm.outputs.available == 'true'
+        run: task vm:live-linux
+
+  macos-hvf:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - name: Build and test VM packages
+        run: go test -C quarshell-driver-vm ./... -count=1
+      - name: Check hosted Hypervisor.framework access
+        id: hvf
+        shell: bash
+        run: |
+          support="$(sysctl -n kern.hv_support 2>/dev/null || echo 0)"
+          echo "kern.hv_support=$support"
+          if [ "$support" = 1 ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::GitHub-hosted macos-14 does not expose Hypervisor.framework; live HVF acceptance remains unverified"
+          fi
+      - name: Install live VM prerequisites
+        if: steps.hvf.outputs.available == 'true'
+        run: brew install libkrun libkrunfw e2fsprogs
+      - name: Run live HVF lifecycle acceptance
+        if: steps.hvf.outputs.available == 'true'
+        run: quarshell-driver/scripts/run-live-darwin-arm64-acceptance.sh
+
+  windows-mxc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.27.2"
+          cache: false
+      - name: Check MXC SDK availability
+        shell: pwsh
+        run: |
+          $build = [Environment]::OSVersion.Version.Build
+          $wxc = if ($env:OPENSHELL_WXC_EXEC_PATH) { $env:OPENSHELL_WXC_EXEC_PATH } else { 'C:\mxc\wxc-exec.exe' }
+          $app = Join-Path (Split-Path $wxc -Parent) 'IsoSessionApp.dll'
+          Write-Output "Windows build: $build (MXC requires >= 26300)"
+          Write-Output "wxc-exec: $wxc"
+          Write-Output "IsoSessionApp.dll: $app"
+          if ($build -lt 26300 -or !(Test-Path $wxc) -or !(Test-Path $app)) {
+            Write-Output "::warning::GitHub-hosted Windows runner lacks the required Windows 11 Insider build and/or MXC runtime; native MXC acceptance remains unverified"
+          }
+      - name: Build driver and VM module for Windows
+        shell: pwsh
+        run: |
+          go build -C quarshell-driver ./...
+          go build -C quarshell-driver-vm ./...
+          go test -C quarshell-driver-vm ./vm -run '^TestVMBackendRegistersFromItsOwnModule$' -count=1
+      - name: Run Windows-compatible driver package tests
+        shell: pwsh
+        run: >-
+          go test -C quarshell-driver
+          ./driver ./internal/backendcontract ./internal/docker
+          ./internal/kubernetes ./internal/mounts ./podman
+          ./internal/sidecar ./tests/e2e ./tests/e2e/docker -count=1

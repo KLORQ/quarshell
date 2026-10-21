@@ -1,0 +1,6 @@
+cautem workspace
+Copyright 2026 cautem contributors
+
+Individual modules contain their own LICENSE and NOTICE files.
+Product modules are distributed under Apache-2.0, except `quarshell-slogx`, which is distributed under MIT.
+Third-party source files retain their original copyright and license notices. OpenShell-derived files that retain NVIDIA attribution are identified in their own headers and module NOTICE files.

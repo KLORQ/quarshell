@@ -1,0 +1,20 @@
+policy: |
+  version: 1
+  network_policies:
+    rpc:
+      endpoints:
+        - host: rpc.example.com
+          port: 443
+          protocol: json-rpc
+          rules:
+            - allow:
+                method: reports.search
+network:
+  - host: rpc.example.com
+    port: 443
+    protocol: json-rpc
+    method: reports.search
+  - host: rpc.example.com
+    port: 443
+    protocol: json-rpc
+    method: reports.delete

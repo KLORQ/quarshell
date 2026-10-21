@@ -1,0 +1,9 @@
+version: 1
+network_policies:
+  x:
+    endpoints:
+      - host: a
+        port: 1
+        rules:
+          - allow:
+              tool: null

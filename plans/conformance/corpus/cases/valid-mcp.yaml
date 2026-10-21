@@ -1,0 +1,17 @@
+version: 1
+network_policies:
+  anthropic:
+    name: anthropic
+    endpoints:
+      - host: mcp.anthropic.com
+        port: 443
+        protocol: mcp
+        mcp:
+          versions: [2025-06-18]
+          max_body_bytes: 1048576
+          strict_tool_names: true
+          allow_all_known_mcp_methods: false
+        rules:
+          - allow:
+              method: tools/call
+              tool: read_file

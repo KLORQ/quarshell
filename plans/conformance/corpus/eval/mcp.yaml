@@ -1,0 +1,41 @@
+policy: |
+  version: 1
+  network_policies:
+    mcp:
+      endpoints:
+        - host: mcp.example.com
+          port: 443
+          protocol: mcp
+          mcp:
+            versions: [2025-06-18]
+          rules:
+            - allow:
+                method: tools/call
+                tool: read_*
+                params:
+                  name: read_file
+network:
+  - host: mcp.example.com
+    port: 443
+    protocol: mcp
+    method: tools/call
+    tool: read_file
+    params: {name: read_file}
+  - host: mcp.example.com
+    port: 443
+    protocol: mcp
+    method: tools/call
+    tool: read_dir
+    params: {name: read_file}
+  - host: mcp.example.com
+    port: 443
+    protocol: mcp
+    method: tools/call
+    tool: read_file
+    params: {name: write_file}
+  - host: mcp.example.com
+    port: 443
+    protocol: mcp
+    method: tools/call
+    tool: write_file
+    params: {name: read_file}

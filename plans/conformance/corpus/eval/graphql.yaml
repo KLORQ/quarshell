@@ -1,0 +1,32 @@
+policy: |
+  version: 1
+  network_policies:
+    gql:
+      endpoints:
+        - host: api.example.com
+          port: 443
+          protocol: graphql
+          rules:
+            - allow:
+                operation_type: query
+                operation_name: RepoLookup
+                fields: [repository, viewer]
+network:
+  - host: api.example.com
+    port: 443
+    protocol: graphql
+    operation_type: query
+    operation_name: RepoLookup
+    fields: [repository]
+  - host: api.example.com
+    port: 443
+    protocol: graphql
+    operation_type: query
+    operation_name: RepoLookup
+    fields: [adminAuditLog]
+  - host: api.example.com
+    port: 443
+    protocol: graphql
+    operation_type: mutation
+    operation_name: RepoLookup
+    fields: [repository]

@@ -1,0 +1,21 @@
+policy: |
+  version: 1
+  network_policies:
+    db:
+      endpoints:
+        - host: db.example.com
+          port: 5432
+          protocol: sql
+          enforcement: audit
+          rules:
+            - allow:
+                command: SELECT
+network:
+  - host: db.example.com
+    port: 5432
+    protocol: sql
+    command: SELECT
+  - host: db.example.com
+    port: 5432
+    protocol: sql
+    command: DROP

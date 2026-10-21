@@ -1,0 +1,8 @@
+version: 1
+network_policies:
+  api:
+    endpoints:
+      - host: api.example.com
+        port: 443
+        protocol: rest
+        enforcement: monitor

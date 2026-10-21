@@ -1,0 +1,6 @@
+version: 1
+network_policies:
+  x:
+    endpoints:
+      - host: a
+        port: 65536

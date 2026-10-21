@@ -1,0 +1,76 @@
+{#- SPDX-FileCopyrightText: Copyright (c) 2026 cautem -#}
+{#- SPDX-License-Identifier: Apache-2.0 -#}
+{% extends "main.html" %}
+
+{% block tabs %}
+  {{ super() }}
+  {% set hero = page.meta.hero %}
+  <section class="ws-hero">
+    <div class="md-grid md-typeset">
+      <div class="ws-hero__inner">
+        <div class="ws-hero__content">
+          <span class="ws-hero__eyebrow">{{ hero.eyebrow }}</span>
+          <h1>{{ hero.title }}</h1>
+          <p>{{ hero.text }}</p>
+          <div class="ws-hero__actions">
+            <a href="{{ hero.primary.link }}" class="md-button md-button--primary">{{ hero.primary.label }}</a>
+            <a href="{{ hero.secondary.link }}" class="md-button">{{ hero.secondary.label }}</a>
+          </div>
+        </div>
+        <div class="ws-hero__image">
+          <div class="ws-hero__mascot-track" data-mascot-stage aria-hidden="true">
+            <div class="ws-hero__mascot-art">
+              <img src="{{ 'assets/images/cautem-mascot-no-tablet.png' | url }}" alt="" width="1312" height="1199">
+              <span class="ws-hero__pupil ws-hero__pupil--left"></span>
+              <span class="ws-hero__pupil ws-hero__pupil--right"></span>
+            </div>
+          </div>
+          <div class="ws-mac-terminal ws-flow" aria-label="{{ hero.flow_label }}">
+            <div class="ws-mac-terminal__bar"><span class="ws-mac-terminal__lights" aria-hidden="true"></span><span>zsh — cautem</span></div>
+            <div class="ws-flow__tabs" role="tablist" aria-label="{{ hero.flow_label }}">
+              <button class="ws-flow__tab" type="button" role="tab" id="ws-flow-tab-0" aria-controls="ws-flow-panel-0" aria-selected="true" tabindex="0" data-flow-tab="0"><span>01</span> {{ hero.tab_create }}</button>
+              <button class="ws-flow__tab" type="button" role="tab" id="ws-flow-tab-1" aria-controls="ws-flow-panel-1" aria-selected="false" tabindex="-1" data-flow-tab="1"><span>02</span> {{ hero.tab_run }}</button>
+              <button class="ws-flow__tab" type="button" role="tab" id="ws-flow-tab-2" aria-controls="ws-flow-panel-2" aria-selected="false" tabindex="-1" data-flow-tab="2"><span>03</span> {{ hero.tab_observe }}</button>
+            </div>
+            <div class="ws-flow__screen">
+              <div class="ws-flow__panel" role="tabpanel" id="ws-flow-panel-0" aria-labelledby="ws-flow-tab-0" data-flow-panel="0">
+                <div class="ws-flow__line"><span class="ws-mac-terminal__prompt">❯</span> cautem sandbox create \</div>
+                <div class="ws-flow__line ws-flow__indent">--name codex-work --from codex \</div>
+                <div class="ws-flow__line ws-flow__indent">--workspace "$PWD" --provider codex</div>
+                <div class="ws-flow__line ws-flow__muted">pulling image · starting proxy · applying policy</div>
+                <div class="ws-flow__line ws-flow__success">✓ sandbox codex-work ready</div>
+              </div>
+              <div class="ws-flow__panel" role="tabpanel" id="ws-flow-panel-1" aria-labelledby="ws-flow-tab-1" data-flow-panel="1" hidden>
+                <div class="ws-flow__line"><span class="ws-mac-terminal__prompt">❯</span> cautem sandbox exec codex-work \</div>
+                <div class="ws-flow__line ws-flow__indent">-- codex</div>
+                <div class="ws-flow__line ws-flow__muted">opening /workspace inside the sandbox</div>
+                <div class="ws-flow__line ws-flow__success">✓ Codex is running in codex-work</div>
+                <div class="ws-flow__line"><span class="ws-mac-terminal__prompt">›</span> Inspect this project and suggest a plan<span class="ws-mac-terminal__cursor" aria-hidden="true"></span></div>
+              </div>
+              <div class="ws-flow__panel" role="tabpanel" id="ws-flow-panel-2" aria-labelledby="ws-flow-tab-2" data-flow-panel="2" hidden>
+                <div class="ws-flow__line"><span class="ws-mac-terminal__prompt">❯</span> cautem term</div>
+                <div class="ws-flow__line ws-flow__title">cautem term <span>sandboxes</span></div>
+                <div class="ws-flow__line ws-flow__muted">agent observation · live sandbox list</div>
+                <div class="ws-flow__line ws-flow__selected">&gt; codex-work <span>running</span> codex</div>
+                <div class="ws-flow__line ws-flow__muted">l live logs · enter connect · q quit</div>
+              </div>
+            </div>
+            <div class="ws-flow__progress" aria-hidden="true"><span></span><span></span><span></span></div>
+          </div>
+          <p class="ws-flow__note">{{ hero.flow_note }}</p>
+        </div>
+      </div>
+    </div>
+    <svg class="ws-hero__wave" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 64c160 40 320 56 520 30S900 0 1100 8s260 44 340 60v52H0z"/>
+    </svg>
+  </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+{% endblock %}
+
+{% block content %}
+  {{ page.content }}
+{% endblock %}

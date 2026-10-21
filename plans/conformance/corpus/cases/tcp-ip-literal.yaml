@@ -1,0 +1,8 @@
+version: 1
+network_policies:
+  api:
+    endpoints:
+      -
+        host: 192.0.2.1
+        port: 5432
+        protocol: tcp

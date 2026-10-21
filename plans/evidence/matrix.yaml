@@ -1,0 +1,411 @@
+schema_version: 1
+baseline: OpenShell v0.1.4
+upstream_sha: 5a7728c304b5528e954e9ae900cf21f84e1a12b1
+status: initial matrix; every row starts unverified
+rows:
+- id: OS-API
+  feature_id: OS-API
+  owner: gateway + proto
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Каждый метод имеет positive/negative/permission/cancel fixture
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Все 83 OpenShell RPC, errors, auth, pagination, streaming
+- id: OS-COMPUTE
+  feature_id: OS-COMPUTE
+  owner: driver + proto
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Один и тот же contract suite для builtin/remote
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: 12 RPC, включая workspace storage и authentication
+- id: OS-CRED-API
+  feature_id: OS-CRED-API
+  owner: credentials
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Secret lifecycle без утечки материалов refresh
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: 5 RPC, backend storage, refresh/revoke
+- id: OS-MIDDLEWARE
+  feature_id: OS-MIDDLEWARE
+  owner: proxy + extensions
+  required: true
+  backend: null
+  host_profile: null
+  scenario: HTTP/WS ordering, cancellation, failure semantics
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: 4 RPC SupervisorMiddleware + 1 response service
+- id: OS-INTERCEPTORS
+  feature_id: OS-INTERCEPTORS
+  owner: gateway + extensions
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Authenticated transformation и повторная проверка результата
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: 3 RPC GatewayInterceptor
+- id: OS-ISOLATION-PROTO
+  feature_id: OS-ISOLATION-PROTO
+  owner: isolation + supervisor
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Authenticated boundary, replay/size/loss tests
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Exchange/Mediate, framing, identity, FD/network operations
+- id: OS-GATEWAY-DEPLOY
+  feature_id: OS-GATEWAY-DEPLOY
+  owner: gateway + CLI
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Чистый deploy, restart и корректная конфигурация
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: local/remote bootstrap, config, health/readiness, TLS, OIDC, operator auth
+- id: OS-SANDBOX
+  feature_id: OS-SANDBOX
+  owner: gateway + driver
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Повторные запросы и crash points не создают дубликаты
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: create/start/stop/delete, recovery, desired/observed state
+- id: OS-MAIN
+  feature_id: OS-MAIN
+  owner: supervisor + isolation
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Один terminal result на generation, restart semantics
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: exit finalization, restart policy, foreground attach; session state machine and reaper implemented, PTY/restart and live lane pending
+- id: OS-EXEC
+  feature_id: OS-EXEC
+  owner: supervisor + SDK
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Интерактивные и non-TTY сценарии всех backend
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: exec/PTY, resize, signals, stdin EOF, stdout/stderr, SSH/relay
+- id: OS-WORKSPACE
+  feature_id: OS-WORKSPACE
+  owner: gateway
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Scope нельзя изменить ссылкой на чужую сущность
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: membership, RBAC, quota, templates, service routing/forward
+- id: OS-POLICY-SCHEMA
+  feature_id: OS-POLICY-SCHEMA
+  owner: policy
+  required: true
+  backend: quarshell-policy + pinned OpenShell v0.1.4 oracle
+  host_profile: Darwin arm64; Go 1.27.2; Rust 1.98.0
+  scenario: Corpus совпадает с upstream по входам и результатам
+  source_digest: 274260753ef075e43be33b62f8b7dc78b473a78f31ccf756df4f5a67cd3e76dd
+  command: task conformance:upstream
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/policy-differential-2026-10-22.md
+  last_verified: '2026-10-22'
+  notes: Defaults, null/presence, validation, matching, composition, MCP canonical forms, and runtime validation were compared with the pinned upstream oracle; L7 protocol body parsing remains in proxy.
+- id: OS-POLICY-LIFECYCLE
+  feature_id: OS-POLICY-LIFECYCLE
+  owner: gateway + supervisor
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Активная policy подтверждена runtime generation
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: global/sandbox, versions, ACK, draft/approve/edit/undo/history
+- id: OS-FS
+  feature_id: OS-FS
+  owner: isolation
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Kernel-enforced ограничения и capability evidence
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: read/write/exec grants, workdir, identities, Landlock; admission and Linux restricted child implemented, live kernel lane blocked
+- id: OS-NET
+  feature_id: OS-NET
+  owner: isolation + proxy
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Raw socket/direct-connect probes не обходят policy
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Docker/Podman live egress probes pass (plans/evidence/runs/hosted-linux-acceptance-2026-10-22.md); OS-NET remains unverified because host-level socket mediation and DNS/UDS bypass tests are pending
+- id: OS-L7
+  feature_id: OS-L7
+  owner: proxy + policy
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Allow/deny/limits/protocol error fixtures
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: HTTP, TLS, TCP, WebSocket, JSON-RPC, MCP, GraphQL, SQL semantics
+- id: OS-CREDENTIALS
+  feature_id: OS-CREDENTIALS
+  owner: credentials + supervisor + proxy
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Secret доступен только нужной операции/endpoint
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: endpoint binding, stable placeholders, refresh, managed files
+- id: OS-TOKEN
+  feature_id: OS-TOKEN
+  owner: credentials
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Binding к workspace/sandbox/provider/revision
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: OAuth grants and SPIFFE/subject identity, cache/expiry
+- id: OS-PROVIDERS
+  feature_id: OS-PROVIDERS
+  owner: providers
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Всё содержимое upstream providers/ покрыто fixtures
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Profiles, inheritance, label filtering, discovery, builtins
+- id: OS-BACKENDS
+  feature_id: OS-BACKENDS
+  owner: driver / driver-vm / driver-mxc
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Отдельный живой lane для каждого поддержанного профиля
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Docker and rootful/rootless Podman passed GitHub-hosted Linux acceptance; see evidence/runs/hosted-linux-acceptance-2026-10-22.md. VM Hypervisor.framework lifecycle passed on local Apple Silicon; see evidence/runs/vm-hvf-local-2026-10-22.md. Gateway VM integration, KVM, Windows MXC, Kubernetes live cluster, and GPU remain unverified.
+- id: OS-GPU
+  feature_id: OS-GPU
+  owner: compute + vm
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Реальная выдача/освобождение устройства, resource errors
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Resource requests, CDI, passthrough/VFIO где применимо
+- id: OS-CRED-DRIVERS
+  feature_id: OS-CRED-DRIVERS
+  owner: credentials
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Durable CRUD, auth, rotation и outage
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Database, Kubernetes Secrets, Vault-compatible
+- id: OS-PEER
+  feature_id: OS-PEER
+  owner: gateway
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Identity/fencing, reconnect и gateway outage
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: PeerRelay/readiness/endpoint/provider status
+- id: OS-PROVER
+  feature_id: OS-PROVER
+  owner: prover
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Within/Exceeds/Unsupported/Inconclusive без ложного allow
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Policy containment, risk queries, counterexample, coverage, timeout
+- id: OS-OBS
+  feature_id: OS-OBS
+  owner: telemetry + владельцы событий
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Consistent schema и доказанный bounded buffering
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: OCSF, logs, events, traces, metrics, redaction
+- id: OS-CLI
+  feature_id: OS-CLI
+  owner: CLI
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Сценарии и help inventory, PTY/golden tests
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Всё дерево upstream команд, flags, output/exit codes, dashboard
+- id: OS-SDK
+  feature_id: OS-SDK
+  owner: SDK + client packages
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Сценарии against real Go gateway, независимая установка
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Go API; Python/TS пользовательские поверхности
+- id: OS-DISTRIBUTION
+  feature_id: OS-DISTRIBUTION
+  owner: release tooling
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Reproducible artifact, signature, SBOM, clean install
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Images, Helm, binaries, supported packages/install/uninstall
+- id: OS-DOCS
+  feature_id: OS-DOCS
+  owner: docs + CLI
+  required: true
+  backend: null
+  host_profile: null
+  scenario: Каждый пример работает с новым продуктом
+  source_digest: null
+  command: null
+  result: unverified
+  evidence_level: null
+  artifact: null
+  last_verified: null
+  notes: Public skills/examples, troubleshooting, EN/RU guides

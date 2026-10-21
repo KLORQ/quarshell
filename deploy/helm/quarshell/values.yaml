@@ -1,0 +1,18 @@
+gateway:
+  image: ghcr.io/klorq/quarshell-gateway:0.0.0-dev
+  replicas: 1
+  token: change-me-please
+  resources: {}
+  data:
+    persistence: false
+    size: 1Gi
+
+ui:
+  enabled: true
+  image: ghcr.io/klorq/quarshell-ui:0.0.0-dev
+  replicas: 1
+
+service:
+  type: ClusterIP
+  httpPort: 7443
+  grpcPort: 7444

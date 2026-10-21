@@ -1,0 +1,482 @@
+# https://taskfile.dev
+#
+# Org root orchestrator.
+#   task --list
+#   task check | prerelease | smoke:mvp
+#   task runtime:image:gui | images:pull
+version: "3"
+
+vars:
+  ORG: "{{.ROOT_DIR}}"
+  GOWORK: "{{.ROOT_DIR}}/go.work"
+  GOLANGCI_LINT_VERSION: v2.14.0
+
+env:
+  GOWORK: "{{.GOWORK}}"
+
+includes:
+  smoke:
+    taskfile: ./tools/smoke.Taskfile.yml
+    dir: .
+    vars:
+      ORG: "{{.ROOT_DIR}}"
+      GOWORK: "{{.ROOT_DIR}}/go.work"
+  runtime:
+    taskfile: ./quarshell-runtime/Taskfile.yml
+    dir: ./quarshell-runtime
+  docker:
+    taskfile: ./quarshell-cli/docker/Taskfile.yml
+    dir: .
+    vars:
+      ORG: "{{.ROOT_DIR}}"
+      GOWORK: "{{.ROOT_DIR}}/go.work"
+  gateway:
+    taskfile: ./quarshell-gateway/compose/Taskfile.yml
+    dir: ./quarshell-gateway/compose
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list-all
+
+  "workspace:sync":
+    desc: Regenerate go.work from sibling module manifests
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/workspace.py"
+
+  "workspace:check":
+    desc: Verify go.work contains every sibling module manifest
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/workspace-layout-check.sh"
+
+  "clean:generated":
+    desc: Remove ignored build outputs and caches from all registered module worktrees
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/clean-generated.py" --apply
+
+  pre-push:
+    desc: Run the standalone pre-push gate in every product module
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/pre-push-all.sh"
+
+  "pre-push:module":
+    desc: Run one module's standalone pre-push gate (task pre-push:module -- quarshell-cli)
+    vars:
+      MODULE: '{{index .CLI_ARGS 0}}'
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/pre-push-all.sh" "{{.MODULE}}"
+
+  "ci:pins":
+    desc: Verify inter-repository workflow checkouts use modules.lock SHAs
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/pin-workflow-checkouts.py" --check
+
+  "images:pins":
+    desc: Verify release and tool images use immutable digests
+    cmds:
+      - bash "{{.ROOT_DIR}}/scripts/check-image-pins.sh"
+
+  "fmt:check":
+    desc: Fail if gofmt would change files
+    vars:
+      MODULES:
+        sh: bash "{{.ROOT_DIR}}/tools/module-list.sh"
+    cmds:
+      - |
+        set -euo pipefail
+        files=""
+        for m in {{.MODULES}}; do
+          files+=" $(find "$m" -type f -name '*.go' -print)"
+        done
+        bad="$(gofmt -l $files)"
+        if [[ -n "$bad" ]]; then
+          echo "gofmt needed:" >&2
+          echo "$bad" >&2
+          exit 1
+        fi
+        echo "fmt:check: PASS"
+
+  fmt:
+    desc: gofmt product modules
+    vars:
+      MODULES:
+        sh: bash "{{.ROOT_DIR}}/tools/module-list.sh"
+    cmds:
+      - |
+        set -euo pipefail
+        files=""
+        for m in {{.MODULES}}; do
+          files+=" $(find "$m" -type f -name '*.go' -print)"
+        done
+        gofmt -w $files
+
+  lint:
+    desc: golangci-lint across go.work modules
+    vars:
+      MODULES:
+        sh: bash "{{.ROOT_DIR}}/tools/module-list.sh"
+    cmds:
+      - |
+        set -euo pipefail
+        export GOWORK="{{.GOWORK}}"
+        export CGO_ENABLED=0
+        ROOT="{{.ROOT_DIR}}"
+        # Build the pinned linter with the repository toolchain. A preinstalled
+        # binary may have been built with an older Go minor patch and cannot
+        # decode newer compiler export data.
+        go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@{{.GOLANGCI_LINT_VERSION}}
+        export PATH="$(go env GOPATH)/bin:$PATH"
+        CFG="$ROOT/.golangci.yml"
+        for m in {{.MODULES}}; do
+          echo "== lint $m =="
+          (cd "$m" && golangci-lint run --config "$CFG" ./...) || exit 1
+        done
+        echo "lint: PASS"
+
+  test:
+    desc: go test ./... across go.work modules
+    cmds:
+      - |
+        set -euo pipefail
+        export GOWORK="{{.GOWORK}}"
+        for manifest in */go.mod; do
+          m="${manifest%/go.mod}"
+          echo "== test $m =="
+          CGO_ENABLED=0 go test -C "$m" ./...
+        done
+        echo "test: PASS"
+
+  "tests:integration":
+    desc: Run module-local integration test suites
+    cmds:
+      - |
+        set -euo pipefail
+        export GOWORK="{{.GOWORK}}"
+        for m in quarshell-*; do
+          if [[ -d "$m/tests/integration" ]]; then
+            echo "== integration $m =="
+            CGO_ENABLED=0 go test -C "$m" ./tests/integration/...
+          fi
+        done
+
+  "tests:e2e":
+    desc: Run module-local Testcontainers E2E suites (opt-in)
+    cmds:
+      - |
+        set -euo pipefail
+        export GOWORK="{{.GOWORK}}"
+        for m in quarshell-*; do
+          if [[ -d "$m/tests/e2e" ]] && find "$m/tests/e2e" -type f -name '*.go' -print -quit | grep -q .; then
+            echo "== e2e $m =="
+            CGO_ENABLED=0 CAUTEM_TESTCONTAINERS=1 go -C "$m" test -p 1 ./tests/e2e/...
+          elif [[ -d "$m/tests/e2e" ]]; then
+            echo "== e2e $m skipped (no Go tests) =="
+          fi
+        done
+
+  "e2e:console":
+    desc: Run Playwright browser smoke against an isolated real Gateway and Go console
+    cmds:
+      - python3 "{{.ROOT_DIR}}/quarshell-cli/tests/e2e/browser/run.py"
+
+
+  vuln:
+    desc: Required govulncheck gate; findings and scanner failures are fatal
+    cmds:
+      - task: smoke:check
+
+  evidence:check:
+    desc: Validate the machine-readable evidence matrix
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/check-evidence-matrix.py"
+
+  evidence:report:
+    desc: Generate plans/evidence/STATUS.md from the matrix
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/generate-evidence-report.py"
+
+  evidence:report-check:
+    desc: Verify plans/evidence/STATUS.md is current
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/generate-evidence-report.py" --check
+
+  conformance:check:
+    desc: Run the bounded policy conformance corpus
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/conformance.py"
+
+  policy:fuzz:
+    desc: Run bounded fuzz targets for the policy parser
+    cmds:
+      - go -C "{{.ROOT_DIR}}/quarshell-policy" test -run '^$' -fuzz '^FuzzParse$' -fuzztime 10s
+
+  conformance:upstream:
+    desc: Build the pinned upstream policy oracle and run parse + runtime-validation differentials
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/check-policy-differential.sh"
+
+  dag:check:
+    desc: Validate module dependency cycles (ADR-0002)
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/check-module-dag.py"
+
+  dag:strict:
+    desc: Enforce the full ADR-0002 module dependency rules
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/check-module-dag.py" --strict
+
+  standalone:check:
+    desc: Build every module with GOWORK=off using a local module proxy
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/standalone-build.py"
+
+  standalone:strict:
+    desc: Require every module to build with GOWORK=off and a local module proxy
+    cmds:
+      - python3 "{{.ROOT_DIR}}/tools/standalone-build.py" --strict
+
+  credentials:vault:
+    desc: Run the Vault KV v2 integration test in Docker
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/vault-credential-test.sh"
+
+  credentials:spire:
+    desc: Run the SPIRE Workload API integration test in Docker
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/spire-credential-test.sh"
+
+  credentials:kind:
+    desc: Run the Kubernetes Secrets integration test against a kind cluster
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/kind-credential-test.sh"
+
+  lifecycle:postgres:
+    desc: Run the PostgreSQL lifecycle store integration test in Docker
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/postgres-lifecycle-test.sh"
+
+  credentials:postgres:
+    desc: Run the PostgreSQL credential store integration test in Docker
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/postgres-credential-test.sh"
+
+  release:dry-run:
+    desc: Cross-build release binaries and generate checksums/SBOM without signing
+    cmds:
+      - bash "{{.ROOT_DIR}}/tools/release-dry-run.sh"
+
+  isolation:linux-build:
+    desc: Cross-build and vet isolation and supervisor for Linux
+    cmds:
+      - GOOS=linux GOARCH=amd64 go build ./quarshell-isolation/... ./quarshell-supervisor/...
+      - GOOS=linux GOARCH=arm64 go build ./quarshell-isolation/... ./quarshell-supervisor/...
+      - GOOS=linux GOARCH=amd64 go vet ./quarshell-isolation/... ./quarshell-supervisor/...
+
+  check:
+    desc: fmt:check + lint + vet/vuln + test (PR gate)
+    cmds:
+      - task: workspace:check
+      - task: dag:check
+      - task: isolation:linux-build
+      - task: ci:pins
+      - task: images:pins
+      - task: evidence:check
+      - task: evidence:report-check
+      - task: conformance:check
+      - python3 "{{.ROOT_DIR}}/tools/check-gateway-config-fields.py" --strict
+      - task: fmt:check
+      - task: lint
+      - task: smoke:check
+      - task: test
+
+  prerelease:
+    desc: Full pre-release gate (strict vuln + build + policy + optional smoke)
+    cmds:
+      - |
+        set -euo pipefail
+        export GOWORK="{{.GOWORK}}"
+        task pre-push
+        task smoke:check
+        task release:published
+        echo "== build binaries =="
+        go build -C quarshell-cli -o /tmp/cautem-prerelease ./cmd/cautem
+        go build -C quarshell-gateway -o /tmp/quarshell-gateway-prerelease ./cmd/quarshell-gateway
+        echo "== policy check =="
+        /tmp/cautem-prerelease policy check quarshell-cli/policies/default.yaml
+        /tmp/cautem-prerelease policy check quarshell-cli/policies/cursor.yaml
+        if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+          echo "== smoke:mvp =="
+          CAUTEM=/tmp/cautem-prerelease task smoke:mvp
+        else
+          echo "== smoke:mvp skipped (no docker) =="
+        fi
+        echo "prerelease: PASS"
+
+  "smoke:secrets":
+    desc: Unit-level secrets + KEK + policy update tests (no Docker create)
+    cmds:
+      - go test ./quarshell-runtime/secrets/ ./quarshell-core/env/ ./quarshell-core/policy/ ./quarshell-cli/internal/... ./quarshell-gateway/internal/storage/store/
+
+  "profiles:check":
+    desc: Validate OpenShell profile compatibility fixtures and credential discovery
+    cmds:
+      - go test -C quarshell-providers ./provider -run 'OpenShell|Discovery|UnsupportedFields|DuplicateProfile|RuntimeValidation|InsecurePublic'
+
+  "vm:parity-check":
+    desc: Validate the OpenShell VM parity inventory against pinned source files
+    cmds:
+      - python3 tools/check-vm-parity.py
+
+  "vm:artifact-check":
+    desc: Verify runtime artifact digests fail closed and publish atomically
+    cmds:
+      - quarshell-driver/scripts/test-vm-runtime-artifacts.sh
+
+  "vm:kvm-script-check":
+    desc: Verify KVM acceptance fixture cleanup without requiring /dev/kvm
+    cmds:
+      - quarshell-driver/scripts/test-live-kvm-script.sh
+
+  "compat:pin-check":
+    desc: Verify product SDK dependencies match the shared pinned OpenShell commit
+    cmds:
+      - tools/check-openshell-pin.sh
+
+  "compat:gaps":
+    desc: Validate the pinned gap report, RPC inventory, driver config field matrix and deletion guards
+    cmds:
+      - python3 tools/check-driver-config-matrix.py
+      - python3 tools/check-gateway-config-fields.py --strict
+      - sh tools/check-compat-gaps.sh
+      - sh tools/test-compat-gaps.sh
+      - go test -C quarshell-gateway ./internal/httpapi -run '^TestCompatRPCInventoryMatchesPinnedServiceAndHandlers$' -count=1
+
+  "compat:backends":
+    desc: Audit Kubernetes and VM backend config keys against pinned structs
+    cmds:
+      - python3 tools/check-backend-config-fields.py
+
+  "compat:proto":
+    desc: Verify generated related OpenShell protocol stubs match the pinned source
+    cmds:
+      - bash tools/check-related-proto-drift.sh
+
+  "e2e:docker":
+    desc: Run gateway, SSH, and driver lifecycle E2E checks against isolated Docker-in-Docker
+    cmds:
+      - tools/e2e/docker.sh
+
+  "e2e:docker-desktop":
+    desc: Run macOS Docker Desktop workspace and dual-stack host-isolation acceptance
+    cmds:
+      - tools/e2e/docker-desktop.sh
+
+  "e2e:podman":
+    desc: Run gateway, SSH, and driver lifecycle E2E checks against disposable Podman
+    cmds:
+      - tools/e2e/podman.sh
+
+  "vm:live-darwin":
+    desc: Run the real libkrun/HVF MicroVM lifecycle acceptance on macOS ARM64
+    cmds:
+      - quarshell-driver/scripts/run-live-darwin-arm64-acceptance.sh
+
+  "vm:live-linux":
+    desc: Run the real libkrun/KVM MicroVM lifecycle acceptance on Linux amd64 or arm64
+    cmds:
+      - quarshell-driver/scripts/run-live-kvm-acceptance.sh
+
+  "vm:live-linux-docker":
+    desc: Run a trusted Docker daemon and container resource probes inside a Linux KVM MicroVM
+    cmds:
+      - quarshell-driver/scripts/run-live-kvm-docker-acceptance.sh
+
+  "vm:live-linux-podman":
+    desc: Run a trusted Podman 6 service and container resource probes inside a Linux KVM MicroVM
+    cmds:
+      - quarshell-driver/scripts/run-live-kvm-podman-acceptance.sh
+
+  "vm:live-linux-podman-rootless":
+    desc: Run rootless Podman 6 API, offline container, and keep-id probes inside a Linux KVM MicroVM
+    cmds:
+      - cmd: CAUTEM_VM_PODMAN_ROOTLESS_ACCEPTANCE=1 CAUTEM_VM_TEST_NAME=TestLiveMicroVMNestedPodmanRootless quarshell-driver/scripts/run-live-kvm-podman-acceptance.sh
+
+  e2e:
+    desc: Run Docker and Podman end-to-end lanes
+    cmds:
+      - task: e2e:docker
+      - task: e2e:podman
+
+  "compat:release":
+    desc: Required OpenShell compatibility release gate for Docker and Podman
+    cmds:
+      - task: compat:pin-check
+      - task: compat:gaps
+      - task: compat:proto
+      - task: check
+      - task: profiles:check
+      - go build -C quarshell-cli -o /tmp/cautem-compat-release-cli ./cmd/cautem
+      - go build -C quarshell-gateway -o /tmp/cautem-compat-release-gateway ./cmd/quarshell-gateway
+      - go build -C quarshell-runtime -o /tmp/cautem-compat-release-supervisor ./cmd/cautem-supervisor
+      - task: race
+      - task: release:standalone
+      - task: release:published
+      - task: release:artifacts
+      - task: docs:strict
+      - task: e2e
+
+  "release:artifacts":
+    desc: Build and inspect release archive, gateway image and SBOM
+    cmds:
+      - bash scripts/check-release-artifacts.sh
+
+  "release:standalone":
+    desc: Verify every Go module outside go.work with local sibling modules
+    cmds:
+      - bash scripts/check-standalone.sh
+
+  "release:published":
+    desc: Verify every Go module against published dependencies without replacements
+    cmds:
+      - bash scripts/check-published-deps.sh
+
+  race:
+    desc: Run the workspace race matrix with native CGO
+    cmds:
+      - |
+        set -euo pipefail
+        export GOWORK="{{.GOWORK}}"
+        for manifest in */go.mod; do
+          m="${manifest%/go.mod}"
+          echo "== race $m =="
+          CGO_ENABLED=1 go -C "$m" test -race -p 1 ./...
+        done
+        echo "race: PASS"
+
+  "docs:strict":
+    desc: Build MkDocs in an ephemeral Docker container with strict validation
+    cmds:
+      - bash scripts/check-docs-strict.sh
+
+  "images:pull":
+    desc: Pull GHCR catalog (OpenShell-style paths) and retag local shorts
+    cmds:
+      - |
+        set -euo pipefail
+        REG="${CAUTEM_GHCR:-ghcr.io/cautem/cautem}"
+        pull_tag() {
+          local remote="$1" local="$2"
+          echo "pull $remote → $local"
+          docker pull "$remote"
+          docker tag "$remote" "$local"
+        }
+        pull_tag "$REG/sandboxes/base:latest" cautem-sandbox:local || true
+        pull_tag "$REG/sandboxes/gui:latest" cautem-sandbox:gui || true
+        pull_tag "$REG/sandboxes/gpu:latest" cautem-sandbox:gpu || true
+        pull_tag "$REG/sandboxes/gui-gpu:latest" cautem-sandbox:gui-gpu || true
+        pull_tag "$REG/sandboxes/cursor:latest" cautem-sandbox:cursor || true
+        pull_tag "$REG/sandboxes/claude:latest" cautem-sandbox:claude || true
+        pull_tag "$REG/sandboxes/codex:latest" cautem-sandbox:codex || true
+        pull_tag "$REG/gateway:latest" quarshell-gateway:local || true
+        echo "images:pull: done (missing remotes are non-fatal)"

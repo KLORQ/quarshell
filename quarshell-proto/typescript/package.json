@@ -1,0 +1,48 @@
+{
+  "name": "@klorq/quarshell-proto",
+  "version": "0.0.0-dev",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/gen/openshell/compute/v1/",
+    "dist/gen/openshell/credentials/v1/",
+    "dist/gen/openshell/datamodel/v1/",
+    "dist/gen/openshell/extension/v1/",
+    "dist/gen/openshell/gateway/v1/",
+    "dist/gen/openshell/gateway_interceptor/v1/",
+    "dist/gen/openshell/middleware/v1/",
+    "dist/gen/openshell/options/v1/",
+    "dist/gen/openshell/pagination/v1/",
+    "dist/gen/openshell/sandbox/v1/",
+    "dist/gen/openshell/sandbox_protocol/v1/"
+  ],
+  "scripts": {
+    "generate": "node -e \"require('node:fs').rmSync('src/gen',{recursive:true,force:true})\" && cd .. && buf generate --template typescript/buf.gen.yaml",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "check": "npm run generate && npm run build"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.16.0",
+    "@connectrpc/connect": "2.2.0",
+    "@connectrpc/connect-web": "2.2.0"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "2.16.0",
+    "typescript": "7.0.2"
+  }
+}

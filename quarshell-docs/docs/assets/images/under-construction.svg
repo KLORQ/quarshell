@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Under construction">
+  <defs>
+    <pattern id="stripes" width="28" height="28" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="14" height="28" fill="#ff9800"/>
+      <rect x="14" width="14" height="28" fill="#fafafa"/>
+    </pattern>
+    <linearGradient id="cone" x1="0" x2="1">
+      <stop offset="0" stop-color="#ff7043"/>
+      <stop offset="1" stop-color="#e64a19"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0" stop-color="#ffd54f" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#ffd54f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <ellipse cx="240" cy="264" rx="215" ry="10" fill="#000" opacity=".12"/>
+
+  <circle cx="127" cy="104" r="26" fill="url(#glow)"/>
+  <circle cx="353" cy="104" r="26" fill="url(#glow)"/>
+  <rect x="119" y="112" width="16" height="8" rx="2" fill="#455a64"/>
+  <rect x="345" y="112" width="16" height="8" rx="2" fill="#455a64"/>
+  <circle cx="127" cy="104" r="10" fill="#ffc107"/>
+  <circle cx="353" cy="104" r="10" fill="#ffc107"/>
+
+  <rect x="120" y="120" width="14" height="140" rx="3" fill="#607d8b"/>
+  <rect x="346" y="120" width="14" height="140" rx="3" fill="#607d8b"/>
+  <rect x="100" y="252" width="54" height="10" rx="3" fill="#455a64"/>
+  <rect x="326" y="252" width="54" height="10" rx="3" fill="#455a64"/>
+
+  <rect x="90" y="132" width="300" height="34" rx="6" fill="url(#stripes)" stroke="#e65100" stroke-width="3"/>
+  <rect x="90" y="186" width="300" height="34" rx="6" fill="url(#stripes)" stroke="#e65100" stroke-width="3"/>
+
+  <g transform="translate(30 188)">
+    <path d="M20 0 L40 70 H0 Z" fill="url(#cone)"/>
+    <path d="M12.9 25 H27.1 L30.9 38 H9.1 Z" fill="#fafafa"/>
+    <rect x="-6" y="68" width="52" height="8" rx="2" fill="#bf360c"/>
+  </g>
+  <g transform="translate(410 188)">
+    <path d="M20 0 L40 70 H0 Z" fill="url(#cone)"/>
+    <path d="M12.9 25 H27.1 L30.9 38 H9.1 Z" fill="#fafafa"/>
+    <rect x="-6" y="68" width="52" height="8" rx="2" fill="#bf360c"/>
+  </g>
+
+  <image href="./mascot-cutouts/worker.png" x="140" y="48" width="200" height="183" preserveAspectRatio="xMidYMax meet"/>
+</svg>

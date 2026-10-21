@@ -1,0 +1,12 @@
+policy: |
+  version: 1
+  process:
+    run_as_user: sandbox
+    run_as_group: sandbox
+process:
+  - user: sandbox
+    group: sandbox
+  - user: root
+    group: sandbox
+  - user: sandbox
+    group: root

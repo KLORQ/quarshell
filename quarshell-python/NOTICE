@@ -1,0 +1,8 @@
+cautem python
+Copyright 2026 cautem contributors
+
+Third-party files retain their original copyright and license notices.
+
+Generated OpenShell protobuf and gRPC clients derive from NVIDIA OpenShell
+schemas pinned in the workspace at tools/upstream/openshell. The upstream
+project is licensed under Apache-2.0; see the OpenShell notice in the workspace.

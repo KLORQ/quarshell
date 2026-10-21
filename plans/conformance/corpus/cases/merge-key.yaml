@@ -1,0 +1,3 @@
+version: 1
+process:
+  <<: {run_as_user: root}

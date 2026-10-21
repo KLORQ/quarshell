@@ -1,0 +1,13 @@
+version: 1
+network_middlewares:
+  headers:
+    name: headers
+    middleware: header-injection
+    order: 10
+    on_error: fail_closed
+    config:
+      headers:
+        x-test: value
+    endpoints:
+      include: ['**.example.com']
+      exclude: ['internal.example.com']
