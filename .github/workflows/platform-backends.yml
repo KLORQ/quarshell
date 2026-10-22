@@ -31,12 +31,17 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Build and test VM packages
         run: go test -C quarshell-driver-vm ./... -count=1
+      - name: Checkout pinned OpenShell runtime build inputs
+        run: |
+          source_dir="$RUNNER_TEMP/openshell-v0.1.4"
+          git clone --depth 1 --branch v0.1.4 https://github.com/NVIDIA/OpenShell.git "$source_dir"
+          test "$(git -C "$source_dir" rev-parse HEAD)" = "5a7728c304b5528e954e9ae900cf21f84e1a12b1"
       - name: Install pinned Rust toolchain for libkrun
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.95.0
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - name: Build OpenShell-pinned libkrun runtime
-        run: bash tools/upstream/openshell-v0.1.4/tasks/scripts/vm/build-libkrun.sh
+        run: bash "$RUNNER_TEMP/openshell-v0.1.4/tasks/scripts/vm/build-libkrun.sh"
       - name: Stage source-pinned runtime digest lock
         shell: bash
         run: |
@@ -44,8 +49,9 @@ jobs:
           runtime_dir="$RUNNER_TEMP/quarshell-vm-runtime"
           lock_path="$RUNNER_TEMP/quarshell-vm-runtime-trust.json"
           mkdir -p "$runtime_dir"
-          cp tools/upstream/openshell-v0.1.4/target/libkrun-build/libkrun.so "$runtime_dir/libkrun.so"
-          libkrunfw_path=$(find tools/upstream/openshell-v0.1.4/target/libkrun-build -maxdepth 1 -type f -name 'libkrunfw.so.5*' -print -quit)
+          build_dir="$RUNNER_TEMP/openshell-v0.1.4/target/libkrun-build"
+          cp "$build_dir/libkrun.so" "$runtime_dir/libkrun.so"
+          libkrunfw_path=$(find "$build_dir" -maxdepth 1 -type f -name 'libkrunfw.so.5*' -print -quit)
           test -n "$libkrunfw_path"
           cp "$libkrunfw_path" "$runtime_dir/libkrunfw.so.5"
           chmod 0600 "$runtime_dir/libkrun.so" "$runtime_dir/libkrunfw.so.5"
