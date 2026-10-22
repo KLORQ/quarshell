@@ -912,7 +912,32 @@ the TLS workload. The rest of the live VM, recovery, OCI pinning, and Gateway
 credential/process-event flow also passed. This supplies live TLS workload
 egress evidence, while the broader upstream corporate-proxy parity remains
 partial (credentialed proxy auth, `no_proxy` bypass and the full upstream
-fixture matrix are not covered by this test).
+fixture matrix are not covered by this test). The temporary guest probe skips
+destination certificate verification so this test isolates TLS transport and
+policy routing; it does not establish the guest's trust of the proxy's
+ephemeral MITM CA.
+
+The same current source passed `task vm:live-darwin` again at 20:30
+(`TestLiveMicroVMLifecycle`, 22.61 s), confirming the checked-in probe and the
+certificate-verification behavior used by the pinned upstream fixture.
+
+At 20:33, the live fixture was extended to require upstream proxy Basic auth
+read from a mode-0600 credential file. The local HTTPS CONNECT proxy rejected
+requests without the expected `Proxy-Authorization`; `task vm:live-darwin`
+passed again (`TestLiveMicroVMLifecycle`, 22.81 s), including authenticated
+TLS egress allow/revoke and the full VM/Gateway lifecycle path. This covers the
+credentialed HTTPS proxy leg of upstream parity; `no_proxy` direct bypass and
+the complete upstream fixture matrix remain untested.
+
+At 20:35, the fixture also required the upstream CONNECT target to be a
+resolved IP on port 443, used the upstream policy's explicit `tls: skip`
+setting, and asserted a revoked request never reached the upstream proxy.
+`task vm:live-darwin` passed again (`TestLiveMicroVMLifecycle`, 22.68 s).
+Together with the proxy-layer exact host/port `no_proxy` direct-dial test and
+auth/CA tests, this closes the pinned `vm.policy-egress` row for supported
+configuration. The guest HTTPS probe skips server certificate verification,
+matching the upstream fixture; this row does not establish guest trust of the
+ephemeral MITM CA.
 
 ## Working upstream proxy in live HVF acceptance
 

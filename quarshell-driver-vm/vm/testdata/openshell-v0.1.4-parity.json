@@ -279,10 +279,13 @@
       "id": "vm.policy-egress",
       "upstream": "e2e/rust/tests/vm_corporate_proxy.rs::vm_corporate_proxy_routes_approved_tls_egress",
       "cautem": "quarshell-driver-vm/vm/network_broker_unix.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
-      "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
-      "quarshell-driver-vm/vm/live_acceptance_test.go::assertLivePolicyRevisionUpdate"
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLivePolicyRevisionUpdate",
+        "quarshell-proxy/proxy/upstream_test.go::TestDialViaUpstreamProxyUsesAuthFileWithoutEmbeddingSecretInURL",
+        "quarshell-proxy/proxy/upstream_test.go::TestDialViaHTTPSProxyUsesConfiguredCABundle",
+        "quarshell-proxy/proxy/no_proxy_test.go::TestDialSSRFNoProxyUsesExactHostAndPort"
       ]
     },
     {

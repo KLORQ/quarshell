@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -96,7 +97,13 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		_, _ = io.WriteString(w, "local-upstream-ok")
 	}))
 	defer tlsWorkload.Close()
+	upstreamAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("live-user:live-pass"))
 	upstreamProxy := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Proxy-Authorization") != upstreamAuthHeader {
+			t.Errorf("upstream proxy received missing or incorrect authentication")
+			w.WriteHeader(http.StatusProxyAuthRequired)
+			return
+		}
 		if request.Method != http.MethodConnect {
 			select {
 			case upstreamRequests <- request.URL.String():
@@ -155,6 +162,10 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	proxyCABundle := newTestProxyCABundle(t)
+	proxyAuthPath := filepath.Join(policyDir, "upstream-proxy-auth")
+	if err := os.WriteFile(proxyAuthPath, []byte("live-user:live-pass\n"), 0o600); err != nil {
+		t.Fatalf("write upstream proxy auth fixture: %v", err)
+	}
 	proxyCAPath := filepath.Join(policyDir, "corporate-proxy-ca.pem")
 	if err := os.WriteFile(proxyCAPath, proxyCABundle, 0o600); err != nil {
 		t.Fatal(err)
@@ -175,6 +186,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 			"HTTP_PROXY=" + upstreamProxy.URL,
 			"HTTPS_PROXY=" + upstreamProxy.URL,
 			"CAUTEM_PROXY_CA_BUNDLE=" + proxyCAPath,
+			"CAUTEM_PROXY_AUTH_FILE=" + proxyAuthPath,
 			"CAUTEM_EGRESS_CA_BUNDLE=" + proxyCAPath,
 			"CAUTEM_VM_TEST_POLICY_PROXY_HELPER=1",
 			"CAUTEM_VM_TEST_BROKER_PID_FILE=" + brokerPIDPath,
@@ -1039,7 +1051,7 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 	// httptest's stable local certificate includes example.com; the test HTTPS
 	// proxy tunnels that host to its local TLS server rather than the internet.
 	probeHost := "example.com"
-	policyDocument := []byte(fmt.Sprintf("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: %s\n        port: 443\n", probeHost))
+	policyDocument := []byte(fmt.Sprintf("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: %s\n        port: 443\n        tls: skip\n", probeHost))
 	updatedPath := policyPath + ".next"
 	if err := os.WriteFile(updatedPath, policyDocument, 0o600); err != nil {
 		t.Fatalf("write next live policy revision: %v", err)
@@ -1061,7 +1073,7 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 	select {
 	case requestURL := <-upstreamRequests:
 		upstreamHost, upstreamPort, splitErr := net.SplitHostPort(requestURL)
-		if splitErr != nil || upstreamPort != "443" || (upstreamHost != probeHost && net.ParseIP(upstreamHost) == nil) {
+		if splitErr != nil || upstreamPort != "443" || net.ParseIP(upstreamHost) == nil {
 			t.Fatalf("allowed egress reached unexpected upstream CONNECT target %q", requestURL)
 		}
 	case <-time.After(3 * time.Second):
@@ -1083,6 +1095,11 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 	revokedOutput := string(revoked.Stdout) + string(revoked.Stderr)
 	if revoked.ExitCode == 0 || !strings.Contains(revokedOutput, "Forbidden") {
 		t.Fatalf("revision 3 did not revoke the working upstream endpoint: exit=%d stdout=%q stderr=%q", revoked.ExitCode, revoked.Stdout, revoked.Stderr)
+	}
+	select {
+	case requestURL := <-upstreamRequests:
+		t.Fatalf("revoked HTTPS endpoint unexpectedly reached upstream proxy at %q", requestURL)
+	case <-time.After(100 * time.Millisecond):
 	}
 	t.Log("live policy revision 3 revoked the previously allowed endpoint")
 	assertLiveNetworkBroker(t, ctx, sandbox, id, "blocked-probe.invalid", probePath)
