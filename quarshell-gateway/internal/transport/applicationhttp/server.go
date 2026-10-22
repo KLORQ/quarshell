@@ -134,6 +134,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/workspaces/{workspace}/sandboxes/{sandbox}/forwards", s.listForwards)
 	mux.HandleFunc("GET /v1/workspaces/{workspace}/sandboxes/{sandbox}/forwards/{forward}", s.getForward)
 	mux.HandleFunc("DELETE /v1/workspaces/{workspace}/sandboxes/{sandbox}/forwards/{forward}", s.deleteForward)
+	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /v1/healthz", s.health)
 	mux.HandleFunc("GET /v1/gateway/info", s.gatewayInfo)
 	mux.HandleFunc("GET /v1/whoami", s.whoami)
@@ -151,7 +152,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method == http.MethodGet && request.URL.Path == "/v1/healthz" {
+		if request.Method == http.MethodGet && (request.URL.Path == "/healthz" || request.URL.Path == "/v1/healthz") {
 			next.ServeHTTP(writer, request)
 			return
 		}

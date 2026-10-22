@@ -14,23 +14,25 @@ pull a sandbox image — then [start the gateway](gateway.md) and
 
 ### with the installer <small>recommended</small> { #with-installer data-toc-label="with the installer" }
 
-The latest published CLI is `v0.1.6`. Pin it when installing so this
-guide keeps working until the next stable release is published.
-Open a terminal and run:
+The installer downloads the CLI and gateway, installs them into
+`~/.local/bin`, starts a local gateway and registers it. Run:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/cautem/quarshell-cli/main/install.sh \
-  | CAUTEM_VERSION=v0.1.6 sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
 cautem version
+cautem status
 ```
+
+`cautem status` should report `Connected`. Set `CAUTEM_NO_START=1` to skip
+gateway startup, or `CAUTEM_VERSION=vX.Y.Z` to pin a release.
 
 The binary goes to `~/.local/bin` — make sure it is on your `PATH`.
 
 To install into another directory:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/cautem/quarshell-cli/main/install.sh \
-  | CAUTEM_VERSION=v0.1.6 CAUTEM_INSTALL_DIR=/usr/local/bin sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh \
+  | CAUTEM_INSTALL_DIR=/usr/local/bin sh
 ```
 
 ### from source
@@ -43,8 +45,9 @@ cd /path/to/cautem
 export GOWORK=$PWD/go.work
 
 go build -C quarshell-cli -o cautem ./cmd/cautem
-./quarshell-cli/cautem install
-./quarshell-cli/cautem version
+go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
+./cautem install
+./cautem version
 ```
 
 ## Start a container engine

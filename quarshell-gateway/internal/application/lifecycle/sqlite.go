@@ -361,6 +361,21 @@ func (t *sqliteTx) PutOperation(operation Operation) error {
 	return nil
 }
 
+func (t *sqliteTx) DeleteOperation(key string) error {
+	if key == "" {
+		return domain.Invalidf("lifecycle.sqlite", "operation key is required")
+	}
+	result, err := t.tx.ExecContext(t.ctx, `DELETE FROM `+sqliteOperationsTable+` WHERE key = ?`, key)
+	if err != nil {
+		return domain.Wrap(err, "lifecycle.sqlite", "delete operation")
+	}
+	affected, err := result.RowsAffected()
+	if err != nil || affected == 0 {
+		return domain.New(domain.CodeConflict, "lifecycle.sqlite", "operation does not exist")
+	}
+	return nil
+}
+
 func (t *sqliteTx) Enqueue(message OutboxMessage) error {
 	if message.ID == "" || message.Topic == "" {
 		return domain.Invalidf("lifecycle.sqlite", "message id and topic are required")

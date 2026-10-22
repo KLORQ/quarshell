@@ -1,6 +1,8 @@
 package service
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"net"
@@ -60,8 +62,15 @@ func (a *App) GatewayEnsure() error {
 		log.Error("failed to open gateway log", slogx.Err(err))
 		return fmt.Errorf("gateway ensure: log: %w", err)
 	}
+	dataDir := defaultGatewayDataDir()
+	token, err := ensureGatewayToken(dataDir)
+	if err != nil {
+		_ = logF.Close()
+		return fmt.Errorf("gateway ensure: token: %w", err)
+	}
 	log.Info("starting local gateway", slog.String("bin", bin), slog.String("listen", defaults.GatewayListen))
-	cmd := exec.Command(bin, "--listen", defaults.GatewayListen, "--data-dir", defaultGatewayDataDir())
+	cmd := exec.Command(bin, "--listen", defaults.GatewayListen, "--data-dir", dataDir)
+	cmd.Env = append(os.Environ(), "QUARSHELL_TOKEN="+token)
 	cmd.Stdout = logF
 	cmd.Stderr = logF
 	cmd.SysProcAttr = gatewaySysProcAttr()
@@ -92,6 +101,44 @@ func (a *App) GatewayEnsure() error {
 	err = fmt.Errorf("gateway ensure: started %s but healthz not ready (see %s)", bin, logPath)
 	log.Error("gateway healthz timeout", slogx.Err(err))
 	return err
+}
+
+func ensureGatewayToken(dataDir string) (string, error) {
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dataDir, gatewayAuthTokenFile)
+	if data, err := os.ReadFile(path); err == nil {
+		if token := strings.TrimSpace(string(data)); token != "" {
+			return token, nil
+		}
+	}
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(raw[:])
+	tmp, err := os.CreateTemp(dataDir, "auth-token-*")
+	if err != nil {
+		return "", err
+	}
+	name := tmp.Name()
+	defer os.Remove(name)
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return "", err
+	}
+	if _, err := tmp.WriteString(token); err != nil {
+		_ = tmp.Close()
+		return "", err
+	}
+	if err := tmp.Close(); err != nil {
+		return "", err
+	}
+	if err := os.Rename(name, path); err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func portOpen(host string, port int) bool {

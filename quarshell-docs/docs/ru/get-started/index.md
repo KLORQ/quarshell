@@ -14,23 +14,25 @@ cautem — один CLI, который запускает coding-агентов
 
 ### через установщик <small>рекомендуется</small> { #with-installer data-toc-label="через установщик" }
 
-Последняя опубликованная версия CLI — `v0.1.6`. Закрепите её при
-установке, чтобы инструкции оставались воспроизводимыми до выхода стабильного релиза.
-Откройте терминал и выполните:
+Установщик скачивает CLI и gateway, ставит их в `~/.local/bin`,
+запускает локальный gateway и регистрирует его. Выполните:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/cautem/quarshell-cli/main/install.sh \
-  | CAUTEM_VERSION=v0.1.6 sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
 cautem version
+cautem status
 ```
+
+`cautem status` должен показать `Connected`. `CAUTEM_NO_START=1` отключает
+запуск gateway, `CAUTEM_VERSION=vX.Y.Z` закрепляет релиз.
 
 Бинарь ставится в `~/.local/bin` — этот каталог должен быть в `PATH`.
 
 Для установки в другой каталог:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/cautem/quarshell-cli/main/install.sh \
-  | CAUTEM_VERSION=v0.1.6 CAUTEM_INSTALL_DIR=/usr/local/bin sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh \
+  | CAUTEM_INSTALL_DIR=/usr/local/bin sh
 ```
 
 ### из исходников
@@ -43,8 +45,9 @@ cd /path/to/cautem
 export GOWORK=$PWD/go.work
 
 go build -C quarshell-cli -o cautem ./cmd/cautem
-./quarshell-cli/cautem install
-./quarshell-cli/cautem version
+go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
+./cautem install
+./cautem version
 ```
 
 ## Контейнерный движок

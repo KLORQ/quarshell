@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -65,6 +66,7 @@ func main() {
 	listen := flag.String("listen", "127.0.0.1:7443", "HTTP listen address")
 	tokenValue := flag.String("token", os.Getenv("QUARSHELL_TOKEN"), "bearer token (or QUARSHELL_TOKEN)")
 	dataPath := flag.String("data", "", "SQLite path; empty uses in-memory state")
+	dataDir := flag.String("data-dir", "", "state directory; uses <dir>/state.db when --data is empty")
 	name := flag.String("name", "quarshell", "gateway name")
 	gatewayID := flag.String("gateway-id", envOrDefault("QUARSHELL_GATEWAY_ID", "openshell"), "stable OpenShell Gateway identity used in session JWTs")
 	grpcListen := flag.String("grpc-listen", "127.0.0.1:7444", "gRPC listen address; empty disables")
@@ -101,6 +103,13 @@ func main() {
 
 	if strings.TrimSpace(*tokenValue) == "" {
 		log.Fatal("quarshell-gateway: --token or QUARSHELL_TOKEN is required")
+	}
+
+	if strings.TrimSpace(*dataPath) == "" && strings.TrimSpace(*dataDir) != "" {
+		if err := os.MkdirAll(*dataDir, 0o700); err != nil {
+			log.Fatalf("create data dir: %v", err)
+		}
+		*dataPath = filepath.Join(*dataDir, "state.db")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

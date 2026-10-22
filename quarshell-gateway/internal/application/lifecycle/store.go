@@ -55,6 +55,7 @@ type WriteTx interface {
 	Put(kind, id string, expectedVersion uint64, payload []byte) (Record, error)
 	Delete(kind, id string, expectedVersion uint64) error
 	PutOperation(operation Operation) error
+	DeleteOperation(key string) error
 	Enqueue(message OutboxMessage) error
 }
 

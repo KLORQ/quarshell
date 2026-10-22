@@ -228,6 +228,17 @@ func (tx *memoryTx) PutOperation(operation Operation) error {
 	return nil
 }
 
+func (tx *memoryTx) DeleteOperation(key string) error {
+	if key == "" {
+		return domain.Invalidf("lifecycle.operation", "operation key is required")
+	}
+	if _, exists := tx.operations[key]; !exists {
+		return domain.New(domain.CodeConflict, "lifecycle.operation", "operation does not exist")
+	}
+	delete(tx.operations, key)
+	return nil
+}
+
 func (tx *memoryTx) Enqueue(message OutboxMessage) error {
 	if message.ID == "" || message.Topic == "" {
 		return domain.Invalidf("lifecycle.outbox", "message id and topic are required")

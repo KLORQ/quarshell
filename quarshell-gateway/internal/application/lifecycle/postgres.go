@@ -329,6 +329,21 @@ func (t *postgresTx) PutOperation(operation Operation) error {
 	return nil
 }
 
+func (t *postgresTx) DeleteOperation(key string) error {
+	if key == "" {
+		return domain.Invalidf("lifecycle.postgres", "operation key is required")
+	}
+	result, err := t.tx.ExecContext(t.ctx, `DELETE FROM `+postgresOperationsTable+` WHERE key = $1`, key)
+	if err != nil {
+		return domain.New(domain.CodeUnavailable, "lifecycle.postgres", "delete operation")
+	}
+	affected, err := result.RowsAffected()
+	if err != nil || affected == 0 {
+		return domain.New(domain.CodeConflict, "lifecycle.postgres", "operation does not exist")
+	}
+	return nil
+}
+
 func (t *postgresTx) Enqueue(message OutboxMessage) error {
 	if message.ID == "" || message.Topic == "" {
 		return domain.Invalidf("lifecycle.postgres", "message id and topic are required")

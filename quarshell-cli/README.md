@@ -6,7 +6,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/KLORQ/quarshell-cli/actions/workflows/ci.yml"><img src="https://github.com/KLORQ/quarshell-cli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/KLORQ/quarshell-cli/releases"><img src="https://img.shields.io/github/v/release/cautem/quarshell-cli?include_prereleases&sort=semver&label=release" alt="release"></a>
+  <a href="https://github.com/KLORQ/quarshell/releases"><img src="https://img.shields.io/github/v/release/KLORQ/quarshell?include_prereleases&sort=semver&label=release" alt="release"></a>
   <a href="https://img.shields.io/badge/status-v0.2.1-blue"><img src="https://img.shields.io/badge/status-v0.2.1-blue" alt="v0.2.1"></a>
   <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License"></a>
   <a href="https://github.com/KLORQ/quarshell-cli"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go" alt="Go Version"></a>
@@ -38,17 +38,19 @@ The [quick start](https://klorq.github.io/sandbox.dev/get-started/) contains the
 
 ## Installation
 
-Install the current release (`v0.2.1`) into `~/.local/bin`:
+Install the latest release into `~/.local/bin` and start a local gateway:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/cautem/quarshell-cli/main/install.sh \
-  | CAUTEM_VERSION=v0.2.1 sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
 ```
 
-From source in the [multi-repo workspace](https://github.com/KLORQ):
+Pin a release with `CAUTEM_VERSION=vX.Y.Z`, or skip gateway startup with `CAUTEM_NO_START=1`.
+
+From source in the [monorepo](https://github.com/KLORQ/quarshell):
 
 ```bash
 go build -C quarshell-cli -o ../cautem ./cmd/cautem
+go build -C quarshell-gateway -o ../quarshell-gateway ./cmd/quarshell-gateway
 ./cautem install
 ```
 

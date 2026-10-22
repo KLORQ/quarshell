@@ -2,14 +2,18 @@ package applicationgrpc
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"sort"
 	"strings"
 
+	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-driver/driver"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -19,16 +23,13 @@ const (
 )
 
 // ExecSandbox executes one command and sends bounded stdout/stderr chunks plus
-// a final exit event. Durable request_id admission is not yet supported.
+// a final exit event. A supplied request_id is durably fenced before launch.
 func (s *Server) ExecSandbox(request *gatewayv1.ExecSandboxRequest, stream gatewayv1.OpenShell_ExecSandboxServer) error {
 	if s.Sandboxes == nil {
 		return status.Error(codes.Unavailable, "sandbox service is not configured")
 	}
 	if strings.TrimSpace(request.GetSandbox()) == "" || len(request.GetCommand()) == 0 {
 		return status.Error(codes.InvalidArgument, "sandbox and command are required")
-	}
-	if strings.TrimSpace(request.GetRequestId()) != "" {
-		return status.Error(codes.Unimplemented, "durable exec request_id admission is not configured")
 	}
 	if strings.TrimSpace(request.GetCommand()[0]) == "" || strings.ContainsRune(request.GetWorkdir(), '\x00') {
 		return status.Error(codes.InvalidArgument, "command and workdir must be valid")
@@ -72,6 +73,9 @@ func (s *Server) ExecSandbox(request *gatewayv1.ExecSandboxRequest, stream gatew
 		environment = append(environment, key+"="+request.GetEnvironment()[key])
 	}
 	ref := sandboxRef(request.GetWorkspaceScope(), request.GetSandbox())
+	if err := s.admitExecRequest(ctx, ref, request.GetRequestId(), request); err != nil {
+		return err
+	}
 	result, err := s.Sandboxes.Exec(ctx, ref, driver.ExecRequest{
 		CaptureOutput: true,
 		Argv:          append([]string(nil), request.GetCommand()...), TTY: request.GetTty(),
@@ -81,6 +85,11 @@ func (s *Server) ExecSandbox(request *gatewayv1.ExecSandboxRequest, stream gatew
 	})
 	if err != nil {
 		return grpcError(err)
+	}
+	if request.GetRequestId() != "" {
+		if err := s.Sandboxes.CompleteExecRequest(ctx, ref, request.GetRequestId()); err != nil {
+			return grpcError(err)
+		}
 	}
 	if err := sendExecOutput(stream, result.Stdout, true); err != nil {
 		return err
@@ -92,8 +101,8 @@ func (s *Server) ExecSandbox(request *gatewayv1.ExecSandboxRequest, stream gatew
 }
 
 // ExecSandboxInteractive relays stdin, terminal resizes, and PTY output for a
-// command. Durable request_id admission is intentionally rejected until the
-// execution fence is backed by a durable store.
+// command. A supplied request_id is durably fenced before the guest session
+// opens; completed terminal executions retain the fence for 24 hours.
 func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxInteractiveServer) error {
 	if s.Sandboxes == nil {
 		return status.Error(codes.Unavailable, "sandbox service is not configured")
@@ -108,9 +117,6 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 	request := first.GetStart()
 	if request == nil || strings.TrimSpace(request.GetSandbox()) == "" || len(request.GetCommand()) == 0 {
 		return status.Error(codes.InvalidArgument, "interactive exec requires a valid start message")
-	}
-	if strings.TrimSpace(request.GetRequestId()) != "" {
-		return status.Error(codes.Unimplemented, "durable exec request_id admission is not configured")
 	}
 	if !request.GetTty() {
 		return status.Error(codes.InvalidArgument, "interactive exec requires tty=true")
@@ -146,7 +152,11 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 	if err != nil {
 		return err
 	}
-	session, err := s.Sandboxes.OpenExecTerminal(ctx, sandboxRef(request.GetWorkspaceScope(), request.GetSandbox()), driver.ExecTerminalRequest{
+	ref := sandboxRef(request.GetWorkspaceScope(), request.GetSandbox())
+	if err := s.admitExecRequest(ctx, ref, request.GetRequestId(), request); err != nil {
+		return err
+	}
+	session, err := s.Sandboxes.OpenExecTerminal(ctx, ref, driver.ExecTerminalRequest{
 		Argv: append([]string(nil), request.GetCommand()...), Env: environment,
 		WorkDir: request.GetWorkdir(), NoLoginShell: request.GetNoLoginShell(), Columns: columns, Rows: rows,
 	})
@@ -226,7 +236,53 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 	if err != nil {
 		return grpcError(err)
 	}
+	if request.GetRequestId() != "" {
+		if err := s.Sandboxes.CompleteExecRequest(ctx, ref, request.GetRequestId()); err != nil {
+			return grpcError(err)
+		}
+	}
 	return stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Exit{Exit: &gatewayv1.ExecSandboxExit{ExitCode: int32(exitCode)}}})
+}
+
+func (s *Server) admitExecRequest(ctx context.Context, ref domain.SandboxRef, requestID string, request proto.Message) error {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return nil
+	}
+	if !isNonzeroUUID(requestID) {
+		return status.Error(codes.InvalidArgument, "request_id must be a nonzero UUID")
+	}
+	clone := proto.Clone(request)
+	switch value := clone.(type) {
+	case *gatewayv1.ExecSandboxRequest:
+		value.RequestId = ""
+	}
+	encoded, err := (proto.MarshalOptions{Deterministic: true}).Marshal(clone)
+	if err != nil {
+		return status.Error(codes.Internal, "encode exec request admission")
+	}
+	digest := sha256.Sum256(encoded)
+	if err := s.Sandboxes.AdmitExecRequest(ctx, ref, requestID, hex.EncodeToString(digest[:])); err != nil {
+		return grpcError(err)
+	}
+	return nil
+}
+
+func isNonzeroUUID(value string) bool {
+	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
+		return false
+	}
+	compact := strings.ReplaceAll(value, "-", "")
+	decoded, err := hex.DecodeString(compact)
+	if err != nil || len(decoded) != 16 {
+		return false
+	}
+	for _, b := range decoded {
+		if b != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func execEnvironment(values map[string]string) ([]string, error) {

@@ -24,6 +24,7 @@ import (
 
 type execTestRuntime struct {
 	request         driver.ExecRequest
+	execCalls       int
 	result          driver.ExecResult
 	err             error
 	terminalRequest driver.ExecTerminalRequest
@@ -47,6 +48,7 @@ func (*execTestRuntime) Inspect(context.Context, sandboxruntime.Sandbox) (driver
 	return driver.Info{}, nil
 }
 func (r *execTestRuntime) Exec(_ context.Context, _ sandboxruntime.Sandbox, request driver.ExecRequest) (driver.ExecResult, error) {
+	r.execCalls++
 	r.request = request
 	return r.result, r.err
 }
@@ -150,9 +152,16 @@ func TestExecSandboxRPCValidationAndErrors(t *testing.T) {
 		t.Fatalf("invalid timeout status = %v", err)
 	}
 	request.ExecutionTimeout = nil
-	request.RequestId = "retry-key"
-	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.Unimplemented {
-		t.Fatalf("request_id status = %v", err)
+	request.RequestId = "d9d0ab40-6110-4d53-9fa8-a2a13b52bc99"
+	callsBeforeAdmission := runtime.execCalls
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.Unavailable {
+		t.Fatalf("first request_id execution status = %v", err)
+	}
+	if err := server.ExecSandbox(request, &execTestStream{ctx: context.Background()}); status.Code(err) != codes.Aborted {
+		t.Fatalf("duplicate request_id status = %v", err)
+	}
+	if runtime.execCalls != callsBeforeAdmission+1 {
+		t.Fatalf("runtime executions after duplicate request_id = %d, want one admission", runtime.execCalls-callsBeforeAdmission)
 	}
 	request.RequestId = ""
 	request.Cols = 80
@@ -262,7 +271,7 @@ func TestExecSandboxInteractiveRejectsInvalidStarts(t *testing.T) {
 	}{
 		{name: "missing start", want: codes.InvalidArgument},
 		{name: "tty required", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Tty = false; return r }(), want: codes.InvalidArgument},
-		{name: "durable admission unsupported", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.RequestId = "launch-key"; return r }(), want: codes.Unimplemented},
+		{name: "request ID must be a UUID", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.RequestId = "launch-key"; return r }(), want: codes.InvalidArgument},
 		{name: "dimension limit", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Cols = 65536; return r }(), want: codes.InvalidArgument},
 		{name: "invalid environment", start: func() *gatewayv1.ExecSandboxRequest {
 			r := valid()
