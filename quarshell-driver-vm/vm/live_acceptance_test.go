@@ -1263,6 +1263,7 @@ func assertLiveGuestExec(t *testing.T, ctx context.Context, d *Driver, id core.I
 	if !strings.Contains(streamStdout.String(), "stream-out:live-input") || !strings.Contains(streamStderr.String(), "stream-err:live-input") || streamExit != 11 {
 		t.Fatalf("live non-TTY exec stdout=%q stderr=%q exit=%d", streamStdout.String(), streamStderr.String(), streamExit)
 	}
+	assertLiveGuestArchiveTransfer(t, ctx, d, id)
 	marker := "/sandbox/exec-timeout-must-stop"
 	if _, err := d.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/bin/rm", "-f", marker}}); err != nil {
 		t.Fatalf("clear live guest exec timeout marker: %v", err)
@@ -1279,6 +1280,132 @@ func assertLiveGuestExec(t *testing.T, ctx context.Context, d *Driver, id core.I
 		t.Fatalf("live guest exec process survived caller timeout: exit=%d err=%v", result.ExitCode, err)
 	}
 	assertLiveExecTerminal(t, ctx, d, id)
+}
+
+func assertLiveGuestArchiveTransfer(t *testing.T, ctx context.Context, d *Driver, id core.ID) {
+	t.Helper()
+	var archive bytes.Buffer
+	writer := tar.NewWriter(&archive)
+	entries := []struct {
+		header *tar.Header
+		body   string
+	}{
+		{header: &tar.Header{Name: "bundle/", Typeflag: tar.TypeDir, Mode: 0o755}},
+		{header: &tar.Header{Name: "bundle/nested/", Typeflag: tar.TypeDir, Mode: 0o750}},
+		{header: &tar.Header{Name: "bundle/nested/payload.txt", Typeflag: tar.TypeReg, Mode: 0o640, Size: int64(len("live-directory-transfer"))}, body: "live-directory-transfer"},
+		{header: &tar.Header{Name: "bundle/payload.link", Typeflag: tar.TypeSymlink, Linkname: "nested/payload.txt", Mode: 0o777}},
+	}
+	for _, entry := range entries {
+		if err := writer.WriteHeader(entry.header); err != nil {
+			t.Fatalf("write live transfer tar header: %v", err)
+		}
+		if entry.body != "" {
+			if _, err := io.WriteString(writer, entry.body); err != nil {
+				t.Fatalf("write live transfer tar entry: %v", err)
+			}
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("finish live transfer archive: %v", err)
+	}
+
+	streamCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	upload, err := d.OpenExecStream(streamCtx, id, driver.ExecTerminalRequest{
+		Argv: []string{"/bin/sh", "-c", "mkdir -p /sandbox/.live-transfer-in && tar -xf - -C /sandbox/.live-transfer-in"}, WorkDir: "/sandbox", NoLoginShell: true,
+	})
+	if err != nil {
+		cancel()
+		t.Fatalf("open live directory upload stream: %v", err)
+	}
+	if _, err := upload.Write(archive.Bytes()); err != nil {
+		cancel()
+		_ = upload.Close()
+		t.Fatalf("stream live directory upload: %v", err)
+	}
+	if err := upload.CloseStdin(); err != nil {
+		cancel()
+		_ = upload.Close()
+		t.Fatalf("finish live directory upload: %v", err)
+	}
+	var uploadStderr strings.Builder
+	uploadExit := -1
+	for uploadExit < 0 {
+		output, err := upload.ReadOutput()
+		if err != nil {
+			cancel()
+			_ = upload.Close()
+			t.Fatalf("read live directory upload result: %v", err)
+		}
+		uploadStderr.Write(output.Stderr)
+		if output.Exited {
+			uploadExit = output.ExitCode
+		}
+	}
+	cancel()
+	_ = upload.Close()
+	if uploadExit != 0 {
+		t.Fatalf("live directory upload exit=%d stderr=%q", uploadExit, uploadStderr.String())
+	}
+
+	downloadCtx, cancelDownload := context.WithTimeout(ctx, 10*time.Second)
+	download, err := d.OpenExecStream(downloadCtx, id, driver.ExecTerminalRequest{
+		Argv: []string{"tar", "-cf", "-", "-C", "/sandbox/.live-transfer-in", "bundle"}, WorkDir: "/sandbox", NoLoginShell: true,
+	})
+	if err != nil {
+		cancelDownload()
+		t.Fatalf("open live directory download stream: %v", err)
+	}
+	_ = download.CloseStdin()
+	var downloaded bytes.Buffer
+	var downloadStderr strings.Builder
+	downloadExit := -1
+	for downloadExit < 0 {
+		output, err := download.ReadOutput()
+		if err != nil {
+			cancelDownload()
+			_ = download.Close()
+			t.Fatalf("read live directory download: %v", err)
+		}
+		_, _ = downloaded.Write(output.Stdout)
+		downloadStderr.Write(output.Stderr)
+		if output.Exited {
+			downloadExit = output.ExitCode
+		}
+	}
+	cancelDownload()
+	_ = download.Close()
+	if downloadExit != 0 {
+		t.Fatalf("live directory download exit=%d stderr=%q", downloadExit, downloadStderr.String())
+	}
+	reader := tar.NewReader(bytes.NewReader(downloaded.Bytes()))
+	var payload string
+	var linkTarget string
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("parse live directory download archive: %v", err)
+		}
+		switch header.Name {
+		case "bundle/nested/payload.txt":
+			contents, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatalf("read downloaded payload: %v", err)
+			}
+			payload = string(contents)
+		case "bundle/payload.link":
+			if header.Typeflag != tar.TypeSymlink {
+				t.Fatalf("downloaded symlink type=%d, want %d", header.Typeflag, tar.TypeSymlink)
+			}
+			linkTarget = header.Linkname
+		}
+	}
+	if payload != "live-directory-transfer" || linkTarget != "nested/payload.txt" {
+		t.Fatalf("live directory transfer returned payload=%q symlink=%q", payload, linkTarget)
+	}
+	t.Log("live VM directory archive upload/download preserved nested content and symlink target")
 }
 
 func assertLiveVMPlatformState(t *testing.T, events <-chan driver.PlatformEventResult, want string) {

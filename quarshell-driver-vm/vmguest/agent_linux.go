@@ -1004,20 +1004,33 @@ func (s *controlServer) execStream(connection net.Conn, request Request) {
 		_ = writeResponse(connection, Response{Error: fmt.Sprintf("open exec stdin: %v", err)})
 		return
 	}
-	stdout, err := command.StdoutPipe()
+	stdout, stdoutWriter, err := os.Pipe()
 	if err != nil {
+		_ = stdin.Close()
 		_ = writeResponse(connection, Response{Error: fmt.Sprintf("open exec stdout: %v", err)})
 		return
 	}
-	stderr, err := command.StderrPipe()
+	stderr, stderrWriter, err := os.Pipe()
 	if err != nil {
+		_ = stdin.Close()
+		_ = stdout.Close()
+		_ = stdoutWriter.Close()
 		_ = writeResponse(connection, Response{Error: fmt.Sprintf("open exec stderr: %v", err)})
 		return
 	}
+	defer stdout.Close()
+	defer stderr.Close()
+	command.Stdout = stdoutWriter
+	command.Stderr = stderrWriter
 	if err := command.Start(); err != nil {
 		_ = writeResponse(connection, Response{Error: fmt.Sprintf("start guest command: %v", err)})
+		_ = stdin.Close()
+		_ = stdoutWriter.Close()
+		_ = stderrWriter.Close()
 		return
 	}
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
 	if err := writeResponse(connection, Response{PID: command.Process.Pid}); err != nil {
 		_ = stdin.Close()
 		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)

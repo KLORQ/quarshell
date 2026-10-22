@@ -160,6 +160,69 @@ func TestGuestControlExecStreamSupportsSeparateOutputAndStdinEOF(t *testing.T) {
 	}
 }
 
+func TestGuestControlExecStreamDrainsFastProcessOutput(t *testing.T) {
+	for iteration := 0; iteration < 30; iteration++ {
+		server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("d", 64)}
+		guest, host := net.Pipe()
+		done := make(chan struct{})
+		go func() { server.serve(guest); close(done) }()
+		request, err := json.Marshal(Request{
+			Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-stream",
+			Argv:    []string{"/bin/sh", "-c", "i=0; while [ $i -lt 1000 ]; do printf x; printf y >&2; i=$((i + 1)); done"},
+			WorkDir: t.TempDir(), NoLoginShell: true,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := WriteFrame(host, request); err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := ReadFrame(host)
+		if err != nil {
+			t.Fatalf("iteration %d read exec stream handshake: %v", iteration, err)
+		}
+		var started Response
+		if err := json.Unmarshal(encoded, &started); err != nil || started.Error != "" || started.PID <= 1 {
+			t.Fatalf("iteration %d exec stream handshake=%+v error=%v", iteration, started, err)
+		}
+		eof, _ := json.Marshal(TerminalFrame{Type: "eof"})
+		if err := WriteFrame(host, eof); err != nil {
+			t.Fatalf("iteration %d send stdin EOF: %v", iteration, err)
+		}
+		var stdout, stderr strings.Builder
+		exitCode := -1
+		for exitCode < 0 {
+			encoded, err := ReadFrame(host)
+			if err != nil {
+				t.Fatalf("iteration %d read exec stream output: %v", iteration, err)
+			}
+			var frame TerminalFrame
+			if err := json.Unmarshal(encoded, &frame); err != nil {
+				t.Fatalf("iteration %d decode exec stream frame: %v", iteration, err)
+			}
+			switch frame.Type {
+			case "stdout":
+				stdout.Write(frame.Data)
+			case "stderr":
+				stderr.Write(frame.Data)
+			case "exit":
+				exitCode = frame.ExitCode
+			default:
+				t.Fatalf("iteration %d unexpected exec stream frame: %+v", iteration, frame)
+			}
+		}
+		_ = host.Close()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatalf("iteration %d exec stream handler did not terminate", iteration)
+		}
+		if stdout.Len() != 1000 || stderr.Len() != 1000 || strings.Trim(stdout.String(), "x") != "" || strings.Trim(stderr.String(), "y") != "" || exitCode != 0 {
+			t.Fatalf("iteration %d exec stream stdout bytes=%d stderr bytes=%d exit=%d", iteration, stdout.Len(), stderr.Len(), exitCode)
+		}
+	}
+}
+
 func TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect(t *testing.T) {
 	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("c", 64)}
 	guest, host := net.Pipe()
