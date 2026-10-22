@@ -1200,3 +1200,10 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - Result: PASS. `TestLiveMicroVMLifecycle` and `TestLiveLocalOCIEngineImport` passed on Apple Silicon/HVF.
 - The VM PTY session sent the protocol `terminate` signal over the authenticated host-to-guest control connection. The guest mapped it through a fixed allowlist to `SIGTERM` for the owned process group; the guest command's TERM trap ran and returned exit code 43. The test also retains the interactive Ctrl+C check.
 - The protocol does not accept arbitrary signal names. Process handles that survive stream loss and independent attach/wait/terminate operations remain part of the upstream `BoundaryProcess` gap.
+
+# Full current-tree Mac VM acceptance (2026-10-23 00:02 Europe/Samara)
+
+- Product code snapshot: `fc2f532` (followed by plan-only commits).
+- Command: `task vm:live-darwin`.
+- Result: PASS. `TestLiveMicroVMLifecycle` (24.57 s), `TestLiveLocalOCIEngineImport` (1.15 s), and `TestLiveVMWatchSandboxComposition` (11.68 s) passed on Apple Silicon/HVF.
+- The run rebuilt the CLI with the current Gateway TLS changes and repeated the live worker/broker recovery, explicit Stop/Start and mTLS identity rotation, egress allow/revoke, explicit guest TERM signal, OCI image import, and separate-process CLI upload/download through a real Gateway gRPC server.
