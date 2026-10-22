@@ -50,6 +50,11 @@ func TestForwardTcpEcho(t *testing.T) {
 	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "img"}); err != nil {
 		t.Fatal(err)
 	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start")
+	if err != nil {
+		t.Fatal(err)
+	}
 	hub := sshrelay.NewHub()
 	done := make(chan struct{})
 	defer close(done)
@@ -73,6 +78,9 @@ func TestForwardTcpEcho(t *testing.T) {
 		}()
 		return nil
 	}, done, func() {}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "session-instance-1-1", "instance", 1); err != nil {
 		t.Fatal(err)
 	}
 	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
@@ -116,7 +124,8 @@ func TestSshSessionTokenAllowsForward(t *testing.T) {
 	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "img"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := sandboxes.Start(ctx, ref, 1, "start"); err != nil {
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start")
+	if err != nil {
 		t.Fatal(err)
 	}
 	hub := sshrelay.NewHub()
@@ -133,6 +142,9 @@ func TestSshSessionTokenAllowsForward(t *testing.T) {
 		}()
 		return nil
 	}, done, func() {}); err != nil {
+		t.Fatal(err)
+	}
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "session-instance-1-1", "instance", 1); err != nil {
 		t.Fatal(err)
 	}
 	tokens, _ := token.NewService([]byte("0123456789abcdef"), time.Hour)

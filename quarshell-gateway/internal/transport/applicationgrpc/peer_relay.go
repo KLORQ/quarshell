@@ -40,8 +40,16 @@ func (s *Server) PeerRelay(stream gatewayv1.OpenShell_PeerRelayServer) error {
 	if principal.workspace == "" {
 		return status.Error(codes.InvalidArgument, "workspace is required")
 	}
-	if _, err := s.Sandboxes.Get(stream.Context(), domain.SandboxRef{Workspace: principal.workspace, Sandbox: domain.SandboxID(sandbox)}); err != nil {
+	ref := domain.SandboxRef{Workspace: principal.workspace, Sandbox: domain.SandboxID(sandbox)}
+	current, err := s.Sandboxes.Get(stream.Context(), ref)
+	if err != nil {
 		return grpcError(err)
+	}
+	if current.State != "running" {
+		return status.Error(codes.FailedPrecondition, "sandbox is not running")
+	}
+	if err := s.validateSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
+		return err
 	}
 	target, err := relayTarget(init.GetRelayOpen())
 	if err != nil {
@@ -52,6 +60,9 @@ func (s *Server) PeerRelay(stream gatewayv1.OpenShell_PeerRelayServer) error {
 		return status.Error(codes.Unavailable, err.Error())
 	}
 	defer connection.Close()
+	if err := s.validateSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
+		return err
+	}
 
 	writeErr := make(chan error, 1)
 	go func() {

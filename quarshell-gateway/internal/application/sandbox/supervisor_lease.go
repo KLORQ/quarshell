@@ -100,7 +100,48 @@ func (s *Service) RenewSupervisorSession(ctx context.Context, ref domain.Sandbox
 	})
 }
 
-func (s *Service) validateSupervisorLeaseSandbox(tx lifecycle.WriteTx, ref domain.SandboxRef, generation domain.Generation, credentialEpoch uint64) error {
+// ValidateSupervisorSession fences data-plane relay work to the durable owner.
+// A Gateway replica can still have a locally connected stream after a newer
+// owner has claimed the shared lease, so local Hub ownership alone is not enough.
+func (s *Service) ValidateSupervisorSession(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, credentialEpoch uint64, instanceID string, connectionEpoch uint64) error {
+	if !ref.Valid() || generation == 0 || credentialEpoch == 0 || strings.TrimSpace(instanceID) == "" || connectionEpoch == 0 {
+		return domain.Invalidf("sandbox.supervisor.validate", "sandbox, generation, credential epoch, instance and connection epoch are required")
+	}
+	return s.store.View(ctx, func(tx lifecycle.ReadTx) error {
+		sandboxRecord, exists, err := tx.Get(recordKind, refKey(ref))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return domain.Wrap(domain.ErrNotFound, "sandbox.supervisor.validate", "sandbox not found")
+		}
+		var current Sandbox
+		if err := json.Unmarshal(sandboxRecord.Payload, &current); err != nil {
+			return err
+		}
+		terminalExitPending := current.MainProcessExitCode != nil && !current.MainProcessFinalized
+		if (current.State != "running" && !terminalExitPending) || current.RuntimeGenerationOrInitial() != generation || current.CredentialEpochOrInitial() != credentialEpoch {
+			return domain.New(domain.CodeConflict, "sandbox.supervisor.validate", "sandbox generation is no longer active for these credentials")
+		}
+		record, exists, err := tx.Get(supervisorLeaseKind, refKey(ref))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return domain.New(domain.CodeConflict, "sandbox.supervisor.validate", "supervisor session lease is missing")
+		}
+		var lease supervisorLease
+		if err := json.Unmarshal(record.Payload, &lease); err != nil {
+			return fmt.Errorf("decode supervisor lease: %w", err)
+		}
+		if lease.Generation != generation || lease.CredentialEpoch != credentialEpoch || lease.InstanceID != instanceID || lease.ConnectionEpoch != connectionEpoch || !s.now().UTC().Before(lease.ExpiresAt) {
+			return domain.New(domain.CodeConflict, "sandbox.supervisor.validate", "supervisor session no longer owns the durable lease")
+		}
+		return nil
+	})
+}
+
+func (s *Service) validateSupervisorLeaseSandbox(tx lifecycle.ReadTx, ref domain.SandboxRef, generation domain.Generation, credentialEpoch uint64) error {
 	record, exists, err := tx.Get(recordKind, refKey(ref))
 	if err != nil {
 		return err

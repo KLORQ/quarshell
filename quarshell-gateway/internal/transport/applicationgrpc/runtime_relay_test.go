@@ -15,6 +15,8 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/sshrelay"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type relayServerStream struct {
@@ -54,7 +56,8 @@ func TestRelayStreamReturnsWhenGuestTargetCloses(t *testing.T) {
 	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "image"}); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if _, _, err := sandboxes.Start(ctx, ref, 1, "start-1"); err != nil {
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start-1")
+	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 	hub := sshrelay.NewHub()
@@ -68,6 +71,9 @@ func TestRelayStreamReturnsWhenGuestTargetCloses(t *testing.T) {
 		t.Fatalf("RegisterSupervisor: %v", err)
 	}
 	defer unregister()
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "session-instance-1-1", "instance-1", 1); err != nil {
+		t.Fatalf("ClaimSupervisorSession: %v", err)
+	}
 
 	clientResult := make(chan net.Conn, 1)
 	clientErr := make(chan error, 1)
@@ -130,6 +136,68 @@ func TestRelayStreamReturnsWhenGuestTargetCloses(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("RelayStream did not finish after guest target closed")
+	}
+}
+
+func TestRelayStreamRejectsPendingChannelFromStaleGatewayOwner(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandboxapp.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "image"}); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "session-1", "instance-1", 1); err != nil {
+		t.Fatal(err)
+	}
+	hub := sshrelay.NewHub()
+	opened := make(chan string, 1)
+	done := make(chan struct{})
+	unregister, err := hub.RegisterSupervisor("sb", "instance-1", 1, func(channel, _ string) error {
+		opened <- channel
+		return nil
+	}, done, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unregister()
+	defer close(done)
+
+	openResult := make(chan error, 1)
+	go func() {
+		connection, err := hub.OpenChannel(ctx, "sb", "tcp://127.0.0.1:8080")
+		if connection != nil {
+			_ = connection.Close()
+		}
+		openResult <- err
+	}()
+	channel := <-opened
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "session-2", "instance-1", 2); err != nil {
+		t.Fatalf("claim replacement connection epoch: %v", err)
+	}
+
+	streamCtx := context.WithValue(ctx, principalContextKey{}, authenticatedPrincipal{
+		identityProvider: "sandbox-token", workspace: ref.Workspace, sandbox: ref.Sandbox,
+		generation: started.RuntimeGenerationOrInitial(), credentialEpoch: started.CredentialEpochOrInitial(),
+	})
+	stream := &relayServerStream{
+		ctx:   streamCtx,
+		first: &gatewayv1.RelayFrame{Payload: &gatewayv1.RelayFrame_Init{Init: &gatewayv1.RelayInit{ChannelId: channel}}},
+		sent:  make(chan *gatewayv1.RelayFrame, 1),
+	}
+	server := &Server{Sandboxes: sandboxes, SupervisorHub: hub}
+	if err := server.RelayStream(stream); status.Code(err) != codes.Aborted {
+		t.Fatalf("stale relay status=%s err=%v; want Aborted", status.Code(err), err)
+	}
+	hub.RejectRelay("sb", channel, errors.New("durable supervisor owner changed"))
+	if err := <-openResult; err == nil {
+		t.Fatal("stale supervisor relay channel unexpectedly opened")
 	}
 }
 

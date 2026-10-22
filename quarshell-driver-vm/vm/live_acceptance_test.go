@@ -438,8 +438,10 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 
 	awaitHandle, err := terminal.createSandbox(ctx, vmCreateSpec{
 		Name: "live-microvm-await-main-attachment", Image: "alpine:3.22",
-		DriverConfigJSON: string(driverConfig), Command: []string{"/bin/sh", "-c", "printf 'late-main-attachment\\n'; exit 7"},
-		TTY: true, AwaitMainProcessAttachment: true,
+		DriverConfigJSON: string(driverConfig), Labels: liveGuestInitExtensionLabels(),
+		Command: []string{"/bin/sh", "-c", "printf 'late-main-attachment\\n'; exit 7"},
+		TTY:     true, AwaitMainProcessAttachment: true, InitBin: initBin, SupervisorBin: supervisorBin,
+		ProxyBin: brokerSpec.ProxyBin, PolicyPath: brokerSpec.PolicyPath, ProxyEnv: brokerSpec.ProxyEnv,
 	})
 	if err != nil {
 		t.Fatalf("create await-attachment MicroVM: %v", err)

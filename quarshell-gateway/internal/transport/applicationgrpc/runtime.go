@@ -35,6 +35,28 @@ func credentialEpoch(epoch uint64) uint64 {
 	return epoch
 }
 
+func (s *Server) validateSupervisorRelayOwner(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, epoch uint64) error {
+	instanceID, connectionEpoch, ok := s.SupervisorHub.SupervisorSession(string(ref.Sandbox))
+	if !ok {
+		return status.Error(codes.FailedPrecondition, "sandbox supervisor relay is not connected")
+	}
+	if err := s.Sandboxes.ValidateSupervisorSession(ctx, ref, generation, epoch, instanceID, connectionEpoch); err != nil {
+		return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
+	}
+	return nil
+}
+
+func (s *Server) validatePendingSupervisorRelayOwner(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, epoch uint64, channel string) error {
+	instanceID, connectionEpoch, ok := s.SupervisorHub.PendingSupervisorSession(string(ref.Sandbox), channel)
+	if !ok {
+		return status.Error(codes.NotFound, "relay channel is not pending for this sandbox")
+	}
+	if err := s.Sandboxes.ValidateSupervisorSession(ctx, ref, generation, epoch, instanceID, connectionEpoch); err != nil {
+		return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
+	}
+	return nil
+}
+
 // ReportMainProcessExit persists the terminal result from the active sandbox
 // supervisor. The token, running generation, epoch and connected instance must
 // all agree before the durable sandbox state is changed.
@@ -62,6 +84,9 @@ func (s *Server) ReportMainProcessExit(ctx context.Context, request *gatewayv1.R
 	instance, connected := s.SupervisorHub.SupervisorInstance(request.GetSandboxId())
 	if !connected || instance != request.GetInstanceId() {
 		return nil, status.Error(codes.FailedPrecondition, "supervisor instance is not the active sandbox owner")
+	}
+	if err := s.validateSupervisorRelayOwner(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch); err != nil {
+		return nil, err
 	}
 	if err := s.Sandboxes.RecordMainProcessExit(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, instance, request.GetExitCode()); err != nil {
 		return nil, grpcError(err)
@@ -95,6 +120,9 @@ func (s *Server) FinalizeMainProcessExit(ctx context.Context, request *gatewayv1
 	instance, connected := s.SupervisorHub.SupervisorInstance(request.GetSandboxId())
 	if !connected || instance != request.GetInstanceId() {
 		return nil, status.Error(codes.FailedPrecondition, "supervisor instance is not the active sandbox owner")
+	}
+	if err := s.validateSupervisorRelayOwner(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch); err != nil {
+		return nil, err
 	}
 	if err := s.Sandboxes.FinalizeMainProcessExit(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, instance); err != nil {
 		return nil, grpcError(err)
@@ -269,11 +297,17 @@ func (s *Server) RelayStream(stream gatewayv1.OpenShell_RelayStreamServer) error
 	if init == nil || init.GetChannelId() == "" {
 		return status.Error(codes.InvalidArgument, "first relay frame must initialize a channel")
 	}
+	if err := s.validatePendingSupervisorRelayOwner(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch, init.GetChannelId()); err != nil {
+		return err
+	}
 	conn, err := s.SupervisorHub.AcceptRelay(string(principal.sandbox), init.GetChannelId())
 	if err != nil {
 		return status.Error(codes.NotFound, "relay channel is not pending for this sandbox")
 	}
 	defer conn.Close()
+	if err := s.validateSupervisorRelayOwner(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch); err != nil {
+		return err
+	}
 	copyDone := make(chan error, 1)
 	go func() {
 		buf := make([]byte, 32*1024)

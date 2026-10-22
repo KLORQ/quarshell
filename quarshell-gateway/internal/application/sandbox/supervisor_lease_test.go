@@ -41,6 +41,9 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	if err := claim(service, "instance-1", 7); err != nil {
 		t.Fatalf("initial owner claim: %v", err)
 	}
+	if err := service.ValidateSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "instance-1", 7); err != nil {
+		t.Fatalf("validate initial data-plane owner: %v", err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +62,12 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	}
 	if err := claim(restarted, "instance-1", 8); err != nil {
 		t.Fatalf("same instance higher connection epoch did not reconnect: %v", err)
+	}
+	if err := restarted.ValidateSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "instance-1", 7); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("stale connection retained data-plane access after handoff: %v", err)
+	}
+	if err := restarted.ValidateSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "instance-1", 8); err != nil {
+		t.Fatalf("validate replacement data-plane owner: %v", err)
 	}
 	if err := reopened.View(ctx, func(tx lifecycle.ReadTx) error {
 		record, exists, err := tx.Get(supervisorLeaseKind, refKey(ref))
@@ -113,6 +122,39 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 		t.Fatalf("Delete did not clear supervisor lease: %v", err)
 	}
 	_ = reopened.Close()
+}
+
+func TestSupervisorLeaseRemainsValidUntilNonzeroMainExitIsFinalized(t *testing.T) {
+	ctx := context.Background()
+	service, err := NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	if _, _, err := service.Create(ctx, testRequest()); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := service.Start(ctx, ref, 1, "start-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation := started.RuntimeGenerationOrInitial()
+	credentialEpoch := started.CredentialEpochOrInitial()
+	if err := service.ClaimSupervisorSession(ctx, ref, generation, credentialEpoch, "session-1", "instance-1", 1); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordMainProcessExit(ctx, ref, generation, "instance-1", 7); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.ValidateSupervisorSession(ctx, ref, generation, credentialEpoch, "instance-1", 1); err != nil {
+		t.Fatalf("nonzero terminal result lost its owner before finalization: %v", err)
+	}
+	if err := service.FinalizeMainProcessExit(ctx, ref, generation, "instance-1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.ValidateSupervisorSession(ctx, ref, generation, credentialEpoch, "instance-1", 1); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("finalized terminal result retained its owner lease: %v", err)
+	}
 }
 
 func assertSupervisorLeaseAbsent(ctx context.Context, store lifecycle.Store, ref domain.SandboxRef) error {

@@ -184,7 +184,10 @@
       "evidence": [
         "quarshell-driver-vm/vm/live_acceptance_test.go",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestRelayStreamReturnsWhenGuestTargetCloses",
-        "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestConnectSupervisorOwnerLeaseSurvivesGatewayReopen"
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestConnectSupervisorOwnerLeaseSurvivesGatewayReopen",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestRelayStreamRejectsPendingChannelFromStaleGatewayOwner",
+        "quarshell-gateway/internal/transport/applicationgrpc/forward.go::ForwardTcp",
+        "quarshell-gateway/internal/transport/applicationgrpc/peer_relay.go::PeerRelay"
       ]
     },
     {
@@ -283,6 +286,7 @@
         "quarshell-driver-vm/vm/spec.go::validateGatewayRuntime",
         "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapPreservesGRPCEndpoint",
         "quarshell-gateway/internal/application/sandbox/supervisor_lease_test.go::TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay",
+        "quarshell-gateway/internal/application/sandbox/supervisor_lease_test.go::TestSupervisorLeaseRemainsValidUntilNonzeroMainExitIsFinalized",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestConnectSupervisorOwnerLeaseSurvivesGatewayReopen",
         "quarshell-gateway/internal/sshrelay/hub_test.go::TestRejectedSupervisorClaimCannotRemoveNewerSession",
         "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapReadsGRPCEndpointEnvironment",

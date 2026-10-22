@@ -28,6 +28,9 @@ func TestMainProcessExitHandlersPersistAndFinalizeActiveSupervisorResult(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "session-instance-1-1", "instance-1", 1); err != nil {
+		t.Fatal(err)
+	}
 	hub := sshrelay.NewHub()
 	done := make(chan struct{})
 	defer close(done)

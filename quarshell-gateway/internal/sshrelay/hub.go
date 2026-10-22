@@ -346,10 +346,12 @@ func closeActiveRelays(closing []*activeRelay) {
 }
 
 type pending struct {
-	sandbox  string
-	ready    chan net.Conn
-	failed   chan error
-	openedAt time.Time
+	sandbox         string
+	instanceID      string
+	connectionEpoch uint64
+	ready           chan net.Conn
+	failed          chan error
+	openedAt        time.Time
 }
 
 // RejectRelay completes a pending OpenChannel request when the
@@ -397,6 +399,28 @@ func (h *Hub) Connected(sandbox string) bool {
 	defer h.mu.Unlock()
 	_, ok := h.sessions[sandbox]
 	return ok
+}
+
+// SupervisorSession returns the currently connected local owner identity.
+func (h *Hub) SupervisorSession(sandbox string) (string, uint64, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.sessions[sandbox]
+	if s == nil {
+		return "", 0, false
+	}
+	return s.instanceID, s.connectionEpoch, true
+}
+
+// PendingSupervisorSession returns the owner that opened a pending relay.
+func (h *Hub) PendingSupervisorSession(sandbox, channel string) (string, uint64, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	p := h.pending[channel]
+	if p == nil || p.sandbox != sandbox {
+		return "", 0, false
+	}
+	return p.instanceID, p.connectionEpoch, true
 }
 
 // WaitConnected blocks until the sandbox supervisor has registered its control
@@ -453,6 +477,8 @@ func (h *Hub) OpenChannel(ctx context.Context, sandbox, target string) (net.Conn
 		h.mu.Unlock()
 		return nil, ErrNotConnected
 	}
+	p.instanceID = s.instanceID
+	p.connectionEpoch = s.connectionEpoch
 	if len(h.pending) >= maxPendingRelays {
 		h.relayRejectedReplica++
 		h.mu.Unlock()

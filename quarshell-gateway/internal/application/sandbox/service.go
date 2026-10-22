@@ -725,7 +725,10 @@ func (s *Service) updateProcessExit(ctx context.Context, ref domain.SandboxRef, 
 		if err := mutate(&current); err != nil {
 			return err
 		}
-		if current.State != "running" {
+		// Keep the durable supervisor lease until the owner acknowledges that
+		// its terminal result was finalized. FinalizeMainProcessExit still needs
+		// to fence that final RPC against a newer Gateway owner.
+		if current.State != "running" && (current.MainProcessExitCode == nil || current.MainProcessFinalized) {
 			if err := deleteSupervisorLease(tx, ref); err != nil {
 				return err
 			}

@@ -55,8 +55,16 @@ func (s *Server) ForwardTcp(stream gatewayv1.OpenShell_ForwardTcpServer) error {
 	if workspace == "" {
 		return status.Error(codes.InvalidArgument, "workspace is required")
 	}
-	if _, err := s.Sandboxes.Get(stream.Context(), domain.SandboxRef{Workspace: workspace, Sandbox: domain.SandboxID(sandbox)}); err != nil {
+	ref := domain.SandboxRef{Workspace: workspace, Sandbox: domain.SandboxID(sandbox)}
+	current, err := s.Sandboxes.Get(stream.Context(), ref)
+	if err != nil {
 		return grpcError(err)
+	}
+	if current.State != "running" {
+		return status.Error(codes.FailedPrecondition, "sandbox is not running")
+	}
+	if err := s.validateSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
+		return err
 	}
 	target, err := forwardTarget(init)
 	if err != nil {
@@ -67,6 +75,9 @@ func (s *Server) ForwardTcp(stream gatewayv1.OpenShell_ForwardTcpServer) error {
 		return status.Error(codes.Unavailable, err.Error())
 	}
 	defer connection.Close()
+	if err := s.validateSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
+		return err
+	}
 
 	ctx := stream.Context()
 	writeErr := make(chan error, 1)

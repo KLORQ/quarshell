@@ -43,6 +43,9 @@ func (s *Server) CreateSshSession(ctx context.Context, request *gatewayv1.Create
 	if current.State != "running" || !s.SupervisorHub.Connected(string(current.Sandbox)) {
 		return nil, status.Error(codes.FailedPrecondition, "sandbox is not ready: supervisor relay not connected")
 	}
+	if err := s.validateSupervisorRelayOwner(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
+		return nil, err
+	}
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return nil, status.Error(codes.Internal, "mint ssh session token")
