@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -55,6 +56,7 @@ func TestHostConfigFromMapReadsCorporateProxySettings(t *testing.T) {
 	config, err := hostConfigFromMap(map[string]any{
 		"https_proxy": "https://proxy.example:8443", "no_proxy": "localhost,.internal",
 		"proxy_auth_file": auth, "proxy_ca_bundle": ca, "proxy_connect_by_hostname": true,
+		"provider_spiffe_workload_api_tcp_endpoint": "tcp:192.0.2.10:8081", "provider_spiffe_allow_guest_tcp": true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -62,17 +64,30 @@ func TestHostConfigFromMapReadsCorporateProxySettings(t *testing.T) {
 	if config.CorporateProxyURL != "https://proxy.example:8443" || config.CorporateProxyNoProxy != "localhost,.internal" || config.CorporateProxyAuthFile != auth || config.CorporateProxyCABundle != ca || config.CorporateProxyConnectByHostname == nil || !*config.CorporateProxyConnectByHostname {
 		t.Fatalf("corporate proxy config = %#v", config)
 	}
+	if config.ProviderSPIFFEWorkloadAPIEndpoint != "tcp:192.0.2.10:8081" || !config.ProviderSPIFFEAllowGuestTCP {
+		t.Fatalf("SPIFFE config = %#v", config)
+	}
+}
+
+func TestHostConfigFromMapRequiresSPIFFEGuestAccessAcknowledgement(t *testing.T) {
+	_, err := hostConfigFromMap(map[string]any{"provider_spiffe_workload_api_tcp_endpoint": "tcp:192.0.2.10:8081"})
+	if err == nil || !strings.Contains(err.Error(), "provider_spiffe_allow_guest_tcp") {
+		t.Fatalf("SPIFFE endpoint error = %v", err)
+	}
 }
 
 func TestApplyCorporateProxyKeepsGatewaySettingsAuthoritative(t *testing.T) {
 	driver := NewWithHostConfig(HostConfig{CorporateProxyURL: "https://proxy.example:8443", CorporateProxyNoProxy: "localhost"})
+	driver.host.ProviderSPIFFEWorkloadAPIEndpoint = "tcp:192.0.2.10:8081"
+	driver.host.ProviderSPIFFEAllowGuestTCP = true
 	spec := vmCreateSpec{ProxyBin: "/proxy", PolicyPath: "/policy", ProxyEnv: []string{
 		"HTTPS_PROXY=http://attacker.invalid", "CAUTEM_PROXY_AUTH_FILE=/attacker", "CAUTEM_EGRESS_CA_BUNDLE=/egress-ca",
+		"OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_SOCKET=tcp:192.0.2.99:9999",
 	}}
 	if err := driver.applyCorporateProxy(&spec); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"CAUTEM_EGRESS_CA_BUNDLE=/egress-ca", "HTTP_PROXY=https://proxy.example:8443", "HTTPS_PROXY=https://proxy.example:8443", "NO_PROXY=localhost"}
+	want := []string{"CAUTEM_EGRESS_CA_BUNDLE=/egress-ca", "HTTP_PROXY=https://proxy.example:8443", "HTTPS_PROXY=https://proxy.example:8443", "NO_PROXY=localhost", "OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_SOCKET=tcp:192.0.2.10:8081"}
 	if !slices.Equal(spec.ProxyEnv, want) {
 		t.Fatalf("proxy env = %#v, want %#v", spec.ProxyEnv, want)
 	}

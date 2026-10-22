@@ -319,10 +319,13 @@
       "id": "vm.spiffe-workload-api-endpoint",
       "upstream": "crates/openshell-core/src/spiffe.rs::workload_api_endpoint;crates/openshell-driver-vm/README.md::provider_spiffe_allow_guest_tcp",
       "cautem": "quarshell-gateway/internal/gatewayconfig/load.go;quarshell-credentials/spiffe_source.go;quarshell-driver-vm/vm/network_broker_unix.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-gateway/internal/gatewayconfig/load_test.go::TestVMCorporateProxyConfigurationValidation",
-        "quarshell-credentials/spiffe_source_test.go"
+        "quarshell-credentials/spiffe_source_test.go",
+        "quarshell-proxy/proxy/token_grant_test.go::TestResolveTokenGrantPlaceholdersUsesEndpointBoundDynamicCredential",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapRequiresSPIFFEGuestAccessAcknowledgement",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestApplyCorporateProxyKeepsGatewaySettingsAuthoritative"
       ]
     },
     {

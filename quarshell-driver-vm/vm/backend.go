@@ -109,15 +109,16 @@ func (d *Driver) applyCorporateProxy(spec *vmCreateSpec) error {
 	if err := validateCorporateProxySettings(host); err != nil {
 		return err
 	}
-	if host.CorporateProxyURL == "" {
+	if host.CorporateProxyURL == "" && host.ProviderSPIFFEWorkloadAPIEndpoint == "" {
 		return nil
 	}
 	if spec.ProxyBin == "" || spec.PolicyPath == "" {
 		return fmt.Errorf("vm backend: https_proxy requires the policy network proxy binary and policy path")
 	}
-	managed := map[string]string{
-		"HTTP_PROXY":  host.CorporateProxyURL,
-		"HTTPS_PROXY": host.CorporateProxyURL,
+	managed := make(map[string]string)
+	if host.CorporateProxyURL != "" {
+		managed["HTTP_PROXY"] = host.CorporateProxyURL
+		managed["HTTPS_PROXY"] = host.CorporateProxyURL
 	}
 	if host.CorporateProxyNoProxy != "" {
 		managed["NO_PROXY"] = host.CorporateProxyNoProxy
@@ -131,8 +132,11 @@ func (d *Driver) applyCorporateProxy(spec *vmCreateSpec) error {
 	if host.CorporateProxyConnectByHostname != nil && *host.CorporateProxyConnectByHostname {
 		managed["CAUTEM_PROXY_CONNECT_BY_HOSTNAME"] = "true"
 	}
+	if host.ProviderSPIFFEWorkloadAPIEndpoint != "" {
+		managed["OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_SOCKET"] = host.ProviderSPIFFEWorkloadAPIEndpoint
+	}
 	filtered := make([]string, 0, len(spec.ProxyEnv)+len(managed))
-	operatorKeys := map[string]struct{}{"HTTP_PROXY": {}, "HTTPS_PROXY": {}, "NO_PROXY": {}, "CAUTEM_PROXY_AUTH_FILE": {}, "CAUTEM_PROXY_CA_BUNDLE": {}, "CAUTEM_PROXY_CONNECT_BY_HOSTNAME": {}}
+	operatorKeys := map[string]struct{}{"HTTP_PROXY": {}, "HTTPS_PROXY": {}, "NO_PROXY": {}, "CAUTEM_PROXY_AUTH_FILE": {}, "CAUTEM_PROXY_CA_BUNDLE": {}, "CAUTEM_PROXY_CONNECT_BY_HOSTNAME": {}, "OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_SOCKET": {}}
 	for _, entry := range spec.ProxyEnv {
 		key, _, ok := strings.Cut(entry, "=")
 		if !ok {
@@ -143,7 +147,7 @@ func (d *Driver) applyCorporateProxy(spec *vmCreateSpec) error {
 			filtered = append(filtered, entry)
 		}
 	}
-	keys := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "CAUTEM_PROXY_AUTH_FILE", "CAUTEM_PROXY_CA_BUNDLE", "CAUTEM_PROXY_CONNECT_BY_HOSTNAME"}
+	keys := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "CAUTEM_PROXY_AUTH_FILE", "CAUTEM_PROXY_CA_BUNDLE", "CAUTEM_PROXY_CONNECT_BY_HOSTNAME", "OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_SOCKET"}
 	for _, key := range keys {
 		if value, ok := managed[key]; ok {
 			filtered = append(filtered, key+"="+value)

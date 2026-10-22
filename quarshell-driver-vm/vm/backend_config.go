@@ -3,6 +3,7 @@ package vm
 import (
 	"fmt"
 	"math"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -152,6 +153,10 @@ func hostConfigFromMap(values map[string]any) (HostConfig, error) {
 			}
 		case "proxy_ca_bundle":
 			config.CorporateProxyCABundle, err = vmConfigString(value, key)
+		case "provider_spiffe_workload_api_tcp_endpoint":
+			config.ProviderSPIFFEWorkloadAPIEndpoint, err = vmConfigString(value, key)
+		case "provider_spiffe_allow_guest_tcp":
+			config.ProviderSPIFFEAllowGuestTCP, err = vmConfigBool(value, key)
 		default:
 			err = fmt.Errorf("unsupported VM deployment setting %q", key)
 		}
@@ -254,6 +259,20 @@ func validateCorporateProxySettings(config HostConfig) error {
 			return err
 		}
 	}
+	if endpoint := config.ProviderSPIFFEWorkloadAPIEndpoint; endpoint != "" {
+		if !strings.HasPrefix(endpoint, "tcp:") || strings.TrimSpace(endpoint) != endpoint {
+			return fmt.Errorf("vm config provider_spiffe_workload_api_tcp_endpoint must use tcp:IP:port")
+		}
+		address, err := netip.ParseAddrPort(strings.TrimPrefix(endpoint, "tcp:"))
+		if err != nil || address.Port() == 0 || address.Addr().IsUnspecified() {
+			return fmt.Errorf("vm config provider_spiffe_workload_api_tcp_endpoint must use a concrete IP address and non-zero port")
+		}
+		if !config.ProviderSPIFFEAllowGuestTCP {
+			return fmt.Errorf("vm config provider_spiffe_workload_api_tcp_endpoint exposes the Workload API; set provider_spiffe_allow_guest_tcp=true to acknowledge guest access")
+		}
+	} else if config.ProviderSPIFFEAllowGuestTCP {
+		return fmt.Errorf("vm config provider_spiffe_allow_guest_tcp is set but no provider_spiffe_workload_api_tcp_endpoint is configured")
+	}
 	return nil
 }
 
@@ -279,8 +298,6 @@ func applyVMEnvironmentOverrides(config *HostConfig, endpointScheme string, expl
 		{"OPENSHELL_VM_UPSTREAM_PROXY_AUTH_ALLOW_INSECURE", "upstream proxy auth", true},
 		{"OPENSHELL_VM_UPSTREAM_PROXY_CONNECT_BY_HOSTNAME", "upstream proxy", true},
 		{"OPENSHELL_VM_UPSTREAM_PROXY_CA_BUNDLE", "upstream proxy CA", false},
-		{"OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_TCP_ENDPOINT", "SPIFFE Workload API", false},
-		{"OPENSHELL_PROVIDER_SPIFFE_ALLOW_GUEST_TCP", "SPIFFE Workload API", true},
 		{"OPENSHELL_VM_GPU", "GPU passthrough", true},
 		{"OPENSHELL_VM_SUPERVISOR_BIN", "host supervisor binary override", false},
 	} {
@@ -330,6 +347,20 @@ func applyVMEnvironmentOverrides(config *HostConfig, endpointScheme string, expl
 				return "", fmt.Errorf("OPENSHELL_VM_PROXY_CONNECT_BY_HOSTNAME must be a boolean")
 			}
 			config.CorporateProxyConnectByHostname = &enabled
+		}
+	}
+	if _, explicit := explicit["provider_spiffe_workload_api_tcp_endpoint"]; !explicit {
+		if value, configured := os.LookupEnv("OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_TCP_ENDPOINT"); configured {
+			config.ProviderSPIFFEWorkloadAPIEndpoint = value
+		}
+	}
+	if _, explicit := explicit["provider_spiffe_allow_guest_tcp"]; !explicit {
+		if value, configured := os.LookupEnv("OPENSHELL_PROVIDER_SPIFFE_ALLOW_GUEST_TCP"); configured {
+			allowed, err := strconv.ParseBool(value)
+			if err != nil {
+				return "", fmt.Errorf("OPENSHELL_PROVIDER_SPIFFE_ALLOW_GUEST_TCP must be a boolean")
+			}
+			config.ProviderSPIFFEAllowGuestTCP = allowed
 		}
 	}
 	for _, numericEnv := range []struct {
