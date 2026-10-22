@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
@@ -235,6 +236,10 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	assertLiveVMPlatformState(t, vmEvents, "running")
 	initialRuntimeGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID)
+	initialControlCert, initialControlIdentity := liveVMControlClientIdentity(t, host.StateDir, handle.ID)
+	if !strings.HasSuffix(initialControlIdentity, "/generation/"+initialRuntimeGeneration) {
+		t.Fatalf("initial mTLS client identity=%q does not bind runtime generation %q", initialControlIdentity, initialRuntimeGeneration)
+	}
 	assertLiveSupervisorCredentialConsumed(t, ctx, first, host.StateDir, handle.ID)
 	assertLiveGuestProxyCAInstalled(t, ctx, first, handle.ID, proxyCABundle)
 	assertLiveGuestInitExtension(t, ctx, first, handle.ID)
@@ -283,6 +288,9 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	if recoveredGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID); recoveredGeneration != initialRuntimeGeneration {
 		t.Fatalf("adopting the running VM changed runtime generation from %q to %q", initialRuntimeGeneration, recoveredGeneration)
 	}
+	if digest, identity := liveVMControlClientIdentity(t, host.StateDir, handle.ID); digest != initialControlCert || identity != initialControlIdentity {
+		t.Fatalf("adopting the running VM changed its live mTLS identity: digest=%x identity=%q", digest, identity)
+	}
 	t.Log("recovered existing live MicroVM worker")
 	assertLiveGuestExec(t, ctx, recovered, handle.ID)
 	assertLiveWorkloadIdentity(t, ctx, recovered, handle.ID)
@@ -313,8 +321,13 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatalf("restart live MicroVM: %v; console: %s; worker: %s", err, logs.String(), workerLog)
 	}
 	t.Log("restarted live MicroVM after explicit stop")
-	if restartedGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID); restartedGeneration == initialRuntimeGeneration {
+	restartedGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID)
+	if restartedGeneration == initialRuntimeGeneration {
 		t.Fatalf("explicit VM restart reused runtime generation %q", restartedGeneration)
+	}
+	restartedControlCert, restartedControlIdentity := liveVMControlClientIdentity(t, host.StateDir, handle.ID)
+	if restartedControlCert == initialControlCert || restartedControlIdentity == initialControlIdentity || !strings.HasSuffix(restartedControlIdentity, "/generation/"+restartedGeneration) {
+		t.Fatalf("explicit VM restart did not rotate the mTLS client identity: digest=%x identity=%q generation=%q", restartedControlCert, restartedControlIdentity, restartedGeneration)
 	}
 	assertLiveWorkloadIdentity(t, ctx, recovered, handle.ID)
 	assertLiveRestartWorkloadIdentity(t, ctx, recovered, handle.ID)
@@ -466,6 +479,28 @@ func assertLiveIsolationDescriptor(t *testing.T, stateDir string, id core.ID) st
 		t.Fatalf("read live VM isolation descriptor: %v", err)
 	}
 	return state.RuntimeGeneration
+}
+
+func liveVMControlClientIdentity(t *testing.T, stateDir string, id core.ID) ([32]byte, string) {
+	t.Helper()
+	store, err := openStateStore(stateDir)
+	if err != nil {
+		t.Fatalf("open live VM state store for client identity: %v", err)
+	}
+	state, err := store.load(string(id))
+	if err != nil {
+		t.Fatalf("load live VM state for client identity: %v", err)
+	}
+	path := filepath.Join(store.root, "sandboxes", state.ID, "supervisor-control", "client.crt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read live VM mTLS client certificate: %v", err)
+	}
+	certificate, err := parseVMControlCertificate(data)
+	if err != nil || len(certificate.URIs) != 1 {
+		t.Fatalf("parse live VM mTLS client identity: certificate=%v err=%v", certificate, err)
+	}
+	return sha256.Sum256(data), certificate.URIs[0].String()
 }
 
 func assertLiveSupervisorCredentialConsumed(t *testing.T, ctx context.Context, d *Driver, stateDir string, id core.ID) {
