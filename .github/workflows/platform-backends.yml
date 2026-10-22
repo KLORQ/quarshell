@@ -125,7 +125,57 @@ jobs:
           test "$propagation" = private
       - name: Run live KVM lifecycle acceptance
         if: steps.kvm.outputs.available == 'true'
-        run: task vm:live-linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          runner_uid=$(id -u)
+          runner_gid=$(id -g)
+          go_root=$(go env GOROOT)
+          go_path=$(go env GOPATH)
+          task_bin=$(command -v task)
+          rootfs_tar="$RUNNER_TEMP/cautem-kvm-alpine-rootfs.tar"
+          rootfs_container=$(docker run -d --platform linux/amd64 \
+            docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8 \
+            /bin/sh -c 'while :; do sleep 3600; done')
+          docker exec "$rootfs_container" adduser -D -u 1000 sandbox
+          docker export --output "$rootfs_tar" "$rootfs_container"
+          docker rm -f "$rootfs_container" >/dev/null
+
+          # GitHub-hosted Linux runners expose KVM but restrict mount operations
+          # in the job's outer user namespace. Run the actual acceptance in a
+          # disposable privileged container, then drop to the runner's numeric
+          # identity before starting the application worker. The worker still
+          # has to create and validate its own user+mount namespaces as non-root.
+          docker run --rm --privileged --device=/dev/kvm --security-opt seccomp=unconfined \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --volume "$OPENSHELL_VM_RUNTIME_DIR:$OPENSHELL_VM_RUNTIME_DIR:ro" \
+            --volume "$CAUTEM_VM_RUNTIME_TRUST_LOCK:$CAUTEM_VM_RUNTIME_TRUST_LOCK:ro" \
+            --volume "$rootfs_tar:$rootfs_tar:ro" \
+            --volume "$go_root:/opt/go:ro" \
+            --volume "$go_path:/go" \
+            --volume "$task_bin:/usr/local/bin/task:ro" \
+            --workdir /workspace \
+            --env RUNNER_UID="$runner_uid" \
+            --env RUNNER_GID="$runner_gid" \
+            --env OPENSHELL_VM_RUNTIME_DIR \
+            --env CAUTEM_VM_RUNTIME_TRUST_LOCK \
+            --env CAUTEM_VM_TEST_ROOTFS_TAR="$rootfs_tar" \
+            ubuntu:24.04 bash -euc '
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                ca-certificates e2fsprogs libcap-ng0 libdrm2 libegl1 \
+                libepoxy0 libgbm1 libgl1 libseccomp2 libvirglrenderer1 python3
+              if ! getent group "$RUNNER_GID" >/dev/null; then
+                groupadd --gid "$RUNNER_GID" runner
+              fi
+              runner_group=$(getent group "$RUNNER_GID" | cut -d: -f1)
+              useradd --uid "$RUNNER_UID" --gid "$runner_group" --create-home --shell /bin/bash runner
+              chown -R "$RUNNER_UID:$RUNNER_GID" /home/runner
+              setpriv --reuid "$RUNNER_UID" --regid "$runner_group" --init-groups -- \
+                env HOME=/home/runner GOROOT=/opt/go GOPATH=/go \
+                PATH=/opt/go/bin:/usr/local/bin:/usr/bin:/bin \
+                bash -euc "go test -C quarshell-driver-vm ./vm -run \"^TestWorkerIsolationNamespaceSubprocess\$\" -count=1 && task vm:live-linux"
+            '
 
   macos-hvf:
     runs-on: macos-14
