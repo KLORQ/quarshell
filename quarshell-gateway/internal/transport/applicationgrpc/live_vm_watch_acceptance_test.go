@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,9 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
 	dm "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 type liveVMWatchRuntime struct {
@@ -199,6 +203,23 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 
 func assertLiveVMArchiveTransferThroughGateway(t *testing.T, server *Server, ref domain.SandboxRef, ctx context.Context) {
 	t.Helper()
+	listener := bufconn.Listen(1 << 20)
+	grpcServer := grpc.NewServer()
+	gatewayv1.RegisterOpenShellServer(grpcServer, server)
+	go func() { _ = grpcServer.Serve(listener) }()
+	t.Cleanup(func() {
+		grpcServer.Stop()
+		_ = listener.Close()
+	})
+	connection, err := grpc.NewClient("passthrough:///live-vm-gateway",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatalf("connect to live Gateway gRPC fixture: %v", err)
+	}
+	t.Cleanup(func() { _ = connection.Close() })
+	client := gatewayv1.NewOpenShellClient(connection)
 	var archive bytes.Buffer
 	writer := tar.NewWriter(&archive)
 	entries := []struct {
@@ -228,18 +249,34 @@ func assertLiveVMArchiveTransferThroughGateway(t *testing.T, server *Server, ref
 	}
 	selector := &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: string(ref.Workspace)}}
 	run := func(requestID string, command []string, input []byte) []*gatewayv1.ExecSandboxEvent {
-		stream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 2)}
-		stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: &gatewayv1.ExecSandboxRequest{
+		stream, err := client.ExecSandboxInteractive(ctx)
+		if err != nil {
+			t.Fatalf("open live Gateway exec stream: %v", err)
+		}
+		if err := stream.Send(&gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: &gatewayv1.ExecSandboxRequest{
 			WorkspaceScope: selector, Sandbox: string(ref.Sandbox), Command: command, RequestId: requestID,
-		}}}
+		}}}); err != nil {
+			t.Fatalf("send live Gateway exec start: %v", err)
+		}
 		if input != nil {
-			stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: input}}
+			if err := stream.Send(&gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: input}}); err != nil {
+				t.Fatalf("send live Gateway archive: %v", err)
+			}
 		}
-		close(stream.inputs)
-		if err := server.ExecSandboxInteractive(stream); err != nil {
-			t.Fatalf("Gateway live VM archive exec %v: %v", command, err)
+		if err := stream.CloseSend(); err != nil {
+			t.Fatalf("close live Gateway exec input: %v", err)
 		}
-		return stream.events
+		var events []*gatewayv1.ExecSandboxEvent
+		for {
+			event, err := stream.Recv()
+			if err == io.EOF {
+				return events
+			}
+			if err != nil {
+				t.Fatalf("receive live Gateway VM archive exec %v: %v", command, err)
+			}
+			events = append(events, event)
+		}
 	}
 	uploadEvents := run("3f655244-c0a7-4a2e-8125-2ee06d0e0423", []string{"/bin/tar", "-xf", "-", "-C", "/sandbox"}, archive.Bytes())
 	if len(uploadEvents) != 1 || uploadEvents[0].GetExit() == nil || uploadEvents[0].GetExit().GetExitCode() != 0 {
