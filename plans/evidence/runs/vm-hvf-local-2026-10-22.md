@@ -785,6 +785,29 @@ authenticated sandbox generation and epoch by its handler.
   rejects combined event resume rather than silently ignoring its cursor. The
   `vm.logs-watch` inventory row correctly remains partial.
 - After this change, `task vm:live-darwin` passed again on local Apple
-  Silicon/HVF (`TestLiveMicroVMLifecycle`, 21.95s test time). Full workspace
-  tests, focused Gateway watch tests, formatting, and parity inventory checks
-  passed on the same tree.
+  Silicon/HVF (`TestLiveMicroVMLifecycle`, 22.09s test time). The test now
+  subscribes before VM start and observes real `created`, `running`, and
+  terminal `stopped` events from the VM state store. Full workspace tests,
+  focused Gateway watch tests, formatting, and parity inventory checks passed
+  on the same tree.
+
+## Merged log and platform-event replay
+
+- The SQLite-backed sandbox log window now stores bounded platform-event
+  records in the same per-sandbox sequence space as supervisor logs. Both
+  sources receive opaque Gateway cursors; repeated VM snapshots are
+  deduplicated, and retention tracks independent log/event trim watermarks.
+- `WatchSandbox` supports `event_tail`, resumes both sources after one cursor,
+  sorts replay by shared sequence, and performs an atomic live catch-up from a
+  single durable snapshot. Filtered log records advance their source watermark
+  to suppress duplicate delivery. Cursor-ahead and source-trimmed requests
+  fail explicitly. Live merge tests cover interleaved replay and a terminal
+  event arriving alongside a later log line.
+- `sandboxlogs` tests cover SQLite reopen with shared sequence numbers,
+  event deduplication, and event-window trimming. Gateway tests cover event
+  tail, cross-source replay/resume, live merge ordering, and terminal stop.
+- Remaining limits: platform history is collected when a Gateway
+  `WatchSandbox` subscription observes events; the VM state feed is
+  process-local/best-effort; cursor epochs reset when Gateway restarts; and
+  multi-replica live event delivery is not shared. The Gateway composition
+  watch bridge still lacks a live HVF composition test.

@@ -4,13 +4,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-driver/driver"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxlogs"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
@@ -26,12 +29,6 @@ const sandboxWatchBuffer = 128
 func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gatewayv1.OpenShell_WatchSandboxServer) error {
 	if request == nil || strings.TrimSpace(request.GetSandbox()) == "" {
 		return status.Error(codes.InvalidArgument, "sandbox is required")
-	}
-	if request.GetEventTail() > 0 {
-		return status.Error(codes.Unimplemented, "platform event replay is not configured")
-	}
-	if request.GetFollowEvents() && strings.TrimSpace(request.GetResumeAfterCursor()) != "" {
-		return status.Error(codes.Unimplemented, "combined platform event resume is not configured")
 	}
 	if !request.GetFollowLogs() && !request.GetFollowStatus() && !request.GetFollowEvents() {
 		return status.Error(codes.InvalidArgument, "follow_logs, follow_status, or follow_events is required")
@@ -79,7 +76,14 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 		}
 	}
 	var live chan *gatewayv1.SandboxStreamEvent
-	var replay []*gatewayv1.SandboxStreamEvent
+	var logReplay, platformReplay []*gatewayv1.SandboxStreamEvent
+	logCutoff := resumeSequence
+	platformCutoff := resumeSequence
+	if request.GetFollowEvents() && request.GetEventTail() > 0 && s.SandboxLogs == nil {
+		return status.Error(codes.Unavailable, "platform event replay storage is not configured")
+	}
+	var watchSnapshot sandboxlogs.WatchSnapshot
+	snapshotLoaded := false
 	if request.GetFollowLogs() {
 		live = make(chan *gatewayv1.SandboxStreamEvent, sandboxWatchBuffer)
 		s.logMu.Lock()
@@ -90,45 +94,84 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 			s.logWatchers[request.GetSandbox()] = make(map[chan *gatewayv1.SandboxStreamEvent]struct{})
 		}
 		s.logWatchers[request.GetSandbox()][live] = struct{}{}
-		stored, readErr := s.sandboxLogSnapshotLocked(stream.Context(), request.GetSandbox())
+		var stored []*gatewayv1.SandboxStreamEvent
+		var readErr error
+		if s.SandboxLogs != nil {
+			watchSnapshot, readErr = s.SandboxLogs.Snapshot(stream.Context(), request.GetSandbox())
+			snapshotLoaded = readErr == nil
+			if readErr == nil {
+				stored = sandboxLogStreamEvents(s, request.GetSandbox(), watchSnapshot.Lines)
+			}
+		} else {
+			stored, readErr = s.sandboxLogSnapshotLocked(stream.Context(), request.GetSandbox())
+		}
 		s.logMu.Unlock()
 		if readErr != nil {
 			s.removeSandboxLogWatcher(request.GetSandbox(), live)
 			return status.Error(codes.Internal, "read sandbox log replay")
 		}
 		defer s.removeSandboxLogWatcher(request.GetSandbox(), live)
-		if resumeCursor != "" {
-			if len(stored) == 0 {
-				return status.Error(codes.OutOfRange, "watch cursor is no longer retained")
-			}
-			first := cursorSequence(stored[0].GetCursor())
-			last := cursorSequence(stored[len(stored)-1].GetCursor())
-			if resumeSequence > last {
-				return status.Error(codes.InvalidArgument, "resume_after_cursor is ahead of the latest sandbox log")
-			}
-			if first > 1 && resumeSequence < first-1 {
-				return status.Error(codes.OutOfRange, "watch cursor has been trimmed from the sandbox log window")
-			}
-		} else {
-			tail := int(request.GetLogTailLines())
-			if tail == 0 {
-				tail = 200
-			}
-			if tail > sandboxLogRetention {
-				tail = sandboxLogRetention
-			}
+		if resumeCursor == "" {
+			tail := boundedWatchTail(request.GetLogTailLines(), 200)
 			if tail > 0 && len(stored) > tail {
 				stored = stored[len(stored)-tail:]
 			}
 		}
 		for _, event := range stored {
 			line := event.GetLog()
-			if line == nil || (resumeCursor != "" && cursorSequence(event.GetCursor()) <= resumeSequence) {
+			sequence := cursorSequence(event.GetCursor())
+			if sequence > logCutoff {
+				logCutoff = sequence
+			}
+			if line == nil || (resumeCursor != "" && sequence <= resumeSequence) {
 				continue
 			}
 			if watchLogMatches(line, request) {
-				replay = append(replay, event)
+				logReplay = append(logReplay, event)
 			}
+		}
+	}
+	if (request.GetFollowEvents() || resumeCursor != "") && s.SandboxLogs != nil {
+		if !snapshotLoaded {
+			watchSnapshot, err = s.SandboxLogs.Snapshot(stream.Context(), request.GetSandbox())
+			if err != nil {
+				return status.Error(codes.Internal, "read sandbox watch replay")
+			}
+			snapshotLoaded = true
+		}
+	}
+	if request.GetFollowEvents() && s.SandboxLogs != nil {
+		if resumeCursor != "" {
+			if resumeSequence > watchSnapshot.LatestSequence {
+				return status.Error(codes.InvalidArgument, "resume_after_cursor is ahead of the latest sandbox event")
+			}
+			if resumeSequence < watchSnapshot.EventsTrimmedThrough {
+				return status.Error(codes.OutOfRange, "watch cursor has been trimmed from the platform event window")
+			}
+		}
+		stored := watchSnapshot.Events
+		if resumeCursor == "" {
+			tail := boundedWatchTail(request.GetEventTail(), 0)
+			if tail > 0 && len(stored) > tail {
+				stored = stored[len(stored)-tail:]
+			}
+		}
+		for _, event := range stored {
+			if event.Sequence > platformCutoff {
+				platformCutoff = event.Sequence
+			}
+			if resumeCursor != "" && event.Sequence <= resumeSequence {
+				continue
+			}
+			platformReplay = append(platformReplay, platformStreamEvent(event, s.sandboxLogCursor(request.GetSandbox(), event.Sequence)))
+		}
+	}
+	if request.GetFollowLogs() && resumeCursor != "" && s.SandboxLogs != nil {
+		if resumeSequence > watchSnapshot.LatestSequence {
+			return status.Error(codes.InvalidArgument, "resume_after_cursor is ahead of the latest sandbox event")
+		}
+		if resumeSequence < watchSnapshot.LogsTrimmedThrough {
+			return status.Error(codes.OutOfRange, "watch cursor has been trimmed from the sandbox log window")
 		}
 	}
 
@@ -136,16 +179,28 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 	if err := stream.Send(&gatewayv1.SandboxStreamEvent{Payload: &gatewayv1.SandboxStreamEvent_Sandbox{Sandbox: lastSnapshot}}); err != nil {
 		return err
 	}
+	replay := append(logReplay, platformReplay...)
+	sort.Slice(replay, func(i, j int) bool {
+		return cursorSequence(replay[i].GetCursor()) < cursorSequence(replay[j].GetCursor())
+	})
 	for _, event := range replay {
 		if err := stream.Send(event); err != nil {
 			return err
 		}
 	}
-	lastLogSequence := resumeSequence
-	for _, event := range replay {
-		if sequence := cursorSequence(event.GetCursor()); sequence > lastLogSequence {
-			lastLogSequence = sequence
-		}
+	lastLogSequence := logCutoff
+	lastPlatformSequence := platformCutoff
+	if request.GetFollowEvents() && resumeCursor == "" && request.GetEventTail() == 0 && snapshotLoaded {
+		lastPlatformSequence = watchSnapshot.LatestSequence
+	}
+	if resumeCursor != "" && resumeSequence > watchSnapshot.LatestSequence && snapshotLoaded {
+		return status.Error(codes.InvalidArgument, "resume_after_cursor is ahead of the latest sandbox event")
+	}
+	if request.GetFollowLogs() && resumeCursor != "" && snapshotLoaded && resumeSequence < watchSnapshot.LogsTrimmedThrough {
+		return status.Error(codes.OutOfRange, "watch cursor has been trimmed from the sandbox log window")
+	}
+	if request.GetFollowEvents() && resumeCursor != "" && snapshotLoaded && resumeSequence < watchSnapshot.EventsTrimmedThrough {
+		return status.Error(codes.OutOfRange, "watch cursor has been trimmed from the platform event window")
 	}
 	if request.GetStopOnTerminal() && terminalWatchPhase(phaseFromState(current.State)) {
 		return nil
@@ -157,15 +212,21 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 		case <-stream.Context().Done():
 			return stream.Context().Err()
 		case event := <-live:
-			if line := event.GetLog(); line != nil {
-				sequence := cursorSequence(event.GetCursor())
-				if sequence <= lastLogSequence || !watchLogMatches(line, request) {
-					continue
+			if s.SandboxLogs != nil {
+				if err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence); err != nil {
+					return err
 				}
-				lastLogSequence = sequence
-			}
-			if err := stream.Send(proto.Clone(event).(*gatewayv1.SandboxStreamEvent)); err != nil {
-				return err
+			} else {
+				if line := event.GetLog(); line != nil {
+					sequence := cursorSequence(event.GetCursor())
+					if sequence <= lastLogSequence || !watchLogMatches(line, request) {
+						continue
+					}
+					lastLogSequence = sequence
+				}
+				if err := stream.Send(proto.Clone(event).(*gatewayv1.SandboxStreamEvent)); err != nil {
+					return err
+				}
 			}
 		case result, open := <-platformEvents:
 			if !open {
@@ -182,15 +243,27 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 			if eventTime.IsZero() {
 				eventTime = time.Now()
 			}
-			if request.GetSinceTime() != nil && eventTime.Before(request.GetSinceTime().AsTime()) {
-				continue
-			}
-			platformEvent := &gatewayv1.PlatformEvent{
-				EventTime: timestamppb.New(eventTime), Source: result.Event.Source, Type: result.Event.Type,
-				Reason: result.Event.Reason, Message: result.Event.Message, Metadata: result.Event.Metadata,
-			}
-			if err := stream.Send(&gatewayv1.SandboxStreamEvent{Payload: &gatewayv1.SandboxStreamEvent_Event{Event: platformEvent}}); err != nil {
-				return err
+			if s.SandboxLogs != nil {
+				_, _, appendErr := s.SandboxLogs.AppendPlatformEvent(stream.Context(), sandboxlogs.PlatformEvent{
+					SandboxID: request.GetSandbox(), EventTime: eventTime, Source: result.Event.Source, Type: result.Event.Type,
+					Reason: result.Event.Reason, Message: result.Event.Message, Metadata: result.Event.Metadata,
+					Terminal: result.Event.Terminal, DedupKey: sandboxPlatformEventDedupKey(result.Event, eventTime),
+				})
+				if appendErr != nil {
+					return status.Error(codes.Internal, "persist sandbox platform event")
+				}
+				if err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence); err != nil {
+					return err
+				}
+			} else {
+				wireEvent := platformStreamEvent(sandboxlogs.PlatformEvent{
+					SandboxID: request.GetSandbox(), EventTime: eventTime, Source: result.Event.Source, Type: result.Event.Type,
+					Reason: result.Event.Reason, Message: result.Event.Message, Metadata: result.Event.Metadata,
+					Terminal: result.Event.Terminal,
+				}, "")
+				if err := stream.Send(wireEvent); err != nil {
+					return err
+				}
 			}
 			if request.GetStopOnTerminal() && result.Event.Terminal {
 				return nil
@@ -226,15 +299,7 @@ func (s *Server) sandboxLogSnapshotLocked(ctx context.Context, sandboxID string)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]*gatewayv1.SandboxStreamEvent, 0, len(lines))
-		for _, line := range lines {
-			item := &gatewayv1.SandboxLogLine{SandboxId: line.SandboxID, Level: line.Level, Target: line.Target, Message: line.Message, Source: line.Source}
-			if !line.EventTime.IsZero() {
-				item.EventTime = timestamppb.New(line.EventTime)
-			}
-			out = append(out, &gatewayv1.SandboxStreamEvent{Payload: &gatewayv1.SandboxStreamEvent_Log{Log: item}, Cursor: s.sandboxLogCursor(sandboxID, line.Sequence)})
-		}
-		return out, nil
+		return sandboxLogStreamEvents(s, sandboxID, lines), nil
 	}
 	lines := s.sandboxLogs[sandboxID]
 	out := make([]*gatewayv1.SandboxStreamEvent, 0, len(lines))
@@ -242,6 +307,107 @@ func (s *Server) sandboxLogSnapshotLocked(ctx context.Context, sandboxID string)
 		out = append(out, logStreamEvent(proto.Clone(line).(*gatewayv1.SandboxLogLine), ""))
 	}
 	return out, nil
+}
+
+func sandboxLogStreamEvents(s *Server, sandboxID string, lines []sandboxlogs.Line) []*gatewayv1.SandboxStreamEvent {
+	out := make([]*gatewayv1.SandboxStreamEvent, 0, len(lines))
+	for _, line := range lines {
+		item := &gatewayv1.SandboxLogLine{SandboxId: line.SandboxID, Level: line.Level, Target: line.Target, Message: line.Message, Source: line.Source}
+		if !line.EventTime.IsZero() {
+			item.EventTime = timestamppb.New(line.EventTime)
+		}
+		out = append(out, &gatewayv1.SandboxStreamEvent{Payload: &gatewayv1.SandboxStreamEvent_Log{Log: item}, Cursor: s.sandboxLogCursor(sandboxID, line.Sequence)})
+	}
+	return out
+}
+
+func (s *Server) sendSandboxWatchCatchup(
+	ctx context.Context,
+	stream gatewayv1.OpenShell_WatchSandboxServer,
+	request *gatewayv1.WatchSandboxRequest,
+	lastLogSequence, lastPlatformSequence *uint64,
+) error {
+	snapshot, err := s.SandboxLogs.Snapshot(ctx, request.GetSandbox())
+	if err != nil {
+		return status.Error(codes.Internal, "read sandbox watch live window")
+	}
+	if request.GetFollowLogs() && *lastLogSequence < snapshot.LogsTrimmedThrough {
+		return status.Error(codes.OutOfRange, "sandbox log events were trimmed while the watch was live")
+	}
+	if request.GetFollowEvents() && *lastPlatformSequence < snapshot.EventsTrimmedThrough {
+		return status.Error(codes.OutOfRange, "platform events were trimmed while the watch was live")
+	}
+	type pendingEvent struct {
+		sequence uint64
+		payload  *gatewayv1.SandboxStreamEvent
+	}
+	pending := make([]pendingEvent, 0, len(snapshot.Lines)+len(snapshot.Events))
+	if request.GetFollowLogs() {
+		for _, line := range snapshot.Lines {
+			if line.Sequence <= *lastLogSequence {
+				continue
+			}
+			*lastLogSequence = line.Sequence
+			event := sandboxLogStreamEvents(s, request.GetSandbox(), []sandboxlogs.Line{line})[0]
+			if watchLogMatches(event.GetLog(), request) {
+				pending = append(pending, pendingEvent{sequence: line.Sequence, payload: event})
+			}
+		}
+	}
+	if request.GetFollowEvents() {
+		for _, event := range snapshot.Events {
+			if event.Sequence <= *lastPlatformSequence {
+				continue
+			}
+			*lastPlatformSequence = event.Sequence
+			pending = append(pending, pendingEvent{
+				sequence: event.Sequence,
+				payload:  platformStreamEvent(event, s.sandboxLogCursor(request.GetSandbox(), event.Sequence)),
+			})
+		}
+	}
+	sort.Slice(pending, func(i, j int) bool { return pending[i].sequence < pending[j].sequence })
+	for _, event := range pending {
+		if err := stream.Send(event.payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func platformStreamEvent(event sandboxlogs.PlatformEvent, cursor string) *gatewayv1.SandboxStreamEvent {
+	return &gatewayv1.SandboxStreamEvent{
+		Payload: &gatewayv1.SandboxStreamEvent_Event{Event: &gatewayv1.PlatformEvent{
+			EventTime: timestamppb.New(event.EventTime), Source: event.Source, Type: event.Type,
+			Reason: event.Reason, Message: event.Message, Metadata: event.Metadata,
+		}}, Cursor: cursor,
+	}
+}
+
+func boundedWatchTail(requested uint32, defaultValue int) int {
+	if requested == 0 {
+		return defaultValue
+	}
+	if requested > sandboxLogRetention {
+		return sandboxLogRetention
+	}
+	return int(requested)
+}
+
+func sandboxPlatformEventDedupKey(event driver.PlatformEvent, eventTime time.Time) string {
+	encoded, _ := json.Marshal(struct {
+		Time     string            `json:"time"`
+		Source   string            `json:"source"`
+		Type     string            `json:"type"`
+		Reason   string            `json:"reason"`
+		Message  string            `json:"message"`
+		Metadata map[string]string `json:"metadata"`
+	}{
+		Time: eventTime.UTC().Format(time.RFC3339Nano), Source: event.Source, Type: event.Type,
+		Reason: event.Reason, Message: event.Message, Metadata: event.Metadata,
+	})
+	digest := sha256.Sum256(encoded)
+	return hex.EncodeToString(digest[:])
 }
 
 func (s *Server) removeSandboxLogWatcher(sandboxID string, watcher chan *gatewayv1.SandboxStreamEvent) {

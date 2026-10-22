@@ -141,6 +141,13 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatalf("create live MicroVM: %v", err)
 	}
 	registerLiveSandboxCleanup(t, host, handle.ID)
+	watchCtx, cancelWatch := context.WithCancel(ctx)
+	defer cancelWatch()
+	vmEvents, err := first.WatchPlatformEvents(watchCtx, driver.PlatformEventWatchRequest{SandboxID: handle.ID})
+	if err != nil {
+		t.Fatalf("watch live VM lifecycle: %v", err)
+	}
+	assertLiveVMPlatformState(t, vmEvents, "created")
 	if err := first.Start(ctx, handle.ID); err != nil {
 		var logs bytes.Buffer
 		_ = first.Logs(context.Background(), handle.ID, false, &logs)
@@ -149,6 +156,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		workerLog, _ := os.ReadFile(consolePath + ".worker")
 		t.Fatalf("start live MicroVM: %v; console: %s; worker: %s", err, logs.String(), workerLog)
 	}
+	assertLiveVMPlatformState(t, vmEvents, "running")
 	initialRuntimeGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID)
 	assertLiveSupervisorCredentialConsumed(t, ctx, first, host.StateDir, handle.ID)
 	assertLiveGuestProxyCAInstalled(t, ctx, first, handle.ID, proxyCABundle)
@@ -206,6 +214,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	if err := recovered.Stop(ctx, handle.ID); err != nil {
 		t.Fatalf("stop live MicroVM: %v", err)
 	}
+	assertLiveVMPlatformState(t, vmEvents, "stopped")
 	t.Log("stopped recovered live MicroVM worker")
 	if err := os.Remove(controlEventsPath); err != nil && !os.IsNotExist(err) {
 		t.Fatalf("reset supervisor acceptance events before restart: %v", err)
@@ -1108,6 +1117,29 @@ func assertLiveGuestExec(t *testing.T, ctx context.Context, d *Driver, id core.I
 		t.Fatalf("live guest exec process survived caller timeout: exit=%d err=%v", result.ExitCode, err)
 	}
 	assertLiveExecTerminal(t, ctx, d, id)
+}
+
+func assertLiveVMPlatformState(t *testing.T, events <-chan driver.PlatformEventResult, want string) {
+	t.Helper()
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case result, open := <-events:
+			if !open {
+				t.Fatalf("VM platform event stream closed before state %q", want)
+			}
+			if result.Err != nil {
+				t.Fatalf("VM platform event stream error: %v", result.Err)
+			}
+			if result.Event.Metadata["status"] == want {
+				t.Logf("live VM platform watch reported state %q", want)
+				return
+			}
+		case <-timer.C:
+			t.Fatalf("timed out waiting for live VM platform state %q", want)
+		}
+	}
 }
 
 func assertLiveWorkloadIdentity(t *testing.T, ctx context.Context, d *Driver, id core.ID) {

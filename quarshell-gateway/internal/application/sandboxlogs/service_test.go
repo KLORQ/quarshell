@@ -28,6 +28,13 @@ func TestLogWindowPersistsAcrossStoreRestartAndRetainsNewestLines(t *testing.T) 
 	if _, err := service.Append(ctx, "sandbox-a", batch); err != nil {
 		t.Fatal(err)
 	}
+	platformEvent, created, err := service.AppendPlatformEvent(ctx, PlatformEvent{
+		SandboxID: "sandbox-a", EventTime: time.Unix(3000, 0), Source: "vm", Type: "sandbox_state",
+		Reason: "running", DedupKey: "vm-state:running:3000",
+	})
+	if err != nil || !created || platformEvent.Sequence != 2002 {
+		t.Fatalf("AppendPlatformEvent()=(%+v, %v, %v)", platformEvent, created, err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +54,63 @@ func TestLogWindowPersistsAcrossStoreRestartAndRetainsNewestLines(t *testing.T) 
 	}
 	if len(lines) != maxLines || lines[0].Message != "event-0001" || lines[0].Sequence != 2 || lines[len(lines)-1].Message != "event-2000" || lines[len(lines)-1].Sequence != 2001 {
 		t.Fatalf("retained window count=%d first=%q last=%q", len(lines), lines[0].Message, lines[len(lines)-1].Message)
+	}
+	events, err := restored.ListPlatformEvents(ctx, "sandbox-a")
+	if err != nil || len(events) != 1 || events[0].Sequence != 2002 || events[0].Reason != "running" {
+		t.Fatalf("retained platform events=(%+v, %v)", events, err)
+	}
+	latest, logsTrimmed, eventsTrimmed, err := restored.CursorState(ctx, "sandbox-a")
+	if err != nil || latest != 2002 || logsTrimmed != 1 || eventsTrimmed != 0 {
+		t.Fatalf("cursor state=(%d, %d, %d, %v)", latest, logsTrimmed, eventsTrimmed, err)
+	}
+}
+
+func TestPlatformEventDeduplicationSharesPerSandboxCursor(t *testing.T) {
+	service, err := New(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := service.Append(ctx, "sandbox-a", []Line{{SandboxID: "sandbox-a", Message: "line"}}); err != nil {
+		t.Fatal(err)
+	}
+	event := PlatformEvent{SandboxID: "sandbox-a", EventTime: time.Unix(4000, 0), Source: "vm", Type: "sandbox_state", Reason: "running", DedupKey: "vm-state:running:4000"}
+	first, created, err := service.AppendPlatformEvent(ctx, event)
+	if err != nil || !created || first.Sequence != 2 {
+		t.Fatalf("first append=(%+v, %v, %v)", first, created, err)
+	}
+	duplicate, created, err := service.AppendPlatformEvent(ctx, event)
+	if err != nil || created || duplicate.Sequence != first.Sequence {
+		t.Fatalf("duplicate append=(%+v, %v, %v), want existing seq %d", duplicate, created, err, first.Sequence)
+	}
+	latest, _, _, err := service.CursorState(ctx, "sandbox-a")
+	if err != nil || latest != 2 {
+		t.Fatalf("latest cursor sequence=(%d, %v), want 2", latest, err)
+	}
+}
+
+func TestPlatformEventWindowTracksTrimmedCursorRange(t *testing.T) {
+	service, err := New(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	for index := range maxLines + 1 {
+		_, created, err := service.AppendPlatformEvent(ctx, PlatformEvent{
+			SandboxID: "sandbox-a", EventTime: time.Unix(int64(index+1), 0), Source: "vm",
+			Type: "sandbox_state", Reason: fmt.Sprintf("state-%d", index), DedupKey: fmt.Sprintf("state-%d", index),
+		})
+		if err != nil || !created {
+			t.Fatalf("append event %d=(created %v, err %v)", index, created, err)
+		}
+	}
+	events, err := service.ListPlatformEvents(ctx, "sandbox-a")
+	if err != nil || len(events) != maxLines || events[0].Sequence != 2 || events[len(events)-1].Sequence != maxLines+1 {
+		t.Fatalf("retained platform event range=(len %d, err %v)", len(events), err)
+	}
+	latest, logsTrimmed, eventsTrimmed, err := service.CursorState(ctx, "sandbox-a")
+	if err != nil || latest != maxLines+1 || logsTrimmed != 0 || eventsTrimmed != 1 {
+		t.Fatalf("cursor state=(%d, %d, %d, %v)", latest, logsTrimmed, eventsTrimmed, err)
 	}
 }
 
