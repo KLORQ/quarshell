@@ -14,7 +14,8 @@ import (
 const execAdmissionRetention = 24 * time.Hour
 
 type execAdmissionState struct {
-	Completed bool `json:"completed"`
+	Completed bool   `json:"completed"`
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // AdmitExecRequest durably fences a launch before it reaches a runtime. An
@@ -51,6 +52,71 @@ func (s *Service) AdmitExecRequest(ctx context.Context, ref domain.SandboxRef, r
 			return fmt.Errorf("encode exec admission: %w", err)
 		}
 		return tx.PutOperation(lifecycle.Operation{Key: key, RequestHash: requestHash, Result: result, CreatedAt: now})
+	})
+}
+
+// ExecTerminalSessionID returns the retained runtime handle for an admitted,
+// unfinished TTY request when its payload hash matches the original request.
+func (s *Service) ExecTerminalSessionID(ctx context.Context, ref domain.SandboxRef, requestID, requestHash string) (string, bool, error) {
+	if ctx == nil || s == nil || s.store == nil {
+		return "", false, domain.Invalidf("sandbox.exec_admission", "context and lifecycle store are required")
+	}
+	key := execAdmissionKey(ref, strings.TrimSpace(requestID))
+	var state execAdmissionState
+	var found bool
+	err := s.store.View(ctx, func(tx lifecycle.ReadTx) error {
+		operation, exists, err := tx.GetOperation(key)
+		if err != nil || !exists {
+			return err
+		}
+		if operation.RequestHash != requestHash {
+			return domain.New(domain.CodeConflict, "sandbox.exec_admission", "request_id payload does not match the admitted request")
+		}
+		if err := json.Unmarshal(operation.Result, &state); err != nil {
+			return fmt.Errorf("decode exec admission: %w", err)
+		}
+		found = !state.Completed && state.SessionID != ""
+		return nil
+	})
+	return state.SessionID, found, err
+}
+
+// SetExecTerminalSessionID records the runtime process handle so the same
+// request_id can attach to that process after a transport disconnect.
+func (s *Service) SetExecTerminalSessionID(ctx context.Context, ref domain.SandboxRef, requestID, requestHash, sessionID string) error {
+	if ctx == nil || s == nil || s.store == nil {
+		return domain.Invalidf("sandbox.exec_admission", "context and lifecycle store are required")
+	}
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" || requestHash == "" || sessionID == "" {
+		return domain.Invalidf("sandbox.exec_admission", "request ID, request hash, and terminal session ID are required")
+	}
+	key := execAdmissionKey(ref, requestID)
+	return s.store.Update(ctx, func(tx lifecycle.WriteTx) error {
+		operation, exists, err := tx.GetOperation(key)
+		if err != nil {
+			return err
+		}
+		if !exists || operation.RequestHash != requestHash {
+			return domain.New(domain.CodeConflict, "sandbox.exec_admission", "request_id was not admitted for this payload")
+		}
+		var state execAdmissionState
+		if err := json.Unmarshal(operation.Result, &state); err != nil {
+			return fmt.Errorf("decode exec admission: %w", err)
+		}
+		if state.Completed || state.SessionID != "" {
+			return domain.New(domain.CodeConflict, "sandbox.exec_admission", "terminal session is already finalized")
+		}
+		state.SessionID = sessionID
+		result, err := json.Marshal(state)
+		if err != nil {
+			return fmt.Errorf("encode exec admission: %w", err)
+		}
+		if err := tx.DeleteOperation(key); err != nil {
+			return err
+		}
+		operation.Result = result
+		return tx.PutOperation(operation)
 	})
 }
 

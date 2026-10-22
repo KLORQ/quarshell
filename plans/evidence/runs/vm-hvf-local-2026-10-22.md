@@ -1260,3 +1260,16 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - Retained PTY acceptance now creates a new `Driver` object against the same state directory before reattaching and terminating the retained guest process. This verifies the host-side driver object is not the process owner.
 - Windows AMD64 cross-compile of the VM package test binary passed: `GOOS=windows GOARCH=amd64 go test -c ./vm`.
 - GitHub Actions for `bd1db9d`: macOS, platform-backends, and secret-scan pass; Linux workspace workflow is still running.
+
+# Gateway TTY request reconnect (2026-10-23 01:00 Europe/Samara)
+
+- Gateway now stores an attachable VM terminal session ID in the durable exec-admission record alongside the original deterministic payload hash. Repeating the same TTY `request_id` after a stream drop attaches to that process; changing the request payload remains fenced. Unfinished requests without a saved session ID remain fenced instead of launching twice.
+- `go test ./internal/application/sandbox ./internal/application/sandboxruntime ./internal/transport/applicationgrpc -run 'TestExecAdmission|TestExecSandboxInteractive' -count=1`: PASS. The reconnect RPC test simulates a dropped first output stream and verifies one launch, one attach, resumed output and exit. The same focused packages pass with `-race`; SQLite close/reopen verifies the session ID survives Gateway reconstruction.
+- `task vm:parity-check`: PASS (30 rows); `vm.exec-pty-signals` is now implemented. Inventory: 25 implemented, 3 partial, 2 hardware-specific unsupported.
+
+# End-to-end Gateway TTY reconnect on HVF (2026-10-23 01:04 Europe/Samara)
+
+- `task vm:live-darwin`: PASS. `TestLiveMicroVMLifecycle` (24.27 s), `TestLiveLocalOCIEngineImport` (1.11 s), and Gateway `TestLiveVMWatchSandboxComposition` (9.52 s) passed.
+- The live Gateway composition now forces the first TTY RPC stream to fail after output, retries the identical TTY request with the same `request_id`, and checks that Gateway uses `AttachExecTerminal` against the existing HVF guest process. The resumed process receives input, returns output and exit status, and is not launched a second time.
+- The same live composition exercises PTY interrupt and archive transfer. Separate retained-process acceptance exercises fresh VM-driver attach and terminate while detached.
+- Full `go test ./...` in `quarshell-gateway`, focused Gateway admission/reconnect `-race` tests, `task vm:parity-check`, and `task fmt:check`: PASS. Inventory remains 25 implemented, 3 partial, 2 physical GPU/VFIO unsupported.

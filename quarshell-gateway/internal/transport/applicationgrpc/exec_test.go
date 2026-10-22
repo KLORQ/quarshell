@@ -3,6 +3,7 @@ package applicationgrpc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"reflect"
 	"sync"
@@ -23,15 +24,16 @@ import (
 )
 
 type execTestRuntime struct {
-	request         driver.ExecRequest
-	execCalls       int
-	result          driver.ExecResult
-	err             error
-	terminalRequest driver.ExecTerminalRequest
-	terminal        driver.ExecTerminalSession
-	streamRequest   driver.ExecTerminalRequest
-	stream          driver.ExecStreamSession
-	streamCalls     int
+	request           driver.ExecRequest
+	execCalls         int
+	result            driver.ExecResult
+	err               error
+	terminalRequest   driver.ExecTerminalRequest
+	terminal          driver.ExecTerminalSession
+	terminalOpenCalls int
+	streamRequest     driver.ExecTerminalRequest
+	stream            driver.ExecStreamSession
+	streamCalls       int
 }
 
 type execTimeoutRuntime struct{ execTestRuntime }
@@ -57,6 +59,7 @@ func (r *execTestRuntime) Exec(_ context.Context, _ sandboxruntime.Sandbox, requ
 }
 func (r *execTestRuntime) OpenExecTerminal(_ context.Context, _ sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecTerminalSession, error) {
 	r.terminalRequest = request
+	r.terminalOpenCalls++
 	return r.terminal, r.err
 }
 func (r *execTestRuntime) OpenExecStream(_ context.Context, _ sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
@@ -218,10 +221,11 @@ func TestExecSandboxRPCValidationAndErrors(t *testing.T) {
 
 type interactiveExecTestStream struct {
 	grpc.ServerStream
-	ctx    context.Context
-	inputs chan *gatewayv1.ExecSandboxInput
-	mu     sync.Mutex
-	events []*gatewayv1.ExecSandboxEvent
+	ctx     context.Context
+	inputs  chan *gatewayv1.ExecSandboxInput
+	sendErr error
+	mu      sync.Mutex
+	events  []*gatewayv1.ExecSandboxEvent
 }
 
 func (s *interactiveExecTestStream) Context() context.Context { return s.ctx }
@@ -236,11 +240,13 @@ func (s *interactiveExecTestStream) Send(event *gatewayv1.ExecSandboxEvent) erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events = append(s.events, event)
-	return nil
+	return s.sendErr
 }
 
 type interactiveExecTestSession struct {
 	output        *bytes.Reader
+	sessionID     string
+	readImmediate bool
 	stdin         bytes.Buffer
 	columns, rows uint32
 	stdinClosed   bool
@@ -249,7 +255,15 @@ type interactiveExecTestSession struct {
 }
 
 func (s *interactiveExecTestSession) Read(p []byte) (int, error) {
-	<-s.inputDone
+	if s.readImmediate {
+		select {
+		case <-s.inputDone:
+			return 0, io.EOF
+		default:
+		}
+	} else {
+		<-s.inputDone
+	}
 	return s.output.Read(p)
 }
 func (s *interactiveExecTestSession) Write(p []byte) (int, error) { return s.stdin.Write(p) }
@@ -258,12 +272,27 @@ func (s *interactiveExecTestSession) Resize(_ context.Context, columns, rows uin
 	return nil
 }
 func (s *interactiveExecTestSession) Wait(context.Context) (int, error) { return 7, nil }
+func (s *interactiveExecTestSession) SessionID() string                 { return s.sessionID }
 func (s *interactiveExecTestSession) CloseStdin() error {
 	s.stdinClosed = true
 	s.closeOnce.Do(func() { close(s.inputDone) })
 	return nil
 }
 func (*interactiveExecTestSession) Close() error { return nil }
+
+type execAttachTestRuntime struct {
+	*execTestRuntime
+	attachedSession driver.ExecTerminalSession
+	attachCalls     int
+}
+
+func (r *execAttachTestRuntime) AttachExecTerminal(_ context.Context, _ sandboxruntime.Sandbox, sessionID string) (driver.ExecTerminalSession, error) {
+	r.attachCalls++
+	if sessionID != "retained-session-id" {
+		return nil, status.Error(codes.NotFound, "retained terminal was not found")
+	}
+	return r.attachedSession, nil
+}
 
 func TestExecSandboxInteractiveRelaysInputResizeOutputAndExit(t *testing.T) {
 	ctx := context.Background()
@@ -298,6 +327,49 @@ func TestExecSandboxInteractiveRelaysInputResizeOutputAndExit(t *testing.T) {
 	}
 	if len(stream.events) != 2 || string(stream.events[0].GetStdout().GetData()) != "terminal output" || stream.events[1].GetExit().GetExitCode() != 7 {
 		t.Fatalf("events = %+v", stream.events)
+	}
+}
+
+func TestExecSandboxInteractiveReattachesOnDuplicateTTYRequestID(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sandboxes.Create(ctx, sandbox.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "busybox"}); err != nil {
+		t.Fatal(err)
+	}
+	first := &interactiveExecTestSession{output: bytes.NewReader([]byte("initial output")), sessionID: "retained-session-id", readImmediate: true, inputDone: make(chan struct{})}
+	resumed := &interactiveExecTestSession{output: bytes.NewReader([]byte("resumed output")), sessionID: "retained-session-id", readImmediate: true, inputDone: make(chan struct{})}
+	runtime := &execAttachTestRuntime{execTestRuntime: &execTestRuntime{terminal: first}, attachedSession: resumed}
+	sandboxes.Runtime = runtime
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	request := &gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: selector, Sandbox: "sb", Command: []string{"sh", "-i"}, Tty: true,
+		RequestId: "ea4a6087-1a5e-4c44-87e8-bde6f764dd69",
+	}
+	firstStream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 1), sendErr: io.ErrClosedPipe}
+	firstStream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: request}}
+	close(firstStream.inputs)
+	if err := server.ExecSandboxInteractive(firstStream); !errors.Is(err, io.ErrClosedPipe) {
+		t.Fatalf("first interactive stream error = %v, want closed-pipe disconnect", err)
+	}
+	if runtime.terminalOpenCalls != 1 {
+		t.Fatalf("initial process launches=%d, want 1", runtime.terminalOpenCalls)
+	}
+
+	resumedStream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 1)}
+	resumedStream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: request}}
+	close(resumedStream.inputs)
+	if err := server.ExecSandboxInteractive(resumedStream); err != nil {
+		t.Fatalf("reattach interactive stream: %v", err)
+	}
+	if runtime.terminalOpenCalls != 1 || runtime.attachCalls != 1 {
+		t.Fatalf("process launches=%d attach calls=%d, want one launch and one attach", runtime.terminalOpenCalls, runtime.attachCalls)
+	}
+	if len(resumedStream.events) != 2 || string(resumedStream.events[0].GetStdout().GetData()) != "resumed output" || resumedStream.events[1].GetExit().GetExitCode() != 7 {
+		t.Fatalf("resumed interactive events = %+v", resumedStream.events)
 	}
 }
 

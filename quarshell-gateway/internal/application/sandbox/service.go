@@ -294,6 +294,22 @@ func (s *Service) OpenExecTerminal(ctx context.Context, ref domain.SandboxRef, r
 	return executor.OpenExecTerminal(ctx, runtimeInput(current), request)
 }
 
+// AttachExecTerminal reconnects to an existing interactive process in the
+// current sandbox generation.
+func (s *Service) AttachExecTerminal(ctx context.Context, ref domain.SandboxRef, sessionID string) (driver.ExecTerminalSession, error) {
+	current, err := s.Get(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	executor, ok := s.Runtime.(interface {
+		AttachExecTerminal(context.Context, sandboxruntime.Sandbox, string) (driver.ExecTerminalSession, error)
+	})
+	if !ok {
+		return nil, domain.New(domain.CodeUnavailable, "sandbox.exec_terminal.attach", "runtime does not support terminal attachment")
+	}
+	return executor.AttachExecTerminal(ctx, runtimeInput(current), sessionID)
+}
+
 // OpenExecStream opens a non-TTY interactive command in the current generation.
 func (s *Service) OpenExecStream(ctx context.Context, ref domain.SandboxRef, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
 	current, err := s.Get(ctx, ref)

@@ -86,6 +86,12 @@ func TestExecAdmissionSurvivesSQLiteReopen(t *testing.T) {
 	if err := service.AdmitExecRequest(ctx, ref, id, "payload-hash"); err != nil {
 		t.Fatal(err)
 	}
+	if err := service.SetExecTerminalSessionID(ctx, ref, id, "payload-hash", "retained-terminal"); err != nil {
+		t.Fatalf("persist retained terminal ID: %v", err)
+	}
+	if _, found, err := service.ExecTerminalSessionID(ctx, ref, id, "different-payload"); domain.CodeOf(err) != domain.CodeConflict || found {
+		t.Fatalf("mismatched payload lookup found=%v err=%v, want conflict", found, err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -101,5 +107,9 @@ func TestExecAdmissionSurvivesSQLiteReopen(t *testing.T) {
 	}
 	if err := service.AdmitExecRequest(ctx, ref, id, "payload-hash"); domain.CodeOf(err) != domain.CodeConflict {
 		t.Fatalf("duplicate after SQLite reopen = %v, want conflict", err)
+	}
+	sessionID, found, err := service.ExecTerminalSessionID(ctx, ref, id, "payload-hash")
+	if err != nil || !found || sessionID != "retained-terminal" {
+		t.Fatalf("terminal session after SQLite reopen = %q found=%v err=%v", sessionID, found, err)
 	}
 }

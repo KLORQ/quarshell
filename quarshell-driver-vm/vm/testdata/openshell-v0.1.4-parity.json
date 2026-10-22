@@ -141,8 +141,8 @@
     {
       "id": "vm.exec-pty-signals",
       "upstream": "crates/openshell-sandbox",
-      "cautem": "quarshell-driver-vm/vm/terminal.go",
-      "status": "partial",
+      "cautem": "quarshell-driver-vm/vm/terminal.go;quarshell-gateway/internal/transport/applicationgrpc/exec.go",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/live_acceptance_test.go",
         "quarshell-gateway/internal/application/sandbox/exec_admission_test.go::TestExecAdmissionIsAtomicAndRetainedUntilCompletion",
@@ -160,7 +160,10 @@
         "quarshell-driver-vm/vm/terminal.go::TerminateExecTerminal",
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestGuestRetainedTerminalCanReattachAfterTransportLoss",
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestGuestRetainedTerminalCanBeTerminatedWhileDetached",
-        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveExecTerminalReattach"
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveExecTerminalReattach",
+        "quarshell-gateway/internal/application/sandbox/exec_admission.go::SetExecTerminalSessionID",
+        "quarshell-gateway/internal/application/sandbox/exec_admission_test.go::TestExecAdmissionSurvivesSQLiteReopen",
+        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxInteractiveReattachesOnDuplicateTTYRequestID"
       ]
     },
     {

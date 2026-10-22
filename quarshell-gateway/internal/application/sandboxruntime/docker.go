@@ -151,6 +151,15 @@ func (d *Docker) OpenExecTerminal(ctx context.Context, sandbox Sandbox, request 
 	return executor.OpenExecTerminal(ctx, id(sandbox), request)
 }
 
+// AttachExecTerminal reconnects to a retained backend PTY process.
+func (d *Docker) AttachExecTerminal(ctx context.Context, sandbox Sandbox, sessionID string) (driver.ExecTerminalSession, error) {
+	executor, ok := d.Backend.(driver.ExecTerminalAttach)
+	if !ok {
+		return nil, domain.New(domain.CodeUnavailable, "sandboxruntime.exec_terminal.attach", "backend does not support terminal attachment")
+	}
+	return executor.AttachExecTerminal(ctx, id(sandbox), sessionID)
+}
+
 // OpenExecStream starts a non-TTY interactive process with separate output streams.
 func (d *Docker) OpenExecStream(ctx context.Context, sandbox Sandbox, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
 	executor, ok := d.Backend.(driver.InteractiveExecStream)

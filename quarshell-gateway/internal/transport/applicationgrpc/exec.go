@@ -155,16 +155,49 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 		return err
 	}
 	ref := sandboxRef(request.GetWorkspaceScope(), request.GetSandbox())
+	var attachSessionID string
 	if err := s.admitExecRequest(ctx, ref, request.GetRequestId(), request); err != nil {
-		return err
+		if !request.GetTty() || request.GetRequestId() == "" || status.Code(err) != codes.Aborted {
+			return err
+		}
+		requestHash, hashErr := execRequestHash(request)
+		if hashErr != nil {
+			return status.Error(codes.Internal, "encode exec request admission")
+		}
+		sessionID, found, lookupErr := s.Sandboxes.ExecTerminalSessionID(ctx, ref, request.GetRequestId(), requestHash)
+		if lookupErr != nil {
+			return grpcError(lookupErr)
+		}
+		if !found {
+			return err
+		}
+		attachSessionID = sessionID
 	}
 	if !request.GetTty() {
 		return s.execSandboxInteractiveStream(ctx, ref, request, environment, stream)
 	}
-	session, err := s.Sandboxes.OpenExecTerminal(ctx, ref, driver.ExecTerminalRequest{
-		Argv: append([]string(nil), request.GetCommand()...), Env: environment,
-		WorkDir: request.GetWorkdir(), NoLoginShell: request.GetNoLoginShell(), Columns: columns, Rows: rows,
-	})
+	var session driver.ExecTerminalSession
+	if attachSessionID != "" {
+		session, err = s.Sandboxes.AttachExecTerminal(ctx, ref, attachSessionID)
+	} else {
+		session, err = s.Sandboxes.OpenExecTerminal(ctx, ref, driver.ExecTerminalRequest{
+			Argv: append([]string(nil), request.GetCommand()...), Env: environment,
+			WorkDir: request.GetWorkdir(), NoLoginShell: request.GetNoLoginShell(), Columns: columns, Rows: rows,
+		})
+		if err == nil && request.GetRequestId() != "" {
+			if identified, ok := session.(driver.ExecTerminalSessionID); ok && identified.SessionID() != "" {
+				requestHash, hashErr := execRequestHash(request)
+				if hashErr != nil {
+					_ = session.Close()
+					return status.Error(codes.Internal, "encode exec request admission")
+				}
+				if saveErr := s.Sandboxes.SetExecTerminalSessionID(ctx, ref, request.GetRequestId(), requestHash, identified.SessionID()); saveErr != nil {
+					_ = session.Close()
+					return grpcError(saveErr)
+				}
+			}
+		}
+	}
 	if err != nil {
 		return grpcError(err)
 	}
@@ -179,7 +212,11 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 		for {
 			input, err := stream.Recv()
 			if err == io.EOF {
-				if closer, ok := session.(driver.ExecTerminalInputCloser); ok {
+				retained := false
+				if identified, ok := session.(driver.ExecTerminalSessionID); ok {
+					retained = identified.SessionID() != ""
+				}
+				if closer, ok := session.(driver.ExecTerminalInputCloser); ok && !retained {
 					err = closer.CloseStdin()
 				}
 				inputErrors <- err
@@ -335,6 +372,17 @@ func (s *Server) admitExecRequest(ctx context.Context, ref domain.SandboxRef, re
 	if !isNonzeroUUID(requestID) {
 		return status.Error(codes.InvalidArgument, "request_id must be a nonzero UUID")
 	}
+	hash, err := execRequestHash(request)
+	if err != nil {
+		return status.Error(codes.Internal, "encode exec request admission")
+	}
+	if err := s.Sandboxes.AdmitExecRequest(ctx, ref, requestID, hash); err != nil {
+		return grpcError(err)
+	}
+	return nil
+}
+
+func execRequestHash(request proto.Message) (string, error) {
 	clone := proto.Clone(request)
 	switch value := clone.(type) {
 	case *gatewayv1.ExecSandboxRequest:
@@ -342,13 +390,10 @@ func (s *Server) admitExecRequest(ctx context.Context, ref domain.SandboxRef, re
 	}
 	encoded, err := (proto.MarshalOptions{Deterministic: true}).Marshal(clone)
 	if err != nil {
-		return status.Error(codes.Internal, "encode exec request admission")
+		return "", err
 	}
 	digest := sha256.Sum256(encoded)
-	if err := s.Sandboxes.AdmitExecRequest(ctx, ref, requestID, hex.EncodeToString(digest[:])); err != nil {
-		return grpcError(err)
-	}
-	return nil
+	return hex.EncodeToString(digest[:]), nil
 }
 
 func isNonzeroUUID(value string) bool {

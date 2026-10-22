@@ -29,8 +29,10 @@ import (
 )
 
 type liveVMWatchRuntime struct {
-	backend   *vm.Driver
-	rootfsTar string
+	backend             *vm.Driver
+	rootfsTar           string
+	terminalOpenCalls   int
+	terminalAttachCalls int
 }
 
 func (r *liveVMWatchRuntime) Create(ctx context.Context, sandbox sandboxruntime.Sandbox) (string, error) {
@@ -66,7 +68,13 @@ func (r *liveVMWatchRuntime) OpenExecStream(ctx context.Context, sandbox sandbox
 }
 
 func (r *liveVMWatchRuntime) OpenExecTerminal(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecTerminalSession, error) {
+	r.terminalOpenCalls++
 	return r.backend.OpenExecTerminal(ctx, core.ID(sandbox.RuntimeID), request)
+}
+
+func (r *liveVMWatchRuntime) AttachExecTerminal(ctx context.Context, sandbox sandboxruntime.Sandbox, sessionID string) (driver.ExecTerminalSession, error) {
+	r.terminalAttachCalls++
+	return r.backend.AttachExecTerminal(ctx, core.ID(sandbox.RuntimeID), sessionID)
 }
 
 func (r *liveVMWatchRuntime) Exec(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecRequest) (driver.ExecResult, error) {
@@ -184,6 +192,7 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 		}
 	}
 	assertLiveVMGatewayPTYInterrupt(t, server, ref, ctx)
+	assertLiveVMGatewayPTYReconnect(t, server, runtime, ref, ctx)
 	assertLiveVMArchiveTransferThroughGateway(t, server, ref, ctx)
 	stopped, _, err := sandboxes.Stop(ctx, ref, started.Generation, "live-vm-watch-stop")
 	if err != nil {
@@ -204,6 +213,49 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 	stopWatch()
 	if err := <-watchDone; err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatalf("Gateway WatchSandbox returned %v", err)
+	}
+}
+
+func assertLiveVMGatewayPTYReconnect(t *testing.T, server *Server, runtime *liveVMWatchRuntime, ref domain.SandboxRef, ctx context.Context) {
+	t.Helper()
+	request := &gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: string(ref.Workspace)}},
+		Sandbox:        string(ref.Sandbox), Command: []string{"sh", "-c", "printf 'gateway-ready\\n'; IFS= read -r line; printf 'gateway-received:%s\\n' \"$line\""},
+		Tty: true, Cols: 80, Rows: 24, RequestId: "e3fc1bb6-ea1a-42fc-8670-5c2fa6b1f907",
+	}
+	first := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 1), sendErr: io.ErrClosedPipe}
+	first.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: request}}
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- server.ExecSandboxInteractive(first) }()
+	if err := <-firstDone; !errors.Is(err, io.ErrClosedPipe) {
+		close(first.inputs)
+		t.Fatalf("first Gateway TTY stream result = %v, want transport close", err)
+	}
+	close(first.inputs)
+	if runtime.terminalOpenCalls == 0 {
+		t.Fatal("initial Gateway exec did not open a VM terminal")
+	}
+	openedBeforeRetry := runtime.terminalOpenCalls
+	attachedBeforeRetry := runtime.terminalAttachCalls
+
+	resumed := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 2)}
+	resumed.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: request}}
+	resumed.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: []byte("resume-input\n")}}
+	close(resumed.inputs)
+	if err := server.ExecSandboxInteractive(resumed); err != nil {
+		t.Fatalf("reattach Gateway TTY request: %v", err)
+	}
+	if runtime.terminalOpenCalls != openedBeforeRetry || runtime.terminalAttachCalls != attachedBeforeRetry+1 {
+		t.Fatalf("Gateway retry opened %d more terminals and attached %d times", runtime.terminalOpenCalls-openedBeforeRetry, runtime.terminalAttachCalls-attachedBeforeRetry)
+	}
+	var output strings.Builder
+	for _, event := range resumed.events {
+		if stdout := event.GetStdout(); stdout != nil {
+			output.Write(stdout.GetData())
+		}
+	}
+	if len(resumed.events) == 0 || resumed.events[len(resumed.events)-1].GetExit() == nil || resumed.events[len(resumed.events)-1].GetExit().GetExitCode() != 0 || !strings.Contains(output.String(), "gateway-received:resume-input") {
+		t.Fatalf("reconnected Gateway TTY events = %+v, output=%q", resumed.events, output.String())
 	}
 }
 
