@@ -41,7 +41,7 @@ The [quick start](https://klorq.github.io/sandbox.dev/get-started/) contains the
 Install the latest release into `~/.local/bin` and start a local gateway:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | sh
 ```
 
 Pin a release with `CAUTEM_VERSION=vX.Y.Z`, or skip gateway startup with `CAUTEM_NO_START=1`.

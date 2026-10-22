@@ -195,12 +195,16 @@ func (s *controlServer) serve(connection net.Conn) {
 		_ = writeResponse(connection, Response{Error: "invalid request framing"})
 		return
 	}
-	if request.Operation == "exec-terminal" {
+	if request.Operation == "exec-terminal" || request.Operation == "exec-stream" {
 		if err := s.validateRequest(request); err != nil {
 			_ = writeResponse(connection, Response{Error: err.Error()})
 			return
 		}
-		s.execTerminal(connection, request)
+		if request.Operation == "exec-terminal" {
+			s.execTerminal(connection, request)
+		} else {
+			s.execStream(connection, request)
+		}
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -239,7 +243,7 @@ func (s *controlServer) validateRequest(request Request) error {
 	if request.Operation != "rotate-token" && (request.NextAuthToken != "" || request.RotationID != "") {
 		return fmt.Errorf("token rotation fields are only valid for rotate-token")
 	}
-	if request.User != "" && request.Operation != "start-workload" && request.Operation != "exec" && request.Operation != "exec-terminal" {
+	if request.User != "" && request.Operation != "start-workload" && request.Operation != "exec" && request.Operation != "exec-terminal" && request.Operation != "exec-stream" {
 		return fmt.Errorf("workload identity is only valid for workload operations")
 	}
 	if !s.authorizedRequest(request) {
@@ -963,6 +967,140 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 	<-outputDone
 	_ = terminal.Close()
 	_ = writeTerminalFrame(connection, TerminalFrame{Type: "exit", ExitCode: normalizeGuestExitCode(waitErr)})
+	_ = connection.Close()
+	<-inputDone
+}
+
+func (s *controlServer) execStream(connection net.Conn, request Request) {
+	if len(request.Argv) == 0 {
+		_ = writeResponse(connection, Response{Error: "exec argv is empty"})
+		return
+	}
+	shellArgv, err := guestShellCommand(request.Argv, request.NoLoginShell)
+	if err != nil {
+		_ = writeResponse(connection, Response{Error: err.Error()})
+		return
+	}
+	argv := guestExecCommand(shellArgv, s.supervisorEnabled)
+	command := exec.Command(argv[0], argv[1:]...)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Env = guestEnvironmentForWorkload(request.Env, s.proxyURL)
+	if s.supervisorEnabled {
+		command.Env = mergeGuestEnvironment(command.Env, "CAUTEM_POLICY="+guestPolicyFile)
+		if request.User != "" {
+			command.Env = mergeGuestEnvironment(command.Env, "OPENSHELL_OCI_IMAGE_USER="+request.User)
+		}
+	} else {
+		credential, err := guestWorkloadCredential(request.User, s.uid, s.gid)
+		if err != nil {
+			_ = writeResponse(connection, Response{Error: fmt.Sprintf("resolve guest workload identity: %v", err)})
+			return
+		}
+		command.SysProcAttr.Credential = credential
+	}
+	command.Dir = guestWorkdir(request.WorkDir)
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		_ = writeResponse(connection, Response{Error: fmt.Sprintf("open exec stdin: %v", err)})
+		return
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		_ = writeResponse(connection, Response{Error: fmt.Sprintf("open exec stdout: %v", err)})
+		return
+	}
+	stderr, err := command.StderrPipe()
+	if err != nil {
+		_ = writeResponse(connection, Response{Error: fmt.Sprintf("open exec stderr: %v", err)})
+		return
+	}
+	if err := command.Start(); err != nil {
+		_ = writeResponse(connection, Response{Error: fmt.Sprintf("start guest command: %v", err)})
+		return
+	}
+	if err := writeResponse(connection, Response{PID: command.Process.Pid}); err != nil {
+		_ = stdin.Close()
+		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		_ = command.Wait()
+		return
+	}
+	processDone := make(chan struct{})
+	var frameMu sync.Mutex
+	writeOutput := func(kind string, data []byte) error {
+		frameMu.Lock()
+		defer frameMu.Unlock()
+		return writeTerminalFrame(connection, TerminalFrame{Type: kind, Data: append([]byte(nil), data...)})
+	}
+	var outputWG sync.WaitGroup
+	copyOutput := func(reader io.Reader, kind string) {
+		defer outputWG.Done()
+		buffer := make([]byte, 32<<10)
+		for {
+			count, readErr := reader.Read(buffer)
+			if count > 0 {
+				if err := writeOutput(kind, buffer[:count]); err != nil {
+					terminatePTYProcess(command.Process.Pid, processDone)
+					return
+				}
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					terminatePTYProcess(command.Process.Pid, processDone)
+				}
+				return
+			}
+		}
+	}
+	outputWG.Add(2)
+	go copyOutput(stdout, "stdout")
+	go copyOutput(stderr, "stderr")
+	inputDone := make(chan struct{})
+	go func() {
+		defer close(inputDone)
+		stdinClosed := false
+		for {
+			payload, readErr := ReadFrame(connection)
+			if readErr != nil {
+				terminatePTYProcess(command.Process.Pid, processDone)
+				return
+			}
+			var frame TerminalFrame
+			decoder := json.NewDecoder(strings.NewReader(string(payload)))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&frame); err != nil || decoder.Decode(new(any)) != io.EOF {
+				terminatePTYProcess(command.Process.Pid, processDone)
+				return
+			}
+			switch frame.Type {
+			case "stdin":
+				if stdinClosed {
+					terminatePTYProcess(command.Process.Pid, processDone)
+					return
+				}
+				if len(frame.Data) > 0 {
+					if _, err := stdin.Write(frame.Data); err != nil {
+						terminatePTYProcess(command.Process.Pid, processDone)
+						return
+					}
+				}
+			case "eof":
+				if !stdinClosed {
+					stdinClosed = true
+					_ = stdin.Close()
+				}
+			default:
+				terminatePTYProcess(command.Process.Pid, processDone)
+				return
+			}
+		}
+	}()
+	waitErr := command.Wait()
+	close(processDone)
+	_ = stdin.Close()
+	outputWG.Wait()
+	frameMu.Lock()
+	_ = writeTerminalFrame(connection, TerminalFrame{Type: "exit", ExitCode: normalizeGuestExitCode(waitErr)})
+	frameMu.Unlock()
 	_ = connection.Close()
 	<-inputDone
 }

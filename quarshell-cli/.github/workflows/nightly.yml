@@ -231,7 +231,7 @@ jobs:
 
             ### Install
             ```bash
-            curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | CAUTEM_VERSION=nightly sh
+            curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | CAUTEM_VERSION=nightly sh
             ```
           files: dist/*
         env:

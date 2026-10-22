@@ -29,6 +29,9 @@ type execTestRuntime struct {
 	err             error
 	terminalRequest driver.ExecTerminalRequest
 	terminal        driver.ExecTerminalSession
+	streamRequest   driver.ExecTerminalRequest
+	stream          driver.ExecStreamSession
+	streamCalls     int
 }
 
 type execTimeoutRuntime struct{ execTestRuntime }
@@ -56,6 +59,36 @@ func (r *execTestRuntime) OpenExecTerminal(_ context.Context, _ sandboxruntime.S
 	r.terminalRequest = request
 	return r.terminal, r.err
 }
+func (r *execTestRuntime) OpenExecStream(_ context.Context, _ sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
+	r.streamRequest = request
+	r.streamCalls++
+	return r.stream, r.err
+}
+
+type execTestStreamSession struct {
+	outputs     []driver.ExecStreamOutput
+	stdin       bytes.Buffer
+	stdinClosed chan struct{}
+}
+
+func (s *execTestStreamSession) Write(payload []byte) (int, error) { return s.stdin.Write(payload) }
+func (s *execTestStreamSession) ReadOutput() (driver.ExecStreamOutput, error) {
+	if len(s.outputs) == 0 {
+		return driver.ExecStreamOutput{}, io.EOF
+	}
+	output := s.outputs[0]
+	s.outputs = s.outputs[1:]
+	return output, nil
+}
+func (s *execTestStreamSession) CloseStdin() error {
+	select {
+	case <-s.stdinClosed:
+	default:
+		close(s.stdinClosed)
+	}
+	return nil
+}
+func (*execTestStreamSession) Close() error { return nil }
 
 type execTestStream struct {
 	grpc.ServerStreamingServer[gatewayv1.ExecSandboxEvent]
@@ -268,6 +301,55 @@ func TestExecSandboxInteractiveRelaysInputResizeOutputAndExit(t *testing.T) {
 	}
 }
 
+func TestExecSandboxInteractiveStreamsNonTTYAndFencesDuplicate(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sandboxes.Create(ctx, sandbox.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "busybox"}); err != nil {
+		t.Fatal(err)
+	}
+	session := &execTestStreamSession{
+		outputs:     []driver.ExecStreamOutput{{Stdout: []byte("out")}, {Stderr: []byte("err")}, {ExitCode: 9, Exited: true}},
+		stdinClosed: make(chan struct{}),
+	}
+	runtime := &execTestRuntime{stream: session}
+	sandboxes.Runtime = runtime
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	request := &gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: selector, Sandbox: "sb", Command: []string{"cat"}, Stdin: []byte("first"),
+		RequestId: "c32a780e-faba-4b8a-8ce9-1cf9e82d520d",
+	}
+	stream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 2)}
+	stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: request}}
+	stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: []byte(" second")}}
+	close(stream.inputs)
+	if err := server.ExecSandboxInteractive(stream); err != nil {
+		t.Fatalf("non-TTY interactive exec: %v", err)
+	}
+	<-session.stdinClosed
+	if got := session.stdin.String(); got != "first second" {
+		t.Fatalf("interactive stdin=%q", got)
+	}
+	if runtime.streamRequest.Argv[0] != "cat" || runtime.streamCalls != 1 {
+		t.Fatalf("stream request=%+v calls=%d", runtime.streamRequest, runtime.streamCalls)
+	}
+	if len(stream.events) != 3 || string(stream.events[0].GetStdout().GetData()) != "out" || string(stream.events[1].GetStderr().GetData()) != "err" || stream.events[2].GetExit().GetExitCode() != 9 {
+		t.Fatalf("non-TTY interactive events=%+v", stream.events)
+	}
+	duplicate := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 1)}
+	duplicate.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: request}}
+	close(duplicate.inputs)
+	if err := server.ExecSandboxInteractive(duplicate); status.Code(err) != codes.Aborted {
+		t.Fatalf("duplicate completed stream request status=%v, want Aborted", err)
+	}
+	if runtime.streamCalls != 1 {
+		t.Fatalf("duplicate launched another stream process; calls=%d", runtime.streamCalls)
+	}
+}
+
 func TestExecSandboxInteractiveRejectsInvalidStarts(t *testing.T) {
 	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
 	if err != nil {
@@ -283,7 +365,7 @@ func TestExecSandboxInteractiveRejectsInvalidStarts(t *testing.T) {
 		want  codes.Code
 	}{
 		{name: "missing start", want: codes.InvalidArgument},
-		{name: "tty required", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Tty = false; return r }(), want: codes.InvalidArgument},
+		{name: "non-TTY dimensions are rejected", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Tty = false; r.Cols = 80; return r }(), want: codes.InvalidArgument},
 		{name: "request ID must be a UUID", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.RequestId = "launch-key"; return r }(), want: codes.InvalidArgument},
 		{name: "dimension limit", start: func() *gatewayv1.ExecSandboxRequest { r := valid(); r.Cols = 65536; return r }(), want: codes.InvalidArgument},
 		{name: "invalid environment", start: func() *gatewayv1.ExecSandboxRequest {

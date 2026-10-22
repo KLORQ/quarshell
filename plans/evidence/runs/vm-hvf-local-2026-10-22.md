@@ -1092,3 +1092,12 @@ This acceptance closes the `vm.corporate-proxy-ca` inventory row for the pinned
 default configuration. `vm.policy-egress` remains partial because its upstream
 parity target also requires approved TLS workload egress, beyond the HTTP guest
 probe used here.
+
+## Interactive non-TTY VM exec
+
+- Reverified: 2026-10-22 22:24 Europe/Samara
+- Linux guest-agent test: passed in a local `alpine:3.22` container.
+- Live host-to-guest acceptance: `task vm:live-darwin` PASS; `TestLiveMicroVMLifecycle` PASS (23.09 s), local Docker OCI import PASS (1.18 s).
+- Gateway test: non-TTY interactive stdin, EOF, separate stdout/stderr, exit code, and completed request-ID duplicate suppression pass under race.
+
+The guest accepts an authenticated `exec-stream` control operation, starts a non-PTY process group, streams stdout and stderr separately, forwards stdin, half-closes on EOF, kills the process group if the transport is lost, and sends the normalized exit code. The live HVF acceptance verified those operations against the Linux guest. `vm.exec-pty-signals` remains partial for full upstream PTY signal behavior.

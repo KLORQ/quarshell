@@ -18,7 +18,7 @@ The installer downloads the CLI and gateway, installs them into
 `~/.local/bin`, starts a local gateway and registers it. Run:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | sh
 cautem version
 cautem status
 ```
@@ -31,7 +31,7 @@ The binary goes to `~/.local/bin` — make sure it is on your `PATH`.
 To install into another directory:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh \
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh \
   | CAUTEM_INSTALL_DIR=/usr/local/bin sh
 ```
 

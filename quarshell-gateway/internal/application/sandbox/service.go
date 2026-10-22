@@ -294,6 +294,21 @@ func (s *Service) OpenExecTerminal(ctx context.Context, ref domain.SandboxRef, r
 	return executor.OpenExecTerminal(ctx, runtimeInput(current), request)
 }
 
+// OpenExecStream opens a non-TTY interactive command in the current generation.
+func (s *Service) OpenExecStream(ctx context.Context, ref domain.SandboxRef, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
+	current, err := s.Get(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	executor, ok := s.Runtime.(interface {
+		OpenExecStream(context.Context, sandboxruntime.Sandbox, driver.ExecTerminalRequest) (driver.ExecStreamSession, error)
+	})
+	if !ok {
+		return nil, domain.New(domain.CodeUnavailable, "sandbox.exec_stream", "runtime does not support interactive non-TTY execution")
+	}
+	return executor.OpenExecStream(ctx, runtimeInput(current), request)
+}
+
 // List returns sandboxes for one workspace sorted by sandbox ID.
 func (s *Service) List(ctx context.Context, workspace domain.WorkspaceID) ([]Sandbox, error) {
 	if !workspace.Valid() {

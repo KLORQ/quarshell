@@ -18,7 +18,7 @@ cautem — один CLI, который запускает coding-агентов
 запускает локальный gateway и регистрирует его. Выполните:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | sh
 cautem version
 cautem status
 ```
@@ -31,7 +31,7 @@ cautem status
 Для установки в другой каталог:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh \
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh \
   | CAUTEM_INSTALL_DIR=/usr/local/bin sh
 ```
 

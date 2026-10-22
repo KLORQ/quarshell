@@ -147,7 +147,10 @@
         "quarshell-driver-vm/vm/live_acceptance_test.go",
         "quarshell-gateway/internal/application/sandbox/exec_admission_test.go::TestExecAdmissionIsAtomicAndRetainedUntilCompletion",
         "quarshell-gateway/internal/application/sandbox/exec_admission_test.go::TestExecAdmissionSurvivesSQLiteReopen",
-        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxRPC"
+        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxRPC",
+        "quarshell-driver-vm/vmguest/agent_linux_test.go::TestGuestControlExecStreamSupportsSeparateOutputAndStdinEOF",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveGuestExec",
+        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxInteractiveStreamsNonTTYAndFencesDuplicate"
       ]
     },
     {

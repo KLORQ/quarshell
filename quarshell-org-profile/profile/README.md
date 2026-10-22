@@ -38,7 +38,7 @@ Source: [klorq.github.io](https://github.com/KLORQ/sandbox.dev) (Material for Mk
 **cautem** runs coding agents inside hardened Docker sandboxes. YAML policy controls filesystem and egress; an egress sidecar enforces it; an optional gateway provides registry, provider compose, and relayed exec.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | bash
 cautem sandbox create --name demo --workspace . --policy policies/default.yaml
 ```
 

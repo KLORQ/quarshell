@@ -118,9 +118,6 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 	if request == nil || strings.TrimSpace(request.GetSandbox()) == "" || len(request.GetCommand()) == 0 {
 		return status.Error(codes.InvalidArgument, "interactive exec requires a valid start message")
 	}
-	if !request.GetTty() {
-		return status.Error(codes.InvalidArgument, "interactive exec requires tty=true")
-	}
 	if strings.TrimSpace(request.GetCommand()[0]) == "" || strings.ContainsRune(request.GetWorkdir(), '\x00') {
 		return status.Error(codes.InvalidArgument, "command and workdir must be valid")
 	}
@@ -130,14 +127,19 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 		}
 	}
 	columns, rows := request.GetCols(), request.GetRows()
-	if columns == 0 {
-		columns = defaultExecColumns
+	if request.GetTty() {
+		if columns == 0 {
+			columns = defaultExecColumns
+		}
+		if rows == 0 {
+			rows = defaultExecRows
+		}
 	}
-	if rows == 0 {
-		rows = defaultExecRows
-	}
-	if columns > 65535 || rows > 65535 {
+	if request.GetTty() && (columns > 65535 || rows > 65535) {
 		return status.Error(codes.InvalidArgument, "terminal dimensions must not exceed 65535")
+	}
+	if !request.GetTty() && (columns != 0 || rows != 0) {
+		return status.Error(codes.InvalidArgument, "terminal dimensions require tty=true")
 	}
 	ctx := stream.Context()
 	if timeout := request.GetExecutionTimeout(); timeout != nil {
@@ -155,6 +157,9 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 	ref := sandboxRef(request.GetWorkspaceScope(), request.GetSandbox())
 	if err := s.admitExecRequest(ctx, ref, request.GetRequestId(), request); err != nil {
 		return err
+	}
+	if !request.GetTty() {
+		return s.execSandboxInteractiveStream(ctx, ref, request, environment, stream)
 	}
 	session, err := s.Sandboxes.OpenExecTerminal(ctx, ref, driver.ExecTerminalRequest{
 		Argv: append([]string(nil), request.GetCommand()...), Env: environment,
@@ -242,6 +247,84 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 		}
 	}
 	return stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Exit{Exit: &gatewayv1.ExecSandboxExit{ExitCode: int32(exitCode)}}})
+}
+
+func (s *Server) execSandboxInteractiveStream(ctx context.Context, ref domain.SandboxRef, request *gatewayv1.ExecSandboxRequest, environment []string, stream gatewayv1.OpenShell_ExecSandboxInteractiveServer) error {
+	session, err := s.Sandboxes.OpenExecStream(ctx, ref, driver.ExecTerminalRequest{
+		Argv: append([]string(nil), request.GetCommand()...), Env: environment,
+		WorkDir: request.GetWorkdir(), NoLoginShell: request.GetNoLoginShell(),
+	})
+	if err != nil {
+		return grpcError(err)
+	}
+	defer session.Close()
+	if len(request.GetStdin()) > 0 {
+		if _, err := session.Write(request.GetStdin()); err != nil {
+			return grpcError(err)
+		}
+	}
+	inputErrors := make(chan error, 1)
+	go func() {
+		for {
+			input, err := stream.Recv()
+			if err == io.EOF {
+				inputErrors <- session.CloseStdin()
+				return
+			}
+			if err != nil {
+				inputErrors <- err
+				_ = session.Close()
+				return
+			}
+			switch payload := input.GetPayload().(type) {
+			case *gatewayv1.ExecSandboxInput_Stdin:
+				if _, err := session.Write(payload.Stdin); err != nil {
+					inputErrors <- err
+					_ = session.Close()
+					return
+				}
+			case *gatewayv1.ExecSandboxInput_Resize:
+				inputErrors <- status.Error(codes.InvalidArgument, "terminal resize requires tty=true")
+				_ = session.Close()
+				return
+			default:
+				inputErrors <- status.Error(codes.InvalidArgument, "interactive exec accepts only stdin after start")
+				_ = session.Close()
+				return
+			}
+		}
+	}()
+	for {
+		output, err := session.ReadOutput()
+		if err != nil {
+			select {
+			case inputErr := <-inputErrors:
+				if inputErr != nil && inputErr != io.EOF {
+					return grpcError(inputErr)
+				}
+			default:
+			}
+			return grpcError(err)
+		}
+		if len(output.Stdout) > 0 {
+			if err := stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Stdout{Stdout: &gatewayv1.ExecSandboxStdout{Data: output.Stdout}}}); err != nil {
+				return err
+			}
+		}
+		if len(output.Stderr) > 0 {
+			if err := stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Stderr{Stderr: &gatewayv1.ExecSandboxStderr{Data: output.Stderr}}}); err != nil {
+				return err
+			}
+		}
+		if output.Exited {
+			if request.GetRequestId() != "" {
+				if err := s.Sandboxes.CompleteExecRequest(ctx, ref, request.GetRequestId()); err != nil {
+					return grpcError(err)
+				}
+			}
+			return stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Exit{Exit: &gatewayv1.ExecSandboxExit{ExitCode: int32(output.ExitCode)}}})
+		}
+	}
 }
 
 func (s *Server) admitExecRequest(ctx context.Context, ref domain.SandboxRef, requestID string, request proto.Message) error {

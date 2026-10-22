@@ -256,6 +256,29 @@ type ExecTerminal interface {
 	OpenExecTerminal(context.Context, core.ID, ExecTerminalRequest) (ExecTerminalSession, error)
 }
 
+// ExecStreamOutput is one event from a non-TTY interactive process. Exited is
+// terminal and carries the normalized process status.
+type ExecStreamOutput struct {
+	Stdout   []byte
+	Stderr   []byte
+	ExitCode int
+	Exited   bool
+}
+
+// ExecStreamSession is a full-duplex non-TTY process stream. Output channels
+// remain distinct, and CloseStdin half-closes input without dropping output.
+type ExecStreamSession interface {
+	Write([]byte) (int, error)
+	ReadOutput() (ExecStreamOutput, error)
+	CloseStdin() error
+	Close() error
+}
+
+// InteractiveExecStream is an optional streamed non-TTY exec contract.
+type InteractiveExecStream interface {
+	OpenExecStream(context.Context, core.ID, ExecTerminalRequest) (ExecStreamSession, error)
+}
+
 // ExecTerminalInputCloser signals end-of-input without closing the terminal
 // output stream.
 type ExecTerminalInputCloser interface {

@@ -5,7 +5,7 @@
 # Install cautem and the local gateway from a KLORQ/quarshell release.
 #
 # Usage:
-#   curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/quarshell-cli/install.sh | sh
+#   curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | sh
 #
 # Environment:
 #   CAUTEM_VERSION       Release tag (default: latest published release)
@@ -110,14 +110,19 @@ main() {
     *) info "${_dir} is not on PATH; add: export PATH=\"${_dir}:\$PATH\"" ;;
   esac
 
+  if ! has_cmd docker && ! has_cmd podman; then
+    info "warning: Docker or Podman is required before creating sandboxes"
+  fi
   if [ "${CAUTEM_NO_START:-0}" != "1" ]; then
     info "starting local gateway"
-    if ! PATH="${_dir}:${PATH}" "${_dir}/${APP_NAME}${_exe}" gateway ensure; then
+    if PATH="${_dir}:${PATH}" "${_dir}/${APP_NAME}${_exe}" gateway ensure; then
+      info "gateway status:"
+      PATH="${_dir}:${PATH}" "${_dir}/${APP_NAME}${_exe}" status || true
+    else
       info "gateway did not start; run: ${_dir}/${APP_NAME}${_exe} gateway ensure"
     fi
   fi
-  info "next: ${APP_NAME} status"
-  info "      ${APP_NAME} sandbox create --name demo"
+  info "next: ${APP_NAME} sandbox create --name demo"
 }
 
 main "$@"

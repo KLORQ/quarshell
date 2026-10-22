@@ -93,6 +93,71 @@ func TestGuestControlRotatesTokenAndAllowsOnlyIdempotentRetry(t *testing.T) {
 	}
 }
 
+func TestGuestControlExecStreamSupportsSeparateOutputAndStdinEOF(t *testing.T) {
+	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("a", 64)}
+	guest, host := net.Pipe()
+	done := make(chan struct{})
+	go func() { server.serve(guest); close(done) }()
+	request, err := json.Marshal(Request{
+		Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-stream",
+		Argv:    []string{"/bin/sh", "-c", "read value; printf 'stdout:%s' \"$value\"; printf 'stderr:%s' \"$value\" >&2; exit 9"},
+		WorkDir: t.TempDir(), NoLoginShell: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFrame(host, request); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := ReadFrame(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var started Response
+	if err := json.Unmarshal(encoded, &started); err != nil || started.Error != "" || started.PID <= 1 {
+		t.Fatalf("exec stream handshake=%+v error=%v", started, err)
+	}
+	stdin, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("value\n")})
+	if err := WriteFrame(host, stdin); err != nil {
+		t.Fatal(err)
+	}
+	eof, _ := json.Marshal(TerminalFrame{Type: "eof"})
+	if err := WriteFrame(host, eof); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr string
+	exitCode := -1
+	for exitCode < 0 {
+		encoded, err := ReadFrame(host)
+		if err != nil {
+			t.Fatalf("read exec stream output: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(encoded, &frame); err != nil {
+			t.Fatal(err)
+		}
+		switch frame.Type {
+		case "stdout":
+			stdout += string(frame.Data)
+		case "stderr":
+			stderr += string(frame.Data)
+		case "exit":
+			exitCode = frame.ExitCode
+		default:
+			t.Fatalf("unexpected exec stream frame: %+v", frame)
+		}
+	}
+	_ = host.Close()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("exec stream control handler did not terminate")
+	}
+	if stdout != "stdout:value" || stderr != "stderr:value" || exitCode != 9 {
+		t.Fatalf("exec stream stdout=%q stderr=%q exit=%d", stdout, stderr, exitCode)
+	}
+}
+
 func TestGuestControlRejectsUnsupportedProtocolVersions(t *testing.T) {
 	server := &controlServer{token: strings.Repeat("x", 64)}
 	for _, version := range []uint16{0, 2} {

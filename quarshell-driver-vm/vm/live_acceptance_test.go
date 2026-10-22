@@ -1224,6 +1224,45 @@ func assertLiveGuestExec(t *testing.T, ctx context.Context, d *Driver, id core.I
 	if err != nil || result.ExitCode != 0 || !bytes.Contains(result.Stdout, []byte("guest-live-ok")) {
 		t.Fatalf("live guest command result = exit %d stdout %q stderr %q err=%v", result.ExitCode, result.Stdout, result.Stderr, err)
 	}
+	streamCtx, streamCancel := context.WithTimeout(ctx, 10*time.Second)
+	streamSession, err := d.OpenExecStream(streamCtx, id, driver.ExecTerminalRequest{
+		Argv:    []string{"/bin/sh", "-c", "read value; printf 'stream-out:%s' \"$value\"; printf 'stream-err:%s' \"$value\" >&2; exit 11"},
+		WorkDir: "/sandbox", NoLoginShell: true,
+	})
+	if err != nil {
+		streamCancel()
+		t.Fatalf("open live non-TTY guest exec stream: %v", err)
+	}
+	if _, err := streamSession.Write([]byte("live-input\n")); err != nil {
+		streamCancel()
+		_ = streamSession.Close()
+		t.Fatalf("write live non-TTY exec stdin: %v", err)
+	}
+	if err := streamSession.CloseStdin(); err != nil {
+		streamCancel()
+		_ = streamSession.Close()
+		t.Fatalf("half-close live non-TTY exec stdin: %v", err)
+	}
+	var streamStdout, streamStderr strings.Builder
+	streamExit := -1
+	for streamExit < 0 {
+		output, readErr := streamSession.ReadOutput()
+		if readErr != nil {
+			streamCancel()
+			_ = streamSession.Close()
+			t.Fatalf("read live non-TTY exec output: %v", readErr)
+		}
+		streamStdout.Write(output.Stdout)
+		streamStderr.Write(output.Stderr)
+		if output.Exited {
+			streamExit = output.ExitCode
+		}
+	}
+	streamCancel()
+	_ = streamSession.Close()
+	if !strings.Contains(streamStdout.String(), "stream-out:live-input") || !strings.Contains(streamStderr.String(), "stream-err:live-input") || streamExit != 11 {
+		t.Fatalf("live non-TTY exec stdout=%q stderr=%q exit=%d", streamStdout.String(), streamStderr.String(), streamExit)
+	}
 	marker := "/sandbox/exec-timeout-must-stop"
 	if _, err := d.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/bin/rm", "-f", marker}}); err != nil {
 		t.Fatalf("clear live guest exec timeout marker: %v", err)

@@ -151,6 +151,15 @@ func (d *Docker) OpenExecTerminal(ctx context.Context, sandbox Sandbox, request 
 	return executor.OpenExecTerminal(ctx, id(sandbox), request)
 }
 
+// OpenExecStream starts a non-TTY interactive process with separate output streams.
+func (d *Docker) OpenExecStream(ctx context.Context, sandbox Sandbox, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
+	executor, ok := d.Backend.(driver.InteractiveExecStream)
+	if !ok {
+		return nil, domain.New(domain.CodeUnavailable, "sandboxruntime.exec_stream", "backend does not support interactive non-TTY execution")
+	}
+	return executor.OpenExecStream(ctx, id(sandbox), request)
+}
+
 // Inspect returns backend state for reconciliation.
 func (d *Docker) Inspect(ctx context.Context, sandbox Sandbox) (driver.Info, error) {
 	return d.Backend.Inspect(ctx, string(id(sandbox)))
