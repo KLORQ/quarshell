@@ -12,6 +12,13 @@ func runWorker(config workerConfig) error {
 	if err := prepareWorkerIsolation(config.Isolation); err != nil {
 		return fmt.Errorf("prepare VM worker isolation: %w", err)
 	}
+	if config.WatchParentLiveness {
+		stopWatch, err := startParentLivenessWatch(3)
+		if err != nil {
+			return err
+		}
+		defer stopWatch()
+	}
 	listener, ready, stop, err := startWorkerControl(config.ControlSocket)
 	if err != nil {
 		return err

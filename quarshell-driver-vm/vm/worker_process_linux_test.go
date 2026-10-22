@@ -3,6 +3,7 @@
 package vm
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -50,6 +51,11 @@ func TestWorkerIsolationNamespaceSubprocess(t *testing.T) {
 		if err := prepareWorkerIsolation(config); err != nil {
 			t.Fatalf("prepare worker namespace: %v", err)
 		}
+		stopWatch, err := startParentLivenessWatch(3)
+		if err != nil {
+			t.Fatalf("start parent liveness watcher after isolation setup: %v", err)
+		}
+		defer stopWatch()
 		if os.Geteuid() != 0 || os.Getegid() != 0 {
 			t.Fatalf("worker namespace identity = %d:%d; want mapped namespace root", os.Geteuid(), os.Getegid())
 		}
@@ -61,21 +67,35 @@ func TestWorkerIsolationNamespaceSubprocess(t *testing.T) {
 		t.Fatal(err)
 	}
 	command := exec.Command(os.Args[0], "-test.run=^TestWorkerIsolationNamespaceSubprocess$")
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	command.ExtraFiles = []*os.File{reader}
 	command.Env = append(os.Environ(),
 		"CAUTEM_VM_NAMESPACE_CHILD=1",
 		"CAUTEM_VM_PARENT_MOUNT_NS="+parent.HostMountNamespace,
 		"CAUTEM_VM_PARENT_USER_NS="+parent.HostUserNamespace,
 	)
 	command.SysProcAttr = workerProcessAttributes()
-	output, err := command.CombinedOutput()
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Start(); err != nil {
+		_ = reader.Close()
+		t.Fatalf("start isolated worker subprocess: %v", err)
+	}
+	_ = reader.Close()
+	err = command.Wait()
 	if err != nil {
-		if errors.Is(err, syscall.EPERM) || strings.Contains(strings.ToLower(err.Error()), "operation not permitted") || strings.Contains(strings.ToLower(string(output)), "operation not permitted") {
+		if errors.Is(err, syscall.EPERM) || strings.Contains(strings.ToLower(err.Error()), "operation not permitted") || strings.Contains(strings.ToLower(output.String()), "operation not permitted") {
 			t.Skipf("host blocks unprivileged user namespaces; live VM create must fail closed here: %v", err)
 		}
-		t.Fatalf("isolated worker subprocess failed: %v\n%s", err, output)
+		t.Fatalf("isolated worker subprocess failed: %v\n%s", err, output.String())
 	}
-	if !strings.Contains(string(output), "PASS") {
-		t.Fatalf("isolated worker subprocess did not pass its probe: %s", output)
+	if !strings.Contains(output.String(), "PASS") {
+		t.Fatalf("isolated worker subprocess did not pass its probe: %s", output.String())
 	}
 }
 

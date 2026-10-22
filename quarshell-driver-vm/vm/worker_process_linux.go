@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -63,6 +64,10 @@ func workerIsolationForChild() (workerIsolationConfig, error) {
 }
 
 func prepareWorkerIsolation(config workerIsolationConfig) error {
+	// Linux capabilities are per-thread. Keep namespace setup on the initial
+	// worker thread before any background goroutine is started.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if config.HostMountNamespace == "" || config.HostUserNamespace == "" {
 		return fmt.Errorf("VM worker requires host mount and user namespace identities")
 	}

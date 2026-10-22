@@ -100,13 +100,6 @@ func RunWorkerFromStdin() error {
 	if err := validateWorkerNetworkBroker(config); err != nil {
 		return err
 	}
-	if config.WatchParentLiveness {
-		stopWatch, err := startParentLivenessWatch(3)
-		if err != nil {
-			return err
-		}
-		defer stopWatch()
-	}
 	return runWorker(config)
 }
 
