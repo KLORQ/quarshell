@@ -1212,3 +1212,12 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 
 - GitHub Actions run: [platform-backends `39845031428`](https://github.com/KLORQ/quarshell/actions/runs/39845031428), result: PASS.
 - Linux/KVM VM package build and tests passed; live KVM was skipped because no operator-approved libkrun runtime bundle/digest lock is configured. macOS VM package build and tests passed; live HVF was skipped because hosted macOS lacks Hypervisor.framework. Windows VM build and compatible package tests passed; native MXC was unavailable on the hosted runner.
+
+# Full Mac VM acceptance and process wait CI (2026-10-23 00:12 Europe/Samara)
+
+- Product code snapshot: `00c6029` (`Make SSH process wait status stable`).
+- Command: `task vm:live-darwin`.
+- Result: PASS on Apple Silicon/HVF. `TestLiveMicroVMLifecycle` (23.04 s), `TestLiveLocalOCIEngineImport` (1.14 s), and `TestLiveVMWatchSandboxComposition` (29.52 s) passed.
+- The live lifecycle repeated guest boot/readiness, policy egress allow/revoke, broker-loss recovery, VM worker adoption, explicit Stop/Start with rotated supervisor mTLS identity, OCI image recovery, explicit guest TERM signaling, and Gateway supervisor-session/process-event acceptance. Gateway watch observed create/start/stop and the built CLI completed archive upload/download through the live Gateway and VM.
+- GitHub Actions on `00c6029`: Linux workspace run `39845933145`, macOS `39845933912`, platform-backends `39845933518`, and secret-scan `39845933429` all passed. Linux tests exercise stable concurrent/repeated SSH process wait status; macOS live tests do not exercise that Linux-only implementation directly.
+- Pinned VM parity inventory remains 23 implemented, 5 partial, 2 hardware-specific unsupported. Remaining partial contracts are retained process attachment/ownership, SSH reconnect attachment, backend-owned loopback service lifecycle, and exact host-supervisor lifecycle/session replay semantics.

@@ -1,10 +1,10 @@
 # Quarshell — актуальный остаток
 
-Дата: 2026-10-22
+Дата: 2026-10-23
 
 ## Приоритет текущей работы
 
-По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-22 актуальный inventory: 23 implemented, 5 partial, 0 blocked, 2 unsupported, 0 open.
+По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 00:12 Europe/Samara inventory: 23 implemented, 5 partial, 0 blocked, 2 unsupported, 0 open.
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 
