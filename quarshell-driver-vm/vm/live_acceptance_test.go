@@ -1122,13 +1122,29 @@ func assertLiveGuestCopy(t *testing.T, ctx context.Context, d *Driver, id core.I
 func assertLiveGuestProxyCAInstalled(t *testing.T, ctx context.Context, d *Driver, id core.ID, expected []byte) {
 	t.Helper()
 	root := t.TempDir()
-	installedPath := filepath.Join(root, "installed-ca.pem")
-	if err := d.CopyFrom(ctx, id, guestProxyCADir+"/ca-0001.crt", installedPath); err != nil {
-		t.Fatalf("copy installed corporate proxy CA from live guest: %v", err)
+	var certificates [][]byte
+	remaining := bytes.TrimSpace(expected)
+	for len(remaining) > 0 {
+		block, rest := pem.Decode(remaining)
+		if block == nil || block.Type != "CERTIFICATE" {
+			t.Fatalf("configured proxy CA bundle contains invalid PEM")
+		}
+		certificates = append(certificates, pem.EncodeToMemory(block))
+		remaining = bytes.TrimSpace(rest)
 	}
-	installed, err := os.ReadFile(installedPath)
-	if err != nil || !bytes.Equal(installed, expected) {
-		t.Fatalf("live guest installed CA differs from configured bundle: bytes=%d err=%v", len(installed), err)
+	for index, certificate := range certificates {
+		installedPath := filepath.Join(root, fmt.Sprintf("installed-ca-%04d.pem", index+1))
+		guestPath := fmt.Sprintf("%s/ca-%04d.crt", guestProxyCADir, index+1)
+		if err := d.CopyFrom(ctx, id, guestPath, installedPath); err != nil {
+			t.Fatalf("copy installed corporate proxy CA %d from live guest: %v", index+1, err)
+		}
+		installed, err := os.ReadFile(installedPath)
+		if err != nil || !bytes.Equal(installed, certificate) {
+			t.Fatalf("live guest installed CA %d differs from configured bundle: bytes=%d err=%v", index+1, len(installed), err)
+		}
+	}
+	if len(certificates) == 0 {
+		t.Fatal("configured proxy CA bundle has no certificates")
 	}
 	mode, err := d.Exec(ctx, id, driver.ExecRequest{Argv: []string{
 		"/bin/sh", "-c", "stat -c '%u:%g:%a' '" + guestProxyCADir + "/ca-0001.crt'",
@@ -1141,8 +1157,13 @@ func assertLiveGuestProxyCAInstalled(t *testing.T, ctx context.Context, d *Drive
 		t.Fatalf("copy guest system trust bundle: %v", err)
 	}
 	trustBundle, err := os.ReadFile(bundlePath)
-	if err != nil || !bytes.Contains(trustBundle, expected) {
+	if err != nil {
 		t.Fatalf("live guest system trust bundle does not contain configured CA: bytes=%d err=%v", len(trustBundle), err)
+	}
+	for index, certificate := range certificates {
+		if !bytes.Contains(trustBundle, certificate) {
+			t.Fatalf("live guest system trust bundle does not contain configured CA %d: bytes=%d", index+1, len(trustBundle))
+		}
 	}
 	t.Log("live guest installed corporate proxy CA as root-owned 0644 and included it in system trust bundle")
 }

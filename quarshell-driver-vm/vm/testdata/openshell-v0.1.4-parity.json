@@ -194,6 +194,7 @@
         "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxReplaysAndResumesPlatformEvents",
         "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxReplaysTailAndPollsLogsFromOtherGatewayInstance",
         "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestCursorEpochPersistsAcrossStoreRestart",
+        "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestConcurrentCursorEpochInitializationSharesOneEpoch",
         "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestPlatformEventDeduplicationSharesPerSandboxCursor",
         "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestPlatformEventWindowTracksTrimmedCursorRange"
       ]
@@ -288,7 +289,7 @@
       "id": "vm.corporate-proxy-ca",
       "upstream": "e2e/rust/tests/vm_corporate_proxy.rs::vm_corporate_proxy_trusts_ca_bundle_for_https_proxy",
       "cautem": "quarshell-proxy",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-proxy/proxy/upstream_test.go::TestDialViaHTTPSProxyUsesConfiguredCABundle",
         "quarshell-driver-vm/vm/proxy_ca_guest_test.go::TestGuestProxyCABundleValidatesAndLoadsOperatorCertificate",

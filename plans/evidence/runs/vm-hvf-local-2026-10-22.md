@@ -869,20 +869,29 @@ local `WatchPlatformEvents` subscriber to be appended. The cross-instance test
 also seeds a terminal platform event and a later log from the shared store and
 checks ordered delivery plus `stop_on_terminal` behavior.
 
-Validation on the current tree at 2026-10-22 19:55 Europe/Samara: full
+Validation on the current tree at 2026-10-22 20:11 Europe/Samara: full
 workspace `task test`, `task vm:parity-check`, `task fmt:check`, and
 `git diff --check` passed. Focused cursor, Gateway watch and sandboxlogs tests
 also passed under `-race`; Gateway WatchSandbox test binaries cross-compiled
-for Linux ARM64 and Windows AMD64 with CGO disabled. The inventory remains 5
-implemented, 23 partial, and 2 hardware-specific unsupported.
+for Linux ARM64 and Windows AMD64 with CGO disabled. The inventory is 6
+implemented, 22 partial, and 2 hardware-specific unsupported.
+Concurrent SQLite cursor epoch initialization passed with eight callers under
+`-race`; all instances observed the same durable cursor namespace.
 
 ## Working upstream proxy in live HVF acceptance
 
-At 2026-10-22 20:00 Europe/Samara, `task vm:live-darwin` passed on Apple
-Silicon/HVF (`TestLiveMicroVMLifecycle`, 86.01s). The test now starts a local
-HTTP CONNECT upstream proxy, sends a guest request to the previously blocked
-`policy-probe.invalid` endpoint after policy revision 2 allows it, verifies the
-request reached the upstream tunnel and got HTTP 200, then confirms revision 3
-revokes access with HTTP 403. This exercises the host policy proxy and a working
-upstream connection end to end; it does not replace the separate live Gateway
-`WatchSandbox` composition test or real external corporate proxy deployment.
+At 2026-10-22 20:07 Europe/Samara, `task vm:live-darwin` passed on Apple
+Silicon/HVF (`TestLiveMicroVMLifecycle`, 23.81s). The test starts a local TLS
+HTTP CONNECT proxy whose certificate is trusted through the configured proxy
+CA bundle. A guest request to the previously blocked `policy-probe.invalid`
+endpoint succeeds with HTTP 200 after policy revision 2 allows it; revision 3
+then revokes it with HTTP 403. The test verifies both certificates are installed
+in the guest trust bundle. This covers the host policy proxy, its HTTPS upstream
+TLS trust and the guest CA installation end to end; it does not replace a real
+external corporate proxy deployment or the live Gateway `WatchSandbox`
+composition test.
+
+This acceptance closes the `vm.corporate-proxy-ca` inventory row for the pinned
+default configuration. `vm.policy-egress` remains partial because its upstream
+parity target also requires approved TLS workload egress, beyond the HTTP guest
+probe used here.

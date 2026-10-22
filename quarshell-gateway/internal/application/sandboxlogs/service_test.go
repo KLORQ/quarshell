@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -96,6 +97,53 @@ func TestCursorEpochPersistsAcrossStoreRestart(t *testing.T) {
 	second, err := restored.CursorEpoch(ctx)
 	if err != nil || second != first {
 		t.Fatalf("reopened CursorEpoch()=(%q, %v), want %q", second, err, first)
+	}
+}
+
+func TestConcurrentCursorEpochInitializationSharesOneEpoch(t *testing.T) {
+	ctx := context.Background()
+	store, err := lifecycle.NewSQLiteStore(ctx, filepath.Join(t.TempDir(), "gateway.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service, err := New(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const callers = 8
+	start := make(chan struct{})
+	epochs := make(chan string, callers)
+	errs := make(chan error, callers)
+	var group sync.WaitGroup
+	for range callers {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-start
+			epoch, err := service.CursorEpoch(ctx)
+			if err != nil {
+				errs <- err
+				return
+			}
+			epochs <- epoch
+		}()
+	}
+	close(start)
+	group.Wait()
+	close(epochs)
+	close(errs)
+	for err := range errs {
+		t.Errorf("concurrent CursorEpoch(): %v", err)
+	}
+	want := ""
+	for epoch := range epochs {
+		if want == "" {
+			want = epoch
+		}
+		if epoch != want || len(epoch) != 32 {
+			t.Errorf("concurrent cursor epoch=%q, want shared epoch %q", epoch, want)
+		}
 	}
 }
 
