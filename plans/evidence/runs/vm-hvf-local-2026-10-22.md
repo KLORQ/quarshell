@@ -1,5 +1,19 @@
 # VM Hypervisor.framework local acceptance
 
+## Gateway restart intent persistence
+
+- Reverified: 2026-10-22
+- Command: `go test ./internal/application/reconcile -run
+  '^TestRunPreservesRunningAndStoppedIntentAfterSQLiteRestart$' -count=1`
+  in `quarshell-gateway`
+- Result: PASS
+
+The test closes and reopens the SQLite lifecycle store and recreates the
+Gateway application services. Reconciliation preserves a persisted running
+sandbox without starting it again and stops a runtime that conflicts with a
+persisted stopped intent. Inventory: 19 implemented, 9 partial, and 2
+unsupported for physical GPU/VFIO.
+
 ## Gateway exec timeout propagation
 
 - Reverified: 2026-10-22
@@ -27,7 +41,7 @@ reads legacy Docker archives and OCI layout archives, selects the matching
 platform manifest, and rejects unsafe archive paths and entry types. The live
 test imported `docker.io/library/alpine:3.22` for `linux/arm64`, prepared the
 VM rootfs image, and recovered its config by the same immutable image ID.
-Inventory: 18 implemented, 10 partial, and 2 unsupported for physical GPU/VFIO.
+Inventory: 19 implemented, 9 partial, and 2 unsupported for physical GPU/VFIO.
 
 ## Workload identity parity and full workspace retest
 
@@ -45,7 +59,7 @@ gate. Gateway persists the observed runtime UID/GID and exposes a
 conflicting policy selectors, durable identity persistence, and the gRPC
 condition. Live HVF acceptance verified identity `1000:1000` and that the
 persistent `/sandbox` owner remains `1000:1000` across stop/start. Inventory:
-18 implemented, 10 partial, and 2 unsupported for physical GPU/VFIO. Lifecycle
+19 implemented, 9 partial, and 2 unsupported for physical GPU/VFIO. Lifecycle
 extension parity is implemented across registration, activation labels,
 capability validation, launch configuration/hooks, restore hooks, failure
 cleanup and deletion; unit tests cover ordering, invalid requests, and cleanup,

@@ -24,10 +24,11 @@
       "id": "vm.gateway.restart-intent",
       "upstream": "e2e/rust/tests/vm_gateway_start.rs::vm_gateway_restart_preserves_running_and_stopped_intent",
       "cautem": "quarshell-gateway/internal/application/lifecycle/reconciler.go;quarshell-gateway/internal/application/reconcile/reconcile.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-gateway/internal/application/sandbox/service_test.go",
-        "quarshell-gateway/internal/application/reconcile/reconcile_test.go::TestRunRestoresPersistedRunningIntent"
+        "quarshell-gateway/internal/application/reconcile/reconcile_test.go::TestRunRestoresPersistedRunningIntent",
+        "quarshell-gateway/internal/application/reconcile/reconcile_test.go::TestRunPreservesRunningAndStoppedIntentAfterSQLiteRestart"
       ]
     },
     {

@@ -52,6 +52,30 @@ type tokenRecoveringRuntime struct {
 	token string
 }
 
+type restartIntentRuntime struct {
+	statuses   map[string]string
+	startCalls int
+	stopCalls  int
+}
+
+func (*restartIntentRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
+	return "", nil
+}
+func (r *restartIntentRuntime) Start(_ context.Context, sandbox sandboxruntime.Sandbox) error {
+	r.startCalls++
+	r.statuses[string(sandbox.Sandbox)] = "running"
+	return nil
+}
+func (r *restartIntentRuntime) Stop(_ context.Context, sandbox sandboxruntime.Sandbox) error {
+	r.stopCalls++
+	r.statuses[string(sandbox.Sandbox)] = "stopped"
+	return nil
+}
+func (*restartIntentRuntime) Delete(context.Context, sandboxruntime.Sandbox) error { return nil }
+func (r *restartIntentRuntime) Inspect(_ context.Context, sandbox sandboxruntime.Sandbox) (driver.Info, error) {
+	return driver.Info{Status: r.statuses[string(sandbox.Sandbox)]}, nil
+}
+
 func (f *tokenRecoveringRuntime) StartWithToken(ctx context.Context, _ sandboxruntime.Sandbox, token string) error {
 	f.token = token
 	return f.Start(ctx, sandboxruntime.Sandbox{})
@@ -108,5 +132,56 @@ func TestRunRestoresPersistedRunningIntent(t *testing.T) {
 	claims, tokenErr := sandboxes.Tokens.Verify(backend.token)
 	if err != nil || tokenErr != nil || current.State != "running" || backend.startCalls != 1 || claims.Generation != current.RuntimeGeneration || claims.Sandbox != "sb" {
 		t.Fatalf("recovered state=%+v startCalls=%d claims=%+v err=%v tokenErr=%v", current, backend.startCalls, claims, err, tokenErr)
+	}
+}
+
+func TestRunPreservesRunningAndStoppedIntentAfterSQLiteRestart(t *testing.T) {
+	ctx := context.Background()
+	database := t.TempDir() + "/lifecycle.db"
+	store, err := lifecycle.NewSQLiteStore(ctx, database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspaces, _ := workspace.NewService(store)
+	sandboxes, _ := sandbox.NewService(store)
+	if _, _, err := workspaces.Create(ctx, workspace.CreateRequest{ID: "ws", Name: "ws", Owner: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"running", "stopped"} {
+		if _, _, err := sandboxes.Create(ctx, sandbox.Request{Workspace: "ws", Sandbox: domain.SandboxID(name), Generation: 1, Image: "img"}); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := sandboxes.Start(ctx, sandboxRef("ws", name), 1, domain.OperationID("start-"+name)); err != nil {
+			t.Fatal(err)
+		}
+		if name == "stopped" {
+			if _, _, err := sandboxes.Stop(ctx, sandboxRef("ws", name), 1, "stop-stopped"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err = lifecycle.NewSQLiteStore(ctx, database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	workspaces, _ = workspace.NewService(store)
+	sandboxes, _ = sandbox.NewService(store)
+	runtime := &restartIntentRuntime{statuses: map[string]string{"running": "running", "stopped": "running"}}
+	if err := Run(ctx, workspaces, sandboxes, runtime); err != nil {
+		t.Fatalf("reconcile after database reopen: %v", err)
+	}
+	for name, wantState := range map[string]string{"running": "running", "stopped": "stopped"} {
+		current, err := sandboxes.Get(ctx, sandboxRef("ws", name))
+		if err != nil || current.State != wantState {
+			t.Errorf("sandbox %s after restart = state %q err=%v, want %q", name, current.State, err, wantState)
+		}
+	}
+	if runtime.startCalls != 0 || runtime.stopCalls != 1 {
+		t.Fatalf("reconcile calls after restart: starts=%d stops=%d, want 0 and 1", runtime.startCalls, runtime.stopCalls)
 	}
 }
