@@ -1,5 +1,23 @@
 # VM Hypervisor.framework local acceptance
 
+## Rootfs archive staging flow
+
+- Reverified: 2026-10-22
+- Focused checks: CLI staging into VM driver config, Gateway staging token
+  consumption, SDK upload bounds, VM descriptor-relative path and archive
+  validation; all PASS.
+- `task vm:parity-check`: PASS (30 pinned entries).
+
+The complete local rootfs tar flow is covered across modules: the CLI resolves a
+local archive, the Gateway creates a workspace-bound single-use staging slot,
+the SDK writes the bounded payload, CreateSandbox consumes the token and
+substitutes the VM staging path, and the VM opens a regular file under its
+request-scoped staging directory while enforcing archive size and expansion
+limits. Path resolution rejects escapes, symlinked request directories and
+archive files, non-regular files, oversized inputs, and replacement between
+validation and use. Inventory: 20 implemented, 8 partial, 2 unsupported for
+physical GPU/VFIO.
+
 ## Gateway restart intent persistence
 
 - Reverified: 2026-10-22

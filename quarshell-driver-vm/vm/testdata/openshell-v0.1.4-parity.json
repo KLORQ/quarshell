@@ -127,11 +127,15 @@
       "id": "vm.rootfs-tar-staging",
       "upstream": "crates/openshell-driver-vm/src/driver.rs::validate_rootfs_tar_path",
       "cautem": "quarshell-driver/driver/backend.go;quarshell-driver-vm/vm/rootfs_path.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/rootfs_path_test.go",
         "quarshell-driver-vm/vm/spec_test.go",
-        "quarshell-driver-vm/vm/vm_test.go"
+        "quarshell-driver-vm/vm/vm_test.go",
+        "quarshell-cli/internal/service/sandbox_gateway_test.go::TestSandboxCreateStagesRootfsTarIntoNativeVMDriverConfig",
+        "quarshell-gateway/internal/transport/applicationgrpc/rootfs_test.go::TestRootfsTarStagingConsumedByCreate",
+        "quarshell-sdk/go/klorq/rootfs_tar_test.go::TestUploadRootfsTarWritesOpenShellStagingPath",
+        "quarshell-driver-vm/vm/rootfs_path_test.go::TestVMCreateRejectsRootfsTarOutsideStagingRoot"
       ]
     },
     {
