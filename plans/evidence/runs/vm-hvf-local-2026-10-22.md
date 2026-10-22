@@ -1140,3 +1140,26 @@ binary cross-compilation passed. The subsequent `task vm:live-darwin` passed
 (`TestLiveMicroVMLifecycle`, 22.87 s; local OCI import, 1.39 s), including the
 existing live file copy round-trip. Directory/archive transfer through the
 complete live VM+Gateway CLI path is not yet covered.
+
+## Archive transfer and fast exec output regression
+
+The live HVF lifecycle now uploads a tar archive into the guest and downloads
+it back over the authenticated guest exec stream. The fixture includes a
+nested directory, regular file and relative symlink; it checks file bytes and
+link target. The round-trip passed during initial boot, worker recovery,
+explicit stop/start and broker-loss recovery paths. This proves the VM-side
+archive transport against the live guest, while the full CLI-to-Gateway
+directory transfer command path remains unverified.
+
+That repeated stream use exposed a guest-agent race: `exec.Cmd.Wait` could
+close `StdoutPipe`/`StderrPipe` before the reader goroutines drained output.
+The stream now uses explicit OS pipes, closes the host writer copies after
+start, and drains both readers before sending its exit frame. A fast-process
+regression producing separate stdout/stderr passed 30 iterations per run and
+90 iterations in Linux ARM64 Alpine. The full guest-agent suite passed there
+(the bash login-profile fixture is skipped because Alpine supplies BusyBox
+`/bin/sh`). The full workspace test suite, VM parity checker (30 entries),
+format check and diff check passed. `task vm:live-darwin` passed on Apple
+Silicon/HVF: `TestLiveMicroVMLifecycle` (24.37 s) and
+`TestLiveLocalOCIEngineImport` (1.13 s), including the archive round-trip and
+non-TTY output stream after broker recovery.
