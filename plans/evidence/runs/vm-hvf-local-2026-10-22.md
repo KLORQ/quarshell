@@ -1119,3 +1119,12 @@ The guest accepts an authenticated `exec-stream` control operation, starts a non
   boundary, session rotation/replay, KVM live lane, and physical GPU/VFIO remain
   open. Hosted workflows had not yet been dispatched for this exact commit at
   the time of this record.
+
+## Exec stream transport-loss regression
+
+After the `d1b904d` live retest, the Linux guest-agent suite gained
+`TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect`. A cross-built
+Linux ARM64 test binary ran in local `alpine:3.22`; the test passed ten
+consecutive times. It confirmed transport loss terminates the command process
+group and exits the stream handler. Linux process zombies are considered
+terminated because minimal container init processes may not reap them promptly.

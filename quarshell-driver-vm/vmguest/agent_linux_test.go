@@ -10,7 +10,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -156,6 +158,93 @@ func TestGuestControlExecStreamSupportsSeparateOutputAndStdinEOF(t *testing.T) {
 	if stdout != "stdout:value" || stderr != "stderr:value" || exitCode != 9 {
 		t.Fatalf("exec stream stdout=%q stderr=%q exit=%d", stdout, stderr, exitCode)
 	}
+}
+
+func TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect(t *testing.T) {
+	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("c", 64)}
+	guest, host := net.Pipe()
+	done := make(chan struct{})
+	go func() { server.serve(guest); close(done) }()
+	request, err := json.Marshal(Request{
+		Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-stream",
+		Argv: []string{"/bin/sh", "-c", "sleep 60 & echo $!; wait"}, WorkDir: t.TempDir(), NoLoginShell: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFrame(host, request); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadFrame(host); err != nil { // process handshake
+		t.Fatalf("read exec stream handshake: %v", err)
+	}
+	var childPID int
+	for childPID == 0 {
+		encoded, err := ReadFrame(host)
+		if err != nil {
+			t.Fatalf("read child PID before disconnect: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(encoded, &frame); err != nil {
+			t.Fatal(err)
+		}
+		if frame.Type != "stdout" {
+			continue
+		}
+		childPID, err = strconv.Atoi(strings.TrimSpace(string(frame.Data)))
+		if err != nil {
+			t.Fatalf("parse child PID from %q: %v", frame.Data, err)
+		}
+	}
+	if childPID <= 1 {
+		t.Fatalf("invalid child PID %d", childPID)
+	}
+	if err := host.Close(); err != nil {
+		t.Fatalf("close exec stream transport: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(4 * time.Second):
+		t.Fatal("exec stream handler did not terminate after transport loss")
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		alive, err := linuxProcessAlive(childPID)
+		if err != nil {
+			t.Fatalf("inspect disconnected exec child %d: %v", childPID, err)
+		}
+		if !alive {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("exec child %d survived transport loss", childPID)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func linuxProcessAlive(pid int) (bool, error) {
+	if err := syscall.Kill(pid, 0); errors.Is(err, syscall.ESRCH) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	closeParen := strings.LastIndexByte(string(stat), ')')
+	if closeParen < 0 {
+		return false, fmt.Errorf("invalid proc stat for pid %d", pid)
+	}
+	fields := strings.Fields(string(stat[closeParen+1:]))
+	if len(fields) == 0 {
+		return false, fmt.Errorf("missing process state for pid %d", pid)
+	}
+	return fields[0] != "Z", nil
 }
 
 func TestGuestControlRejectsUnsupportedProtocolVersions(t *testing.T) {
