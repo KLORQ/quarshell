@@ -815,3 +815,16 @@ authenticated sandbox generation and epoch by its handler.
   `task fmt:check`, and `git diff --check` passed. VM package test binaries
   cross-compiled for Linux ARM64 and Windows AMD64; Gateway WatchSandbox tests
   cross-compiled for both targets with CGO disabled.
+
+## Current-tree Mac rerun after merged WatchSandbox cursors
+
+- Time: 2026-10-22 18:37 Europe/Samara; Apple Silicon, macOS ARM64, HVF/libkrun.
+- `task vm:live-darwin`: PASS (`TestLiveMicroVMLifecycle`, 23.98s). The live
+  VM platform watch observed `created`, `running`, and terminal `stopped`;
+  policy revision, worker recovery, stop/start, broker-loss shutdown, OCI
+  image pinning, and Gateway credential exchange also passed.
+- `task vm:parity-check`: PASS (30 pinned OpenShell v0.1.4 entries);
+  `task fmt:check` and `git diff --check`: PASS.
+- This confirms the VM backend after the recent watch work. It does not exercise
+  the live Gateway `WatchSandbox` composition bridge or turn the partial
+  `vm.logs-watch` row into full parity.
