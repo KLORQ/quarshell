@@ -15,7 +15,9 @@ func TestCreateRequestRestoresVMRuntimeAssetsAndProxy(t *testing.T) {
 		Runtime:       driver.RuntimeAssets{InitBinary: "/opt/cautem/init", SupervisorBinary: "/opt/cautem/supervisor", SSHBinary: "/opt/cautem/sshd", EnableSSH: true},
 		Proxy:         &driver.ProxySpec{Binary: "/opt/cautem/cautem", PolicyPath: "/var/lib/cautem/policy.yaml", Port: 3128, Environment: proxyEnv},
 	}
-	request, err := runtime.createRequest(Sandbox{Workspace: "ws", Sandbox: "sb", Image: "image"})
+	request, err := runtime.createRequest(Sandbox{
+		Workspace: "ws", Sandbox: "sb", Image: "image", TTY: true, AwaitMainProcessAttachment: true,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,6 +26,9 @@ func TestCreateRequestRestoresVMRuntimeAssetsAndProxy(t *testing.T) {
 	}
 	if request.Runtime.InitBinary != runtime.Runtime.InitBinary || request.Runtime.SupervisorBinary != runtime.Runtime.SupervisorBinary || !request.Runtime.EnableSSH {
 		t.Fatalf("runtime assets = %+v", request.Runtime)
+	}
+	if !request.Workload.TTY || !request.Workload.AwaitMainProcessAttachment {
+		t.Fatalf("workload terminal settings = %+v", request.Workload)
 	}
 	if request.Network.Proxy == nil || request.Network.Proxy.Binary != runtime.Proxy.Binary || request.Network.Proxy.PolicyPath != runtime.Proxy.PolicyPath || len(request.Network.Proxy.Environment) != 1 {
 		t.Fatalf("proxy config = %+v", request.Network.Proxy)

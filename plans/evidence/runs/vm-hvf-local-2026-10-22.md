@@ -1290,3 +1290,11 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - The live process accepts stdin, returns its response through the retained PTY, reports the requested 101×41 terminal size, and keeps the same PID after the stream is detached and a fresh VM `Driver` instance reattaches through the durable state directory.
 - `go test -C quarshell-runtime ./internal/app/supervisor -count=1`, `go test -C quarshell-driver-vm ./... -count=1`, full `task test` across all Go workspace modules, `task docs:strict`, `task vm:parity-check`, `task fmt:check`, and `git diff --check`: PASS. Hosted KVM retry is pending for the current source snapshot.
 - VM feature inventory remains 25 implemented, 3 partial and 2 physical GPU/VFIO unsupported. The initial `AwaitMainProcessAttachment` create handshake and host-side `RunningBoundary` replica/session ownership remain open.
+
+# OpenShell AwaitMainProcessAttachment through Gateway and HVF (2026-10-23 02:25 Europe/Samara)
+
+- Gateway persists `CreateSandboxRequest.await_main_process_attachment` and carries it through the VM backend launch spec into the authenticated guest start request.
+- The Linux guest retains a finished main-process PTY when attachment was declared. A late attachment receives the buffered output and original exit code; the guest waits for the client side to close before powering down. Non-TTY workloads explicitly fail validation until their distinct OpenShell stream attachment path is implemented.
+- `task vm:live-darwin`: PASS. `TestLiveMicroVMLifecycle` passed in 22.66 s, including a short process that exits before attachment, retained output delivery, delayed VM shutdown until PTY close, and subsequent stopped-state observation. `TestLiveLocalOCIEngineImport` passed in 1.14 s. Gateway `TestLiveVMWatchSandboxComposition` passed in 8.79 s.
+- Focused Gateway sandbox, sandboxruntime and gRPC packages, VM backend package, full workspace `task test`, `task docs:strict`, `task vm:parity-check` (30 pinned rows), `task fmt:check`, Linux ARM64 guest test cross-compile and `git diff --check`: PASS.
+- Inventory remains 25 implemented, 3 partial, 2 physical GPU/VFIO unsupported. `vm.host-supervisor-isolation` remains partial for non-TTY attachment and the host-side `RunningBoundary` process handle.

@@ -624,7 +624,8 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		Operation: "start-workload", Argv: launchSpec.Command,
 		Env: launchSpec.Env, RestartPolicy: launchSpec.MainProcessRestartPolicy,
 		WorkDir: launchSpec.WorkDir, User: launchSpec.User, TTY: spec.TTY,
-		SessionID: mainProcessTTYSessionID, Columns: defaultTerminalColumns, Rows: defaultTerminalRows,
+		AwaitMainProcessAttachment: spec.AwaitMainProcessAttachment,
+		SessionID:                  mainProcessTTYSessionID, Columns: defaultTerminalColumns, Rows: defaultTerminalRows,
 	})
 	if err != nil {
 		return fmt.Errorf("start guest workload: %w", err)

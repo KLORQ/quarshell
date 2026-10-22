@@ -114,14 +114,16 @@ func TestGuestOverlayWorkspaceMapsToVMWithoutHostMount(t *testing.T) {
 		SandboxID: "workspace-vm", Name: "workspace-vm",
 		Workspace: driver.WorkspaceTarget{Kind: driver.WorkspaceGuestOverlay, ID: "team-a", Persist: true},
 		Labels:    map[string]string{driver.WorkspaceLabel: "team-a", driver.GatewayIDLabel: "gateway-1"},
-		Workload:  driver.WorkloadSpec{Image: "alpine:3.22", Command: []string{"/bin/sh"}},
-		Network:   driver.NetworkSpec{GatewayID: "gateway-1", GatewayURL: "https://gateway.internal"},
+		Workload: driver.WorkloadSpec{
+			Image: "alpine:3.22", Command: []string{"/bin/sh"}, TTY: true, AwaitMainProcessAttachment: true,
+		},
+		Network: driver.NetworkSpec{GatewayID: "gateway-1", GatewayURL: "https://gateway.internal"},
 	}
 	spec, err := vmSpecFromBackendRequest(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if spec.Workspace != "" || !spec.PersistVolume {
+	if spec.Workspace != "" || !spec.PersistVolume || !spec.TTY || !spec.AwaitMainProcessAttachment {
 		t.Fatalf("guest overlay became host workspace settings: %+v", spec)
 	}
 	if err := New().validateCreateSpec(spec); err != nil {

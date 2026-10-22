@@ -145,11 +145,12 @@ const (
 )
 
 type WorkloadSpec struct {
-	Image         string
-	Command       []string
-	Environment   []string
-	TTY           bool
-	RestartPolicy string
+	Image                      string
+	Command                    []string
+	Environment                []string
+	TTY                        bool
+	AwaitMainProcessAttachment bool
+	RestartPolicy              string
 }
 
 type ResourceLimits struct {

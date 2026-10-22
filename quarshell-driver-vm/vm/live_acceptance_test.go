@@ -436,6 +436,49 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	t.Log("live natural main-process exit powered off the guest and stopped the VM worker")
 
+	awaitHandle, err := terminal.createSandbox(ctx, vmCreateSpec{
+		Name: "live-microvm-await-main-attachment", Image: "alpine:3.22",
+		DriverConfigJSON: string(driverConfig), Command: []string{"/bin/sh", "-c", "printf 'late-main-attachment\\n'; exit 7"},
+		TTY: true, AwaitMainProcessAttachment: true,
+	})
+	if err != nil {
+		t.Fatalf("create await-attachment MicroVM: %v", err)
+	}
+	registerLiveSandboxCleanup(t, host, awaitHandle.ID)
+	if err := terminal.Start(ctx, awaitHandle.ID); err != nil {
+		t.Fatalf("start await-attachment MicroVM: %v", err)
+	}
+	// Let the short main process finish before opening its retained terminal.
+	time.Sleep(500 * time.Millisecond)
+	terminalState, err = openStateStore(host.StateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = terminalState.load(string(awaitHandle.ID))
+	if err != nil || state.Status != "running" {
+		t.Fatalf("VM state before declared main-process attachment=%+v err=%v; want running", state, err)
+	}
+	mainTerminal, err := terminal.OpenMainProcessTTY(ctx, awaitHandle.ID, 101, 41)
+	if err != nil {
+		t.Fatalf("open late main-process TTY attachment: %v", err)
+	}
+	mainOutput, err := io.ReadAll(mainTerminal)
+	if err != nil {
+		t.Fatalf("read late main-process TTY output: %v", err)
+	}
+	if !strings.Contains(string(mainOutput), "late-main-attachment") {
+		t.Fatalf("late main-process TTY output=%q; expected retained output", mainOutput)
+	}
+	if err := mainTerminal.Close(); err != nil {
+		t.Fatalf("close late main-process TTY attachment: %v", err)
+	}
+	waitForLiveVMStoppedState(t, ctx, host.StateDir, string(awaitHandle.ID))
+	state, err = terminalState.load(string(awaitHandle.ID))
+	if err != nil || state.Status != "stopped" {
+		t.Fatalf("VM state after main-process terminal delivery=%+v err=%v; want stopped", state, err)
+	}
+	t.Log("live short main process retained output and exit until a late TTY attachment closed")
+
 	restartHandle, err := terminal.createSandbox(ctx, vmCreateSpec{
 		Name: "live-microvm-terminal-explicit-restart", Image: "alpine:3.22",
 		DriverConfigJSON: string(driverConfig), Command: []string{"/bin/sh", "-c", "while :; do sleep 1; done"},

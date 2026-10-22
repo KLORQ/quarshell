@@ -29,6 +29,9 @@ func (d *Driver) validateCreateSpec(spec vmCreateSpec) error {
 	if err := validateMainProcessRestartPolicy(spec); err != nil {
 		return err
 	}
+	if spec.AwaitMainProcessAttachment && !spec.TTY {
+		return fmt.Errorf("vm driver: awaiting a main-process attachment requires a TTY workload")
+	}
 	if err := validateGPURequest(spec.GPU, config); err != nil {
 		return err
 	}

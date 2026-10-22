@@ -28,7 +28,8 @@ func (s *Server) CreateSandbox(ctx context.Context, request *gatewayv1.CreateSan
 	created, _, err := s.Sandboxes.Create(ctx, sandbox.Request{
 		Workspace: workspace, Sandbox: domain.SandboxID(request.GetName()),
 		Generation: 1, Image: imageFromSpec(request.GetSpec()), Command: request.GetSpec().GetCommand(), TTY: request.GetSpec().GetTty(),
-		Resources: resourcesFromSpec(request.GetSpec()), Labels: request.GetLabels(), DriverConfigJSON: driverConfigJSON,
+		AwaitMainProcessAttachment: request.GetAwaitMainProcessAttachment(),
+		Resources:                  resourcesFromSpec(request.GetSpec()), Labels: request.GetLabels(), DriverConfigJSON: driverConfigJSON,
 	})
 	if err != nil {
 		return nil, grpcError(err)

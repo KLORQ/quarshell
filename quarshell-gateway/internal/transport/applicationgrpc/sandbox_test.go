@@ -28,14 +28,15 @@ func TestSandboxRPC(t *testing.T) {
 	}
 	created, err := server.CreateSandbox(ctx, &gatewayv1.CreateSandboxRequest{
 		WorkspaceScope: selector, Name: "sb", Labels: map[string]string{"team": "x"},
-		Spec: &gatewayv1.SandboxSpec{Template: &gatewayv1.SandboxTemplate{Image: "ubuntu:24.04", DriverConfig: driverConfig}},
+		AwaitMainProcessAttachment: true,
+		Spec:                       &gatewayv1.SandboxSpec{Tty: true, Template: &gatewayv1.SandboxTemplate{Image: "ubuntu:24.04", DriverConfig: driverConfig}},
 	})
 	if err != nil || created.GetSandbox().GetMetadata().GetName() != "sb" {
 		t.Fatalf("CreateSandbox = %+v err=%v", created, err)
 	}
 	stored, err := sandboxes.Get(ctx, domain.SandboxRef{Workspace: "ws", Sandbox: "sb"})
-	if err != nil || stored.DriverConfigJSON != `{"vm":{"grpc_endpoint":"http://127.0.0.1:7444"}}` {
-		t.Fatalf("persisted driver config = %q, err=%v", stored.DriverConfigJSON, err)
+	if err != nil || stored.DriverConfigJSON != `{"vm":{"grpc_endpoint":"http://127.0.0.1:7444"}}` || !stored.AwaitMainProcessAttachment || !stored.TTY {
+		t.Fatalf("persisted sandbox = %+v, err=%v", stored, err)
 	}
 	if _, err := server.GetSandbox(ctx, &gatewayv1.GetSandboxRequest{WorkspaceScope: selector, Name: "sb"}); err != nil {
 		t.Fatalf("GetSandbox: %v", err)

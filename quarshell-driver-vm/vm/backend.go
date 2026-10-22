@@ -214,9 +214,10 @@ func vmSpecFromBackendRequest(ctx context.Context, request driver.BackendCreateR
 	spec := vmCreateSpec{
 		Name: request.Name, Image: request.Workload.Image,
 		Command: slices.Clone(request.Workload.Command), TTY: request.Workload.TTY,
-		MainProcessRestartPolicy: request.Workload.RestartPolicy,
-		Env:                      env,
-		GatewayURL:               request.Network.GatewayURL,
+		AwaitMainProcessAttachment: request.Workload.AwaitMainProcessAttachment,
+		MainProcessRestartPolicy:   request.Workload.RestartPolicy,
+		Env:                        env,
+		GatewayURL:                 request.Network.GatewayURL,
 		// Gateway identity remains control-plane-owned. The URL is used by the
 		// guest relay when the driver config has no explicit endpoint.
 		PersistVolume: request.Workspace.Persist,

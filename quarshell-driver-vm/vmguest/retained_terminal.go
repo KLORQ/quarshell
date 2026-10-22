@@ -26,25 +26,30 @@ const (
 // retainedTerminal owns a guest PTY independently of any one control stream.
 // Output produced while detached is retained up to a bounded tail.
 type retainedTerminal struct {
-	owner      *controlServer
-	id         string
-	pid        int
-	command    *exec.Cmd
-	pty        *os.File
-	mu         sync.Mutex
-	connection net.Conn
-	output     []byte
-	finished   bool
-	exitCode   int
-	finishedAt time.Time
-	outputDone chan struct{}
-	onExit     func()
+	owner             *controlServer
+	id                string
+	pid               int
+	command           *exec.Cmd
+	pty               *os.File
+	mu                sync.Mutex
+	connection        net.Conn
+	output            []byte
+	finished          bool
+	exitCode          int
+	finishedAt        time.Time
+	outputDone        chan struct{}
+	awaitAttachment   bool
+	attachmentSeen    bool
+	activeAttachments int
+	attachmentChanged chan struct{}
+	onExit            func()
 }
 
 func (s *controlServer) pruneTerminalsLocked(now time.Time) {
 	for id, process := range s.terminals {
 		process.mu.Lock()
-		expired := process.finished && now.Sub(process.finishedAt) >= retainedTerminalFinishedTTL
+		attachmentComplete := !process.awaitAttachment || (process.attachmentSeen && process.activeAttachments == 0)
+		expired := process.finished && attachmentComplete && now.Sub(process.finishedAt) >= retainedTerminalFinishedTTL
 		process.mu.Unlock()
 		if expired {
 			delete(s.terminals, id)
@@ -52,7 +57,7 @@ func (s *controlServer) pruneTerminalsLocked(now time.Time) {
 	}
 }
 
-func (s *controlServer) retainTerminalLocked(id string, command *exec.Cmd, terminal *os.File, onExit func()) (*retainedTerminal, error) {
+func (s *controlServer) retainTerminalLocked(id string, command *exec.Cmd, terminal *os.File, awaitAttachment bool, onExit func()) (*retainedTerminal, error) {
 	if s.terminals == nil {
 		s.terminals = make(map[string]*retainedTerminal)
 	}
@@ -62,7 +67,8 @@ func (s *controlServer) retainTerminalLocked(id string, command *exec.Cmd, termi
 	}
 	process := &retainedTerminal{
 		owner: s, id: id, pid: command.Process.Pid, command: command, pty: terminal,
-		outputDone: make(chan struct{}), onExit: onExit,
+		outputDone: make(chan struct{}), awaitAttachment: awaitAttachment,
+		attachmentChanged: make(chan struct{}), onExit: onExit,
 	}
 	s.terminals[id] = process
 	go process.readOutput()
@@ -84,6 +90,33 @@ func (s *controlServer) attachTerminal(connection net.Conn, id string) {
 		return
 	}
 	process.attach(connection)
+}
+
+func (s *controlServer) waitForTerminalAttachment(id string) {
+	s.terminalMu.Lock()
+	process := s.terminals[id]
+	s.terminalMu.Unlock()
+	if process != nil {
+		process.waitForExpectedAttachment()
+	}
+}
+
+func (process *retainedTerminal) waitForExpectedAttachment() {
+	for {
+		process.mu.Lock()
+		complete := process.attachmentSeen && process.activeAttachments == 0
+		changed := process.attachmentChanged
+		process.mu.Unlock()
+		if complete {
+			return
+		}
+		<-changed
+	}
+}
+
+func (process *retainedTerminal) notifyAttachmentChangedLocked() {
+	close(process.attachmentChanged)
+	process.attachmentChanged = make(chan struct{})
 }
 
 func (s *controlServer) terminateTerminal(connection net.Conn, id string) {
@@ -168,7 +201,7 @@ func (process *retainedTerminal) wait() {
 
 func (process *retainedTerminal) attach(connection net.Conn) {
 	process.mu.Lock()
-	if process.connection != nil {
+	if process.connection != nil || process.activeAttachments != 0 {
 		process.mu.Unlock()
 		_ = writeResponse(connection, Response{Error: "terminal session is already attached"})
 		return
@@ -179,6 +212,18 @@ func (process *retainedTerminal) attach(connection net.Conn) {
 		process.mu.Unlock()
 		return
 	}
+	process.attachmentSeen = true
+	process.activeAttachments++
+	process.notifyAttachmentChangedLocked()
+	defer func() {
+		process.mu.Lock()
+		if process.connection == connection {
+			process.connection = nil
+		}
+		process.activeAttachments--
+		process.notifyAttachmentChangedLocked()
+		process.mu.Unlock()
+	}()
 	if len(process.output) != 0 {
 		if err := writeTerminalFrame(connection, TerminalFrame{Type: "output", Data: append([]byte(nil), process.output...)}); err != nil {
 			process.connection = nil
@@ -188,20 +233,20 @@ func (process *retainedTerminal) attach(connection net.Conn) {
 		process.output = nil
 	}
 	if process.finished {
-		_ = writeTerminalFrame(connection, TerminalFrame{Type: "exit", ExitCode: process.exitCode})
-		process.connection = nil
-		process.mu.Unlock()
-		return
-	}
-	process.mu.Unlock()
-
-	defer func() {
-		process.mu.Lock()
-		if process.connection == connection {
-			process.connection = nil
+		if err := writeTerminalFrame(connection, TerminalFrame{Type: "exit", ExitCode: process.exitCode}); err != nil {
+			process.mu.Unlock()
+			return
 		}
 		process.mu.Unlock()
-	}()
+		// A post-exit attachment is complete only after the client has read the
+		// retained exit frame and closed its side of the stream.
+		for {
+			if _, err := ReadFrame(connection); err != nil {
+				return
+			}
+		}
+	}
+	process.mu.Unlock()
 	for {
 		payload, err := ReadFrame(connection)
 		if err != nil {

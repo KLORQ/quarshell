@@ -595,6 +595,121 @@ func TestNaturalWorkloadExitPowersOffGuest(t *testing.T) {
 	}
 }
 
+func TestAwaitMainProcessAttachmentKeepsGuestAliveAndDeliversExit(t *testing.T) {
+	poweredOff := make(chan struct{}, 1)
+	workDir := t.TempDir()
+	if err := os.Chmod(workDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	server := &controlServer{
+		uid: uint32(os.Geteuid()), gid: uint32(os.Getegid()), token: strings.Repeat("b", 64),
+		workloadCommand: func([]string, bool) []string {
+			return []string{"/bin/sh", "-c", "printf 'fast-main-output\\n'; exit 7"}
+		},
+		powerOffGuest: func() error { poweredOff <- struct{}{}; return nil },
+	}
+	if err := server.startWorkload(context.Background(), Request{
+		Argv: []string{"ignored"}, WorkDir: workDir, TTY: true,
+		SessionID: strings.Repeat("a", 32), AwaitMainProcessAttachment: true,
+	}); err != nil {
+		t.Fatalf("startWorkload() error=%v", err)
+	}
+	var process *retainedTerminal
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		server.terminalMu.Lock()
+		process = server.terminals[strings.Repeat("a", 32)]
+		server.terminalMu.Unlock()
+		if process != nil {
+			process.mu.Lock()
+			finished := process.finished
+			process.mu.Unlock()
+			if finished {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if process == nil {
+		t.Fatal("main process terminal was not retained")
+	}
+	process.mu.Lock()
+	finished := process.finished
+	process.mu.Unlock()
+	if !finished {
+		t.Fatal("main process did not exit before the attachment test")
+	}
+	select {
+	case <-poweredOff:
+		t.Fatal("guest powered off before the declared main-process attachment")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	guest, host := net.Pipe()
+	t.Cleanup(func() { _ = host.Close() })
+	attachmentDone := make(chan struct{})
+	go func() {
+		server.serve(guest)
+		close(attachmentDone)
+	}()
+	request, err := json.Marshal(Request{
+		Version: ProtocolVersion, AuthToken: server.token, Operation: "attach-terminal",
+		SessionID: strings.Repeat("a", 32),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFrame(host, request); err != nil {
+		t.Fatal(err)
+	}
+	responseFrame, err := ReadFrame(host)
+	if err != nil {
+		t.Fatalf("read terminal attachment response: %v", err)
+	}
+	var response Response
+	if err := json.Unmarshal(responseFrame, &response); err != nil || response.Error != "" {
+		t.Fatalf("terminal attachment response=%+v err=%v", response, err)
+	}
+	var outputSeen, exitSeen bool
+	for !exitSeen {
+		frameBytes, err := ReadFrame(host)
+		if err != nil {
+			t.Fatalf("read retained terminal frame: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(frameBytes, &frame); err != nil {
+			t.Fatal(err)
+		}
+		switch frame.Type {
+		case "output":
+			outputSeen = outputSeen || strings.Contains(string(frame.Data), "fast-main-output")
+		case "exit":
+			exitSeen = true
+			if frame.ExitCode != 7 {
+				t.Fatalf("retained main process exit code=%d want=7", frame.ExitCode)
+			}
+		default:
+			t.Fatalf("unexpected terminal frame: %+v", frame)
+		}
+	}
+	if !outputSeen {
+		t.Fatal("retained terminal did not deliver the fast main process output")
+	}
+	if err := host.Close(); err != nil {
+		t.Fatalf("close terminal attachment: %v", err)
+	}
+	select {
+	case <-attachmentDone:
+	case <-time.After(time.Second):
+		t.Fatal("finished terminal attachment did not close")
+	}
+	select {
+	case <-poweredOff:
+	case <-time.After(2 * time.Second):
+		t.Fatal("guest was not powered off after terminal exit delivery")
+	}
+}
+
 func TestGuestCopyRoundTripAndRejectSymlink(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, "nested", "file.txt")

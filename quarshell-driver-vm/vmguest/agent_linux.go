@@ -392,6 +392,9 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 	if request.TTY && strings.TrimSpace(request.SessionID) == "" {
 		return fmt.Errorf("TTY workload requires a retained session ID")
 	}
+	if request.AwaitMainProcessAttachment && !request.TTY {
+		return fmt.Errorf("awaiting a main-process attachment requires a TTY workload")
+	}
 	restartPolicy, err := normalizeGuestRestartPolicy(request.RestartPolicy)
 	if err != nil {
 		return err
@@ -520,6 +523,9 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 		s.mu.Unlock()
 		close(done)
 		if naturalExit {
+			if request.AwaitMainProcessAttachment {
+				s.waitForTerminalAttachment(request.SessionID)
+			}
 			if err := s.powerOffAfterWorkloadExit(); err != nil {
 				fmt.Fprintf(os.Stderr, "cautem-vm-guest-agent: power off after workload exit: %v\n", err)
 			}
@@ -537,7 +543,7 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 			s.jobDone = nil
 			return fmt.Errorf("terminal session ID already exists")
 		}
-		_, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal, onExit)
+		_, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal, request.AwaitMainProcessAttachment, onExit)
 		s.terminalMu.Unlock()
 		if retainErr != nil {
 			_ = terminal.Close()
@@ -980,7 +986,7 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 			_ = writeResponse(connection, Response{Error: "terminal session ID already exists"})
 			return
 		}
-		process, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal, nil)
+		process, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal, false, nil)
 		s.terminalMu.Unlock()
 		if retainErr != nil {
 			_ = terminal.Close()

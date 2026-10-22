@@ -17,16 +17,17 @@ import (
 
 // Sandbox is the backend-facing lifecycle input.
 type Sandbox struct {
-	Workspace        domain.WorkspaceID
-	Sandbox          domain.SandboxID
-	RuntimeID        string
-	Image            string
-	Command          []string
-	TTY              bool
-	Resources        Resources
-	Network          Network
-	Labels           map[string]string
-	DriverConfigJSON string
+	Workspace                  domain.WorkspaceID
+	Sandbox                    domain.SandboxID
+	RuntimeID                  string
+	Image                      string
+	Command                    []string
+	TTY                        bool
+	AwaitMainProcessAttachment bool
+	Resources                  Resources
+	Network                    Network
+	Labels                     map[string]string
+	DriverConfigJSON           string
 }
 
 // Network is the egress and host-network configuration.
@@ -280,7 +281,7 @@ func (d *Docker) createRequest(sandbox Sandbox) (driver.BackendCreateRequest, er
 	return driver.BackendCreateRequest{
 		SandboxID: core.ID(string(sandbox.Sandbox)), Name: string(sandbox.Sandbox),
 		Workspace: driver.WorkspaceTarget{Kind: kind, ID: string(sandbox.Workspace), HostPath: workspacePath, Persist: true},
-		Workload:  driver.WorkloadSpec{Image: sandbox.Image, Command: append([]string(nil), sandbox.Command...), TTY: sandbox.TTY},
+		Workload:  driver.WorkloadSpec{Image: sandbox.Image, Command: append([]string(nil), sandbox.Command...), TTY: sandbox.TTY, AwaitMainProcessAttachment: sandbox.AwaitMainProcessAttachment},
 		Resources: driver.ResourceLimits{CPUCores: sandbox.Resources.CPUCores, MemoryBytes: sandbox.Resources.MemoryBytes, PIDs: sandbox.Resources.PIDs, GPU: sandbox.Resources.GPU, GPUCount: sandbox.Resources.GPUCount},
 		Network:   d.networkSpec(sandbox.Network), Runtime: d.Runtime, Labels: sandbox.Labels, Config: config,
 	}, nil

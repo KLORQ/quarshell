@@ -14,25 +14,26 @@ const (
 )
 
 type Request struct {
-	Version       uint16   `json:"version"`
-	AuthToken     string   `json:"auth_token,omitempty"`
-	NextAuthToken string   `json:"next_auth_token,omitempty"`
-	RotationID    string   `json:"rotation_id,omitempty"`
-	Operation     string   `json:"operation"`
-	Argv          []string `json:"argv,omitempty"`
-	Env           []string `json:"env,omitempty"`
-	User          string   `json:"user,omitempty"`
-	RestartPolicy string   `json:"restart_policy,omitempty"`
-	TTY           bool     `json:"tty,omitempty"`
-	WorkDir       string   `json:"workdir,omitempty"`
-	Stdin         []byte   `json:"stdin,omitempty"`
-	NoLoginShell  bool     `json:"no_login_shell,omitempty"`
-	Columns       uint32   `json:"columns,omitempty"`
-	Rows          uint32   `json:"rows,omitempty"`
-	SessionID     string   `json:"session_id,omitempty"`
-	Path          string   `json:"path,omitempty"`
-	Mode          uint32   `json:"mode,omitempty"`
-	Data          []byte   `json:"data,omitempty"`
+	Version                    uint16   `json:"version"`
+	AuthToken                  string   `json:"auth_token,omitempty"`
+	NextAuthToken              string   `json:"next_auth_token,omitempty"`
+	RotationID                 string   `json:"rotation_id,omitempty"`
+	Operation                  string   `json:"operation"`
+	Argv                       []string `json:"argv,omitempty"`
+	Env                        []string `json:"env,omitempty"`
+	User                       string   `json:"user,omitempty"`
+	RestartPolicy              string   `json:"restart_policy,omitempty"`
+	TTY                        bool     `json:"tty,omitempty"`
+	AwaitMainProcessAttachment bool     `json:"await_main_process_attachment,omitempty"`
+	WorkDir                    string   `json:"workdir,omitempty"`
+	Stdin                      []byte   `json:"stdin,omitempty"`
+	NoLoginShell               bool     `json:"no_login_shell,omitempty"`
+	Columns                    uint32   `json:"columns,omitempty"`
+	Rows                       uint32   `json:"rows,omitempty"`
+	SessionID                  string   `json:"session_id,omitempty"`
+	Path                       string   `json:"path,omitempty"`
+	Mode                       uint32   `json:"mode,omitempty"`
+	Data                       []byte   `json:"data,omitempty"`
 }
 
 type Response struct {

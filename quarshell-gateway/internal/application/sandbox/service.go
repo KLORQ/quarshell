@@ -28,17 +28,18 @@ const recordKind = "sandbox"
 
 // Request creates one sandbox generation.
 type Request struct {
-	Workspace        domain.WorkspaceID
-	Sandbox          domain.SandboxID
-	Generation       domain.Generation
-	Image            string
-	Command          []string
-	TTY              bool
-	Resources        Resources
-	Network          Network
-	Labels           map[string]string
-	DriverConfigJSON string
-	IdempotencyKey   domain.OperationID
+	Workspace                  domain.WorkspaceID
+	Sandbox                    domain.SandboxID
+	Generation                 domain.Generation
+	Image                      string
+	Command                    []string
+	TTY                        bool
+	AwaitMainProcessAttachment bool
+	Resources                  Resources
+	Network                    Network
+	Labels                     map[string]string
+	DriverConfigJSON           string
+	IdempotencyKey             domain.OperationID
 }
 
 // Resources are portable sandbox limits.
@@ -65,28 +66,29 @@ type PortPublish struct {
 
 // Sandbox is the durable sandbox record.
 type Sandbox struct {
-	Workspace             domain.WorkspaceID `json:"workspace"`
-	Sandbox               domain.SandboxID   `json:"sandbox"`
-	Generation            domain.Generation  `json:"generation"`
-	RuntimeGeneration     domain.Generation  `json:"runtime_generation,omitempty"`
-	CredentialEpoch       uint64             `json:"credential_epoch"`
-	SessionID             string             `json:"session_id,omitempty"`
-	MainProcessInstanceID string             `json:"main_process_instance_id,omitempty"`
-	MainProcessExitCode   *int32             `json:"main_process_exit_code,omitempty"`
-	MainProcessFinalized  bool               `json:"main_process_finalized,omitempty"`
-	WorkloadUID           uint32             `json:"workload_uid,omitempty"`
-	WorkloadGID           uint32             `json:"workload_gid,omitempty"`
-	State                 string             `json:"state"`
-	Image                 string             `json:"image"`
-	RuntimeID             string             `json:"runtime_id,omitempty"`
-	Command               []string           `json:"command,omitempty"`
-	TTY                   bool               `json:"tty,omitempty"`
-	Resources             Resources          `json:"resources,omitempty"`
-	Network               Network            `json:"network,omitempty"`
-	Labels                map[string]string  `json:"labels,omitempty"`
-	DriverConfigJSON      string             `json:"driver_config_json,omitempty"`
-	CreatedAt             time.Time          `json:"created_at"`
-	UpdatedAt             time.Time          `json:"updated_at"`
+	Workspace                  domain.WorkspaceID `json:"workspace"`
+	Sandbox                    domain.SandboxID   `json:"sandbox"`
+	Generation                 domain.Generation  `json:"generation"`
+	RuntimeGeneration          domain.Generation  `json:"runtime_generation,omitempty"`
+	CredentialEpoch            uint64             `json:"credential_epoch"`
+	SessionID                  string             `json:"session_id,omitempty"`
+	MainProcessInstanceID      string             `json:"main_process_instance_id,omitempty"`
+	MainProcessExitCode        *int32             `json:"main_process_exit_code,omitempty"`
+	MainProcessFinalized       bool               `json:"main_process_finalized,omitempty"`
+	WorkloadUID                uint32             `json:"workload_uid,omitempty"`
+	WorkloadGID                uint32             `json:"workload_gid,omitempty"`
+	State                      string             `json:"state"`
+	Image                      string             `json:"image"`
+	RuntimeID                  string             `json:"runtime_id,omitempty"`
+	Command                    []string           `json:"command,omitempty"`
+	TTY                        bool               `json:"tty,omitempty"`
+	AwaitMainProcessAttachment bool               `json:"await_main_process_attachment,omitempty"`
+	Resources                  Resources          `json:"resources,omitempty"`
+	Network                    Network            `json:"network,omitempty"`
+	Labels                     map[string]string  `json:"labels,omitempty"`
+	DriverConfigJSON           string             `json:"driver_config_json,omitempty"`
+	CreatedAt                  time.Time          `json:"created_at"`
+	UpdatedAt                  time.Time          `json:"updated_at"`
 }
 
 // CredentialEpochOrInitial preserves compatibility with records written before
@@ -140,7 +142,8 @@ func (s *Service) Create(ctx context.Context, request Request) (Sandbox, bool, e
 		Workspace: request.Workspace, Sandbox: request.Sandbox, Generation: request.Generation,
 		RuntimeGeneration: request.Generation, CredentialEpoch: 1,
 		State: "requested", Image: request.Image, Command: append([]string(nil), request.Command...), TTY: request.TTY,
-		Resources: request.Resources, Network: cloneNetwork(request.Network), Labels: cloneLabels(request.Labels), DriverConfigJSON: request.DriverConfigJSON, CreatedAt: now, UpdatedAt: now,
+		AwaitMainProcessAttachment: request.AwaitMainProcessAttachment,
+		Resources:                  request.Resources, Network: cloneNetwork(request.Network), Labels: cloneLabels(request.Labels), DriverConfigJSON: request.DriverConfigJSON, CreatedAt: now, UpdatedAt: now,
 	}
 	payload, err := json.Marshal(created)
 	if err != nil {
@@ -857,8 +860,9 @@ func (s *Service) setRuntimeID(ctx context.Context, ref domain.SandboxRef, runti
 func runtimeInput(item Sandbox) sandboxruntime.Sandbox {
 	return sandboxruntime.Sandbox{
 		Workspace: item.Workspace, Sandbox: item.Sandbox, RuntimeID: item.RuntimeID, Image: item.Image, Command: item.Command, TTY: item.TTY,
-		DriverConfigJSON: item.DriverConfigJSON,
-		Resources:        sandboxruntime.Resources{CPUCores: item.Resources.CPUCores, MemoryBytes: item.Resources.MemoryBytes, PIDs: item.Resources.PIDs, GPU: item.Resources.GPU, GPUCount: item.Resources.GPUCount},
+		AwaitMainProcessAttachment: item.AwaitMainProcessAttachment,
+		DriverConfigJSON:           item.DriverConfigJSON,
+		Resources:                  sandboxruntime.Resources{CPUCores: item.Resources.CPUCores, MemoryBytes: item.Resources.MemoryBytes, PIDs: item.Resources.PIDs, GPU: item.Resources.GPU, GPUCount: item.Resources.GPUCount},
 		Network: sandboxruntime.Network{
 			GatewayURL: item.Network.GatewayURL, ExtraHosts: append([]string(nil), item.Network.ExtraHosts...),
 			PortPublish: portPublishes(item.Network.PortPublish),
