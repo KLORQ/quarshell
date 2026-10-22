@@ -8,6 +8,21 @@
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 
+## VM parity: остаток по строкам
+
+| Строка | Уже проверено | Что ещё нужно для полного parity |
+|---|---|---|
+| `vm.exec-pty-signals` | PTY resize/interrupt, non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup | Перенести полный upstream `BoundaryProcess` attach/wait/signal/terminate контракт и проверить его через Gateway |
+| `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; authenticated Gateway relay tests | Совместить с upstream host-supervisor spawn/ownership lifecycle и переживающим reconnect процессным attachment |
+| `vm.service-forward` | CLI Gateway forwarding и loopback target validation; VM direct/relay TCP live probes | Перенести backend-owned `RunningBoundary.loopback_connector`/service lifecycle semantics end to end |
+| `vm.file-transfer` | Live VM single-file CopyTo/CopyFrom; CLI Gateway archive/path-safety tests; source symlink/size hardening | Полный directory/archive upload/download round-trip по live VM + Gateway CLI stream |
+| `vm.logs-watch` | Driver snapshots/state polling и Gateway replay/cursor unit tests | Живой Gateway-composition WatchSandbox acceptance; durable event behavior между подписками/репликами |
+| `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary handles: agent process, exec sessions, loopback connector, stable signal/exit semantics |
+| `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing and Gateway create/start/stop/restart smoke | Host-side supervisor process bootstrap, exact lifecycle replay and durable session-rotation/replay lineage |
+| `vm.authenticated-vsock` | Per-sandbox control bearer, peer nonce replay protection, mTLS control bridge and live HVF credential exchange | Upstream vsock listener/client identity contract across credential rotation and reconnect |
+| `vm.gpu-vfio-inventory-allocation` | Unsupported capability is rejected before VM side effects | Physical GPU/VFIO host required |
+| `vm.gpu-vfio-crash-recovery` | Explicitly unsupported; no claim of allocation/recovery parity | Physical GPU/VFIO host and device recovery tests required |
+
 ## Что уже зелёное
 
 - Policy: conformance 71/71, differential 71/71, parser/validation/evaluator.
