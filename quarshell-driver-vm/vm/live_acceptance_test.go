@@ -89,7 +89,13 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	defer cancel()
 	forwardEchoHelper := buildLiveForwardEchoHelper(t, ctx)
 	proxyHTTPProbe := buildLiveProxyHTTPProbe(t, ctx)
+	proxyHTTPSProbe := proxyHTTPProbe
 	upstreamRequests := make(chan string, 8)
+	tlsWorkload := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "local-upstream-ok")
+	}))
+	defer tlsWorkload.Close()
 	upstreamProxy := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodConnect {
 			select {
@@ -111,6 +117,12 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 			return
 		}
 		defer connection.Close()
+		target, err := net.DialTimeout("tcp", tlsWorkload.Listener.Addr().String(), 2*time.Second)
+		if err != nil {
+			t.Errorf("dial local TLS workload: %v", err)
+			return
+		}
+		defer target.Close()
 		if _, err := buffered.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
 			t.Errorf("accept local upstream CONNECT: %v", err)
 			return
@@ -123,18 +135,11 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		case upstreamRequests <- request.Host:
 		default:
 		}
-		for {
-			line, readErr := buffered.ReadString('\n')
-			if readErr != nil {
-				t.Errorf("read tunneled guest request: %v", readErr)
-				return
-			}
-			if line == "\r\n" {
-				break
-			}
-		}
-		_, _ = buffered.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\nlocal-upstream-ok")
-		_ = buffered.Flush()
+		copyDone := make(chan struct{}, 1)
+		go func() { _, _ = io.Copy(target, buffered); _ = target.Close(); copyDone <- struct{}{} }()
+		_, _ = io.Copy(connection, target)
+		_ = connection.Close()
+		<-copyDone
 	}))
 	defer upstreamProxy.Close()
 	proxyBinary, err := os.Executable()
@@ -156,6 +161,8 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	upstreamCA := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstreamProxy.Certificate().Raw})
 	proxyCABundle = append(proxyCABundle, upstreamCA...)
+	workloadCA := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsWorkload.Certificate().Raw})
+	proxyCABundle = append(proxyCABundle, workloadCA...)
 	if err := os.WriteFile(proxyCAPath, proxyCABundle, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -168,6 +175,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 			"HTTP_PROXY=" + upstreamProxy.URL,
 			"HTTPS_PROXY=" + upstreamProxy.URL,
 			"CAUTEM_PROXY_CA_BUNDLE=" + proxyCAPath,
+			"CAUTEM_EGRESS_CA_BUNDLE=" + proxyCAPath,
 			"CAUTEM_VM_TEST_POLICY_PROXY_HELPER=1",
 			"CAUTEM_VM_TEST_BROKER_PID_FILE=" + brokerPIDPath,
 			"CAUTEM_VM_TEST_POLICY_ACK_FILE=" + policyAckPath,
@@ -224,7 +232,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	assertLiveHostLoopbackIsolation(t, ctx, first, handle.ID, "tcp6", "::1")
 	assertLiveGuestNetworkBoundaries(t, ctx, first, handle.ID, securityProbe)
 	assertLiveNetworkBroker(t, ctx, first, handle.ID, "policy-probe.invalid", proxyHTTPProbe)
-	assertLivePolicyRevisionUpdate(t, ctx, first, handle.ID, policyPath, policyAckPath, proxyHTTPProbe, upstreamProxy.URL, upstreamRequests)
+	assertLivePolicyRevisionUpdate(t, ctx, first, handle.ID, policyPath, policyAckPath, proxyHTTPSProbe, upstreamProxy.URL, upstreamRequests)
 	assertLiveGuestExec(t, ctx, first, handle.ID)
 	assertLiveGuestCopy(t, ctx, first, handle.ID)
 	assertLiveSupervisorReady(t, ctx, controlEventsPath)
@@ -990,6 +998,7 @@ func buildLiveProxyHTTPProbe(t *testing.T, ctx context.Context) string {
 	program := `package main
 import (
   "context"
+  "crypto/tls"
   "fmt"
   "io"
   "net/http"
@@ -997,11 +1006,12 @@ import (
   "time"
 )
 func main() {
-  if len(os.Args) != 2 { fmt.Fprintln(os.Stderr, "usage: proxy-http-probe HOST"); os.Exit(2) }
+  scheme, host := "http", ""
+  if len(os.Args) == 2 { host = os.Args[1] } else if len(os.Args) == 3 { scheme, host = os.Args[1], os.Args[2] } else { fmt.Fprintln(os.Stderr, "usage: proxy-http-probe [SCHEME] HOST"); os.Exit(2) }
   ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second); defer cancel()
-  req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+os.Args[1]+"/", nil)
+  req, err := http.NewRequestWithContext(ctx, http.MethodGet, scheme+"://"+host+"/", nil)
   if err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(2) }
-  response, err := (&http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}}).Do(req)
+  response, err := (&http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}).Do(req)
   if err != nil { fmt.Fprintln(os.Stderr, err); os.Exit(1) }
   defer response.Body.Close()
   _, _ = io.Copy(io.Discard, response.Body)
@@ -1020,11 +1030,16 @@ func main() {
 
 func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *Driver, id core.ID, policyPath, ackPath, probePath, upstreamProxyURL string, upstreamRequests <-chan string) {
 	t.Helper()
+	if err := sandbox.CopyTo(ctx, id, probePath, "/sandbox/proxy-https-probe"); err != nil {
+		t.Fatalf("copy live HTTPS proxy probe into guest: %v", err)
+	}
 	if !strings.HasPrefix(upstreamProxyURL, "https://") {
 		t.Fatalf("local upstream proxy URL must use HTTPS, got %q", upstreamProxyURL)
 	}
-	probeHost := "policy-probe.invalid"
-	policyDocument := []byte(fmt.Sprintf("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: %s\n        port: 80\n", probeHost))
+	// httptest's stable local certificate includes example.com; the test HTTPS
+	// proxy tunnels that host to its local TLS server rather than the internet.
+	probeHost := "example.com"
+	policyDocument := []byte(fmt.Sprintf("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: %s\n        port: 443\n", probeHost))
 	updatedPath := policyPath + ".next"
 	if err := os.WriteFile(updatedPath, policyDocument, 0o600); err != nil {
 		t.Fatalf("write next live policy revision: %v", err)
@@ -1035,7 +1050,7 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 	waitForLivePolicyAck(t, ctx, ackPath, 2)
 	t.Log("live policy broker acknowledged revision 2")
 
-	allowed, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", probeHost}})
+	allowed, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-https-probe", "https", probeHost}})
 	if err != nil {
 		t.Fatalf("request through newly allowed live policy endpoint: %v", err)
 	}
@@ -1046,7 +1061,7 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 	select {
 	case requestURL := <-upstreamRequests:
 		upstreamHost, upstreamPort, splitErr := net.SplitHostPort(requestURL)
-		if splitErr != nil || upstreamPort != "80" || (upstreamHost != probeHost && net.ParseIP(upstreamHost) == nil) {
+		if splitErr != nil || upstreamPort != "443" || (upstreamHost != probeHost && net.ParseIP(upstreamHost) == nil) {
 			t.Fatalf("allowed egress reached unexpected upstream CONNECT target %q", requestURL)
 		}
 	case <-time.After(3 * time.Second):
@@ -1061,12 +1076,12 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 		t.Fatalf("atomically publish policy revocation revision: %v", err)
 	}
 	waitForLivePolicyAck(t, ctx, ackPath, 3)
-	revoked, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", probeHost}})
+	revoked, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-https-probe", "https", probeHost}})
 	if err != nil {
 		t.Fatalf("request through revoked live policy endpoint: %v", err)
 	}
 	revokedOutput := string(revoked.Stdout) + string(revoked.Stderr)
-	if revoked.ExitCode != 0 || !strings.Contains(revokedOutput, "HTTP 403") {
+	if revoked.ExitCode == 0 || !strings.Contains(revokedOutput, "Forbidden") {
 		t.Fatalf("revision 3 did not revoke the working upstream endpoint: exit=%d stdout=%q stderr=%q", revoked.ExitCode, revoked.Stdout, revoked.Stderr)
 	}
 	t.Log("live policy revision 3 revoked the previously allowed endpoint")

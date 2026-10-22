@@ -878,6 +878,42 @@ implemented, 22 partial, and 2 hardware-specific unsupported.
 Concurrent SQLite cursor epoch initialization passed with eight callers under
 `-race`; all instances observed the same durable cursor namespace.
 
+## VM state watch across processes
+
+At 2026-10-22 20:15 Europe/Samara, VM per-sandbox platform-event watches and
+driver-wide sandbox watches were extended to poll the persisted state directory
+in addition to receiving immediate local notifications. A second process using
+the same state directory is now observed without a local in-memory publisher;
+updates and deletions are covered by direct-file-write regression tests. The
+poll intervals are 250 ms and 1 second respectively, so short intermediate
+states can coalesce and the feed still does not offer durable event replay.
+Focused VM watch tests passed under `-race`.
+
+`task vm:live-darwin` passed on Apple Silicon/HVF at 20:15 (26.21 s). It
+observed `created`, `running`, and `stopped`, verified denied raw ICMP and
+unmapped vsock, allowed a guest request through the trusted HTTPS CONNECT
+upstream after policy revision 2 (HTTP 200), revoked it after revision 3
+(HTTP 403), recovered and restarted workers, pinned OCI image content, and
+completed Gateway credential and process-event acceptance. This live test
+does not exercise the Gateway `WatchSandbox` composition bridge. The pinned VM
+parity inventory remains 6 implemented, 22 partial, and 2 hardware-specific
+GPU/VFIO unsupported.
+
+## Live TLS workload egress over HTTPS CONNECT
+
+At 2026-10-22 20:22 Europe/Samara, `task vm:live-darwin` passed again
+(`TestLiveMicroVMLifecycle`, 23.92 s) with the policy egress probe upgraded
+from HTTP to an actual HTTPS workload request. The local HTTPS upstream proxy
+now establishes CONNECT and tunnels bytes to a local TLS workload server;
+the host policy proxy trusts the fixture certificates through its configured
+egress CA bundle. Revision 2 allowed `example.com:443`, and the guest received
+HTTP 200 over TLS. Revision 3 denied the CONNECT (`Forbidden`) before it reached
+the TLS workload. The rest of the live VM, recovery, OCI pinning, and Gateway
+credential/process-event flow also passed. This supplies live TLS workload
+egress evidence, while the broader upstream corporate-proxy parity remains
+partial (credentialed proxy auth, `no_proxy` bypass and the full upstream
+fixture matrix are not covered by this test).
+
 ## Working upstream proxy in live HVF acceptance
 
 At 2026-10-22 20:07 Europe/Samara, `task vm:live-darwin` passed on Apple
