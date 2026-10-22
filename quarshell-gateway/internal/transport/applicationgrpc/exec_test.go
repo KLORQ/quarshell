@@ -30,6 +30,13 @@ type execTestRuntime struct {
 	terminal        driver.ExecTerminalSession
 }
 
+type execTimeoutRuntime struct{ execTestRuntime }
+
+func (r *execTimeoutRuntime) Exec(ctx context.Context, _ sandboxruntime.Sandbox, _ driver.ExecRequest) (driver.ExecResult, error) {
+	<-ctx.Done()
+	return driver.ExecResult{}, ctx.Err()
+}
+
 func (*execTestRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
 	return "", nil
 }
@@ -87,6 +94,27 @@ func TestExecSandboxRPC(t *testing.T) {
 	}
 	if len(stream.events) != 3 || string(stream.events[0].GetStdout().GetData()) != "out" || string(stream.events[1].GetStderr().GetData()) != "err" || stream.events[2].GetExit().GetExitCode() != 7 {
 		t.Fatalf("events = %+v", stream.events)
+	}
+}
+
+func TestExecSandboxExecutionTimeoutCancelsRuntime(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandbox.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := sandboxes.Create(ctx, sandbox.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "busybox"}); err != nil {
+		t.Fatal(err)
+	}
+	sandboxes.Runtime = &execTimeoutRuntime{}
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	err = server.ExecSandbox(&gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: selector, Sandbox: "sb", Command: []string{"sleep", "forever"},
+		ExecutionTimeout: durationpb.New(20 * time.Millisecond),
+	}, &execTestStream{ctx: ctx})
+	if status.Code(err) != codes.DeadlineExceeded {
+		t.Fatalf("ExecSandbox timeout status = %v, want DeadlineExceeded", err)
 	}
 }
 

@@ -146,9 +146,9 @@
       "id": "vm.gateway-exec-timeout",
       "upstream": "crates/openshell-cli/tests/sandbox_exec_streaming_integration.rs",
       "cautem": "quarshell-gateway/internal/transport/applicationgrpc/exec.go;quarshell-driver-vm/vm/terminal.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
-        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go",
+        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxExecutionTimeoutCancelsRuntime",
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveGuestExec"
       ]
     },

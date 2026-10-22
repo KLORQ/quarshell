@@ -1,5 +1,19 @@
 # VM Hypervisor.framework local acceptance
 
+## Gateway exec timeout propagation
+
+- Reverified: 2026-10-22
+- Command: `go test ./internal/transport/applicationgrpc -run
+  'TestExecSandbox(ExecutionTimeoutCancelsRuntime|RPC)$' -count=1` in
+  `quarshell-gateway`
+- Result: PASS
+
+The test runs a runtime exec that waits on its context and confirms a positive
+Gateway `execution_timeout` cancels the runtime and returns gRPC
+`DeadlineExceeded`. The live HVF test separately verifies that the guest
+process is terminated after its exec context expires. Inventory: 18
+implemented, 10 partial, and 2 unsupported for physical GPU/VFIO.
+
 ## Docker local OCI image export acceptance
 
 - Reverified: 2026-10-22 21:37 Europe/Samara
@@ -13,7 +27,7 @@ reads legacy Docker archives and OCI layout archives, selects the matching
 platform manifest, and rejects unsafe archive paths and entry types. The live
 test imported `docker.io/library/alpine:3.22` for `linux/arm64`, prepared the
 VM rootfs image, and recovered its config by the same immutable image ID.
-Inventory: 17 implemented, 11 partial, and 2 unsupported for physical GPU/VFIO.
+Inventory: 18 implemented, 10 partial, and 2 unsupported for physical GPU/VFIO.
 
 ## Workload identity parity and full workspace retest
 
@@ -31,7 +45,7 @@ gate. Gateway persists the observed runtime UID/GID and exposes a
 conflicting policy selectors, durable identity persistence, and the gRPC
 condition. Live HVF acceptance verified identity `1000:1000` and that the
 persistent `/sandbox` owner remains `1000:1000` across stop/start. Inventory:
-17 implemented, 11 partial, and 2 unsupported for physical GPU/VFIO. Lifecycle
+18 implemented, 10 partial, and 2 unsupported for physical GPU/VFIO. Lifecycle
 extension parity is implemented across registration, activation labels,
 capability validation, launch configuration/hooks, restore hooks, failure
 cleanup and deletion; unit tests cover ordering, invalid requests, and cleanup,
