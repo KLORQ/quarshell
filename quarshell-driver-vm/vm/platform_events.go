@@ -2,9 +2,9 @@ package vm
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
+	"path/filepath"
+	"sync"
 	"time"
 
 	core "github.com/KLORQ/quarshell-core"
@@ -13,11 +13,22 @@ import (
 
 var _ driver.PlatformEventStream = (*Driver)(nil)
 
-const vmPlatformWatchInterval = 100 * time.Millisecond
+const vmPlatformWatchBuffer = 128
 
-// WatchPlatformEvents emits the current VM state immediately, then reports
-// persisted lifecycle changes and deletion. The VM state file is the source of
-// truth, so reconnects always begin with a fresh snapshot.
+type vmPlatformWatchKey struct {
+	stateRoot string
+	sandboxID string
+}
+
+var vmPlatformWatchers = struct {
+	sync.Mutex
+	next     uint64
+	watchers map[vmPlatformWatchKey]map[uint64]chan driver.PlatformEventResult
+}{watchers: make(map[vmPlatformWatchKey]map[uint64]chan driver.PlatformEventResult)}
+
+// WatchPlatformEvents sends a persisted-state snapshot, then lifecycle changes
+// published by the state store. The feed is process-local and best effort; it
+// does not provide durable replay or cross-process delivery.
 func (d *Driver) WatchPlatformEvents(ctx context.Context, request driver.PlatformEventWatchRequest) (<-chan driver.PlatformEventResult, error) {
 	if d == nil || ctx == nil {
 		return nil, fmt.Errorf("vm platform watch: driver and context are required")
@@ -29,44 +40,97 @@ func (d *Driver) WatchPlatformEvents(ctx context.Context, request driver.Platfor
 	if err != nil {
 		return nil, err
 	}
+	key := vmPlatformWatchKey{stateRoot: filepath.Clean(store.root), sandboxID: string(request.SandboxID)}
+	updates, unsubscribe := subscribeVMPlatformEvents(key)
 	state, err := store.load(string(request.SandboxID))
 	if err != nil {
+		unsubscribe()
 		return nil, err
 	}
 	results := make(chan driver.PlatformEventResult)
 	go func() {
 		defer close(results)
-		last := state
+		defer unsubscribe()
+		lastUpdate := state.UpdatedAt
+		lastStatus := state.Status
 		if !sendVMPlatformEvent(ctx, results, vmStateEvent(state, false)) {
 			return
 		}
-		ticker := time.NewTicker(vmPlatformWatchInterval)
-		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				latest, loadErr := store.load(string(request.SandboxID))
-				if loadErr != nil {
-					if isMissingState(loadErr) {
-						sendVMPlatformEvent(ctx, results, driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: request.SandboxID, Time: time.Now().UTC(), Source: "vm", Type: "deleted", Reason: "sandbox_deleted", Terminal: true}})
-						return
-					}
-					sendVMPlatformEvent(ctx, results, driver.PlatformEventResult{Err: fmt.Errorf("vm platform watch state: %w", loadErr)})
-					return
-				}
-				if latest.Status == last.Status && latest.UpdatedAt.Equal(last.UpdatedAt) {
+			case update := <-updates:
+				if update.Event.Type == "sandbox_state" && update.Event.Reason == lastStatus && !update.Event.Time.After(lastUpdate) {
 					continue
 				}
-				if !sendVMPlatformEvent(ctx, results, vmStateEvent(latest, latest.Status == "stopped" || latest.Status == "failed")) {
+				if !sendVMPlatformEvent(ctx, results, update) {
 					return
 				}
-				last = latest
+				if update.Event.Type == "sandbox_state" {
+					if update.Event.Time.After(lastUpdate) {
+						lastUpdate = update.Event.Time
+					}
+					lastStatus = update.Event.Reason
+				}
+				if update.Event.Type == "deleted" {
+					return
+				}
 			}
 		}
 	}()
 	return results, nil
+}
+
+func subscribeVMPlatformEvents(key vmPlatformWatchKey) (<-chan driver.PlatformEventResult, func()) {
+	vmPlatformWatchers.Lock()
+	vmPlatformWatchers.next++
+	id := vmPlatformWatchers.next
+	updates := make(chan driver.PlatformEventResult, vmPlatformWatchBuffer)
+	if vmPlatformWatchers.watchers[key] == nil {
+		vmPlatformWatchers.watchers[key] = make(map[uint64]chan driver.PlatformEventResult)
+	}
+	vmPlatformWatchers.watchers[key][id] = updates
+	vmPlatformWatchers.Unlock()
+	return updates, func() {
+		vmPlatformWatchers.Lock()
+		defer vmPlatformWatchers.Unlock()
+		delete(vmPlatformWatchers.watchers[key], id)
+		if len(vmPlatformWatchers.watchers[key]) == 0 {
+			delete(vmPlatformWatchers.watchers, key)
+		}
+	}
+}
+
+func publishVMPlatformState(stateRoot string, state sandboxState) {
+	publishVMPlatformEvent(vmPlatformWatchKey{stateRoot: filepath.Clean(stateRoot), sandboxID: state.ID}, vmStateEvent(state, state.Status == "stopped" || state.Status == "failed"))
+}
+
+func publishVMPlatformDeleted(stateRoot, sandboxID string) {
+	publishVMPlatformEvent(vmPlatformWatchKey{stateRoot: filepath.Clean(stateRoot), sandboxID: sandboxID}, driver.PlatformEventResult{Event: driver.PlatformEvent{
+		SandboxID: core.ID(sandboxID), Time: time.Now().UTC(), Source: "vm", Type: "deleted", Reason: "sandbox_deleted", Terminal: true,
+	}})
+}
+
+func publishVMPlatformEvent(key vmPlatformWatchKey, event driver.PlatformEventResult) {
+	vmPlatformWatchers.Lock()
+	defer vmPlatformWatchers.Unlock()
+	for _, updates := range vmPlatformWatchers.watchers[key] {
+		select {
+		case updates <- event:
+		default:
+			// Keep the newest state after a slow consumer falls behind, matching
+			// the upstream broadcast feed's lagged-receiver behavior.
+			select {
+			case <-updates:
+			default:
+			}
+			select {
+			case updates <- event:
+			default:
+			}
+		}
+	}
 }
 
 func vmStateEvent(state sandboxState, terminal bool) driver.PlatformEventResult {
@@ -83,8 +147,4 @@ func sendVMPlatformEvent(ctx context.Context, results chan<- driver.PlatformEven
 	case <-ctx.Done():
 		return false
 	}
-}
-
-func isMissingState(err error) bool {
-	return errors.Is(err, fs.ErrNotExist)
 }

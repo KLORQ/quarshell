@@ -445,6 +445,7 @@ func (s *stateStore) save(state sandboxState) error {
 	if err := directory.Sync(); err != nil {
 		return fmt.Errorf("sync VM state directory: %w", err)
 	}
+	publishVMPlatformState(s.root, state)
 	return nil
 }
 
@@ -542,6 +543,7 @@ func (s *stateStore) delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("remove VM state %q: %w", id, err)
 	}
+	publishVMPlatformDeleted(s.root, id)
 	return nil
 }
 

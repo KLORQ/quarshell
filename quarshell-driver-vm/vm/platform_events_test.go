@@ -54,6 +54,29 @@ func TestVMPlatformWatchSnapshotsLifecycleAndDeletion(t *testing.T) {
 	}
 }
 
+func TestVMPlatformWatchOverflowKeepsNewestEvent(t *testing.T) {
+	key := vmPlatformWatchKey{stateRoot: filepath.Join(t.TempDir(), "state"), sandboxID: "sandbox-overflow"}
+	updates, unsubscribe := subscribeVMPlatformEvents(key)
+	defer unsubscribe()
+	base := time.Unix(1_800_000_000, 0).UTC()
+	for i := range vmPlatformWatchBuffer + 1 {
+		publishVMPlatformState(key.stateRoot, sandboxState{
+			ID: key.sandboxID, Status: "running", UpdatedAt: base.Add(time.Duration(i) * time.Second),
+		})
+	}
+	first := <-updates
+	if want := base.Add(time.Second); !first.Event.Time.Equal(want) {
+		t.Fatalf("oldest retained event time=%s, want %s", first.Event.Time, want)
+	}
+	var last driver.PlatformEventResult
+	for range vmPlatformWatchBuffer - 1 {
+		last = <-updates
+	}
+	if want := base.Add(time.Duration(vmPlatformWatchBuffer) * time.Second); !last.Event.Time.Equal(want) {
+		t.Fatalf("newest retained event time=%s, want %s", last.Event.Time, want)
+	}
+}
+
 func receiveVMPlatformEvent(t *testing.T, stream <-chan driver.PlatformEventResult) driver.PlatformEventResult {
 	t.Helper()
 	select {

@@ -15,6 +15,8 @@ import (
 	dm "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type captureSandboxWatchStream struct {
@@ -193,7 +195,7 @@ func TestWatchSandboxStreamsVMPlatformEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := make(chan driver.PlatformEventResult, 1)
-	events <- driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: "sb", Time: time.Now(), Source: "vm", Type: "sandbox_state", Reason: "running", Message: "running", Metadata: map[string]string{"status": "running"}}}
+	events <- driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: "sb", Time: time.Now(), Source: "vm", Type: "sandbox_state", Reason: "stopped", Message: "stopped", Metadata: map[string]string{"status": "stopped"}, Terminal: true}}
 	sandboxes.Runtime = &watchPlatformRuntime{events: events}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -203,7 +205,7 @@ func TestWatchSandboxStreamsVMPlatformEvents(t *testing.T) {
 	go func() {
 		done <- server.WatchSandbox(&gatewayv1.WatchSandboxRequest{
 			WorkspaceScope: &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: "ws"}},
-			Sandbox:        "sb", FollowEvents: true,
+			Sandbox:        "sb", FollowEvents: true, StopOnTerminal: true,
 		}, stream)
 	}()
 	if event := <-stream.events; event.GetSandbox() == nil {
@@ -212,14 +214,25 @@ func TestWatchSandboxStreamsVMPlatformEvents(t *testing.T) {
 	select {
 	case event := <-stream.events:
 		platform := event.GetEvent()
-		if platform == nil || platform.GetSource() != "vm" || platform.GetReason() != "running" || platform.GetMetadata()["status"] != "running" {
+		if platform == nil || platform.GetSource() != "vm" || platform.GetReason() != "stopped" || platform.GetMetadata()["status"] != "stopped" {
 			t.Fatalf("platform event=%v", event)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for platform event")
 	}
+	if err := <-done; err != nil {
+		t.Fatalf("terminal watch stop error=%v", err)
+	}
 	cancel()
-	if err := <-done; !errors.Is(err, context.Canceled) {
-		t.Fatalf("watch stop error=%v", err)
+}
+
+func TestWatchSandboxRejectsUnimplementedCombinedEventResume(t *testing.T) {
+	server := New("test", nil, nil, nil, nil, nil, nil, nil)
+	stream := &captureSandboxWatchStream{ctx: context.Background(), events: make(chan *gatewayv1.SandboxStreamEvent, 1)}
+	err := server.WatchSandbox(&gatewayv1.WatchSandboxRequest{
+		Sandbox: "sb", FollowEvents: true, ResumeAfterCursor: "opaque-cursor",
+	}, stream)
+	if status.Code(err) != codes.Unimplemented {
+		t.Fatalf("combined event resume status=%v, want Unimplemented", err)
 	}
 }

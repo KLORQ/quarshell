@@ -769,18 +769,20 @@ authenticated sandbox generation and epoch by its handler.
 
 ## VM lifecycle events in WatchSandbox
 
-- VM `WatchPlatformEvents` sends an initial persisted-state event, polls the
-  VM state file every 100 ms, emits status changes, and emits a terminal
-  deletion event. The stream is context-cancelable and reports state read
-  failures without exposing filesystem paths in event text.
+- VM `WatchPlatformEvents` subscribes before loading its initial snapshot,
+  then receives lifecycle updates directly from successful persisted state
+  writes and deletions. It emits state changes and a terminal deletion event;
+  the stream is context-cancelable and its bounded process-local channel uses
+  best-effort overflow behavior like the pinned upstream broadcast feed.
 - The Gateway runtime adapter exposes the optional driver event stream.
   `WatchSandbox(FollowEvents)` now accepts event-only watches and forwards
   events after its initial sandbox snapshot; sandbox ID and `since_time` are
   checked. Focused VM watch and Gateway WatchSandbox event tests passed.
 - This closes the missing VM lifecycle event source and its basic Gateway
-  delivery path, but it is not durable event replay: polling may miss state
-  transitions shorter than 100 ms, `event_tail` is unsupported, and logs and
-  events do not share a resumable cursor or cross-replica fanout. The
+  delivery path, but it is not durable event replay: process restart, channel
+  overflow, and other Gateway/driver processes can lose events; `event_tail` is unsupported, and logs and
+  events do not share a resumable cursor or cross-replica fanout. The Gateway
+  rejects combined event resume rather than silently ignoring its cursor. The
   `vm.logs-watch` inventory row correctly remains partial.
 - After this change, `task vm:live-darwin` passed again on local Apple
   Silicon/HVF (`TestLiveMicroVMLifecycle`, 21.95s test time). Full workspace

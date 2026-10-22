@@ -30,6 +30,9 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 	if request.GetEventTail() > 0 {
 		return status.Error(codes.Unimplemented, "platform event replay is not configured")
 	}
+	if request.GetFollowEvents() && strings.TrimSpace(request.GetResumeAfterCursor()) != "" {
+		return status.Error(codes.Unimplemented, "combined platform event resume is not configured")
+	}
 	if !request.GetFollowLogs() && !request.GetFollowStatus() && !request.GetFollowEvents() {
 		return status.Error(codes.InvalidArgument, "follow_logs, follow_status, or follow_events is required")
 	}
@@ -52,7 +55,9 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 		if !ok {
 			return status.Error(codes.Unimplemented, "platform event watch is not configured for this backend")
 		}
-		platformEvents, err = watcher.WatchPlatformEvents(stream.Context(), sandboxruntime.Sandbox{Sandbox: current.Sandbox, RuntimeID: current.RuntimeID})
+		eventCtx, cancelEvents := context.WithCancel(stream.Context())
+		defer cancelEvents()
+		platformEvents, err = watcher.WatchPlatformEvents(eventCtx, sandboxruntime.Sandbox{Sandbox: current.Sandbox, RuntimeID: current.RuntimeID})
 		if err != nil {
 			return grpcError(err)
 		}
@@ -186,6 +191,9 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 			}
 			if err := stream.Send(&gatewayv1.SandboxStreamEvent{Payload: &gatewayv1.SandboxStreamEvent_Event{Event: platformEvent}}); err != nil {
 				return err
+			}
+			if request.GetStopOnTerminal() && result.Event.Terminal {
+				return nil
 			}
 		case <-ticker.C:
 			if !request.GetFollowStatus() && !request.GetStopOnTerminal() {
