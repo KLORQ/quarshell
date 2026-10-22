@@ -42,13 +42,33 @@ jobs:
             sudo chgrp "$(id -gn)" /dev/kvm
             sudo chmod 0660 /dev/kvm
           fi
-          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && [ "$(id -u)" -ne 0 ] && { [ -n "${OPENSHELL_VM_RUNTIME_DIR:-}" ] || ldconfig -p 2>/dev/null | grep -q 'libkrun\.so'; }; then
+          kvm_device=false
+          runtime_available=false
+          trust_lock_available=false
+          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && [ "$(id -u)" -ne 0 ]; then
+            kvm_device=true
+          fi
+          if { [ -n "${OPENSHELL_VM_RUNTIME_DIR:-}" ] && [ -s "$OPENSHELL_VM_RUNTIME_DIR/libkrun.so" ] && [ -s "$OPENSHELL_VM_RUNTIME_DIR/libkrunfw.so.5" ]; } || { ldconfig -p 2>/dev/null | grep -q 'libkrun\.so' && ldconfig -p 2>/dev/null | grep -q 'libkrunfw\.so\.5'; }; then
+            runtime_available=true
+          fi
+          if [ -n "${CAUTEM_VM_RUNTIME_TRUST_LOCK:-}" ] && [ -s "$CAUTEM_VM_RUNTIME_TRUST_LOCK" ]; then
+            trust_lock_available=true
+          fi
+          echo "kvm_device=$kvm_device" >> "$GITHUB_OUTPUT"
+          echo "runtime_available=$runtime_available" >> "$GITHUB_OUTPUT"
+          echo "trust_lock_available=$trust_lock_available" >> "$GITHUB_OUTPUT"
+          ls -l /dev/kvm 2>/dev/null || true
+          if [ "$kvm_device" = true ] && [ "$runtime_available" = true ] && [ "$trust_lock_available" = true ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
-            ls -l /dev/kvm
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::GitHub-hosted ubuntu-24.04 has no usable non-root /dev/kvm; live KVM acceptance remains unverified"
-            ls -l /dev/kvm 2>/dev/null || true
+            if [ "$kvm_device" != true ]; then
+              echo "::warning::GitHub-hosted ubuntu-24.04 has no usable non-root /dev/kvm; live KVM acceptance remains unverified"
+            elif [ "$runtime_available" != true ]; then
+              echo "::warning::GitHub-hosted ubuntu-24.04 exposes /dev/kvm, but no compatible libkrun runtime bundle is configured; live KVM acceptance remains unverified"
+            else
+              echo "::warning::GitHub-hosted ubuntu-24.04 exposes /dev/kvm and libkrun, but no approved runtime digest lock is configured; live KVM acceptance remains unverified"
+            fi
           fi
       - name: Run live KVM lifecycle acceptance
         if: steps.kvm.outputs.available == 'true'
