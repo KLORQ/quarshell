@@ -22,6 +22,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1551,7 +1552,90 @@ func assertLiveExecTerminal(t *testing.T, ctx context.Context, d *Driver, id cor
 	if err != nil || result.ExitCode != 0 || !bytes.Contains(result.Stdout, []byte("tty-exec-ok")) {
 		t.Fatalf("live guest TTY exec result = exit %d stdout %q err=%v", result.ExitCode, result.Stdout, err)
 	}
+	assertLiveExecTerminalReattach(t, ctx, d, id)
 	assertLivePTYInterrupt(t, ctx, d, id)
+}
+
+func assertLiveExecTerminalReattach(t *testing.T, ctx context.Context, d *Driver, id core.ID) {
+	t.Helper()
+	session, err := d.OpenExecTerminal(ctx, id, driver.ExecTerminalRequest{
+		Argv:         []string{"/bin/sh", "-c", "printf 'attach-ready\\n'; IFS= read -r line; printf 'received:%s' \"$line\""},
+		NoLoginShell: true, Columns: 80, Rows: 24,
+	})
+	if err != nil {
+		t.Fatalf("open live retained terminal: %v", err)
+	}
+	identity, ok := session.(driver.ExecTerminalSessionID)
+	if !ok || identity.SessionID() == "" {
+		t.Fatal("live terminal has no stable session ID")
+	}
+	firstOutput := bufio.NewReader(session)
+	var initial strings.Builder
+	for !strings.Contains(initial.String(), "attach-ready") {
+		line, readErr := firstOutput.ReadString('\n')
+		initial.WriteString(line)
+		if readErr != nil {
+			t.Fatalf("read initial retained terminal output %q: %v", initial.String(), readErr)
+		}
+		if initial.Len() > 4096 {
+			t.Fatalf("retained terminal did not produce readiness marker: %q", initial.String())
+		}
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("detach live retained terminal: %v", err)
+	}
+	var attached driver.ExecTerminalSession
+	for attempt := 0; attempt < 10; attempt++ {
+		attached, err = d.AttachExecTerminal(ctx, id, identity.SessionID())
+		if err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("reattach to live retained terminal: %v", err)
+	}
+	defer attached.Close()
+	if _, err := io.WriteString(attached, "reattached-input\n"); err != nil {
+		t.Fatalf("write to reattached terminal: %v", err)
+	}
+	output, err := io.ReadAll(attached)
+	if err != nil {
+		t.Fatalf("read reattached terminal output: %v", err)
+	}
+	code, err := attached.Wait(ctx)
+	if err != nil || code != 0 || !bytes.Contains(output, []byte("received:reattached-input")) {
+		t.Fatalf("reattached terminal result = exit %d output %q err=%v", code, output, err)
+	}
+
+	retained, err := d.OpenExecTerminal(ctx, id, driver.ExecTerminalRequest{
+		Argv: []string{"/bin/sleep", "30"}, NoLoginShell: true, Columns: 80, Rows: 24,
+	})
+	if err != nil {
+		t.Fatalf("open live terminal for detached termination: %v", err)
+	}
+	retainedID, ok := retained.(driver.ExecTerminalSessionID)
+	if !ok {
+		t.Fatal("live terminal has no stable ID for detached termination")
+	}
+	if err := retained.Close(); err != nil {
+		t.Fatalf("detach terminal before termination: %v", err)
+	}
+	if err := d.TerminateExecTerminal(ctx, id, retainedID.SessionID()); err != nil {
+		t.Fatalf("terminate detached live terminal: %v", err)
+	}
+	terminated, err := d.AttachExecTerminal(ctx, id, retainedID.SessionID())
+	if err != nil {
+		t.Fatalf("attach to terminated live terminal result: %v", err)
+	}
+	defer terminated.Close()
+	_, err = io.Copy(io.Discard, terminated)
+	if err != nil {
+		t.Fatalf("drain terminated live terminal: %v", err)
+	}
+	if code, err := terminated.Wait(ctx); err != nil || code != 128+int(syscall.SIGTERM) {
+		t.Fatalf("detached live terminal termination = exit %d err=%v", code, err)
+	}
 }
 
 func assertLivePTYInterrupt(t *testing.T, ctx context.Context, d *Driver, id core.ID) {

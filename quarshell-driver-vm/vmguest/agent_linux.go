@@ -80,7 +80,7 @@ func Run() error {
 	server := &controlServer{
 		uid: uid, gid: gid, token: token, proxyURL: proxyURL,
 		supervisorSocket: supervisorSocket, supervisorEnabled: relayConfig.supervisor,
-		sshEnabled: relayConfig.sshPort != 0,
+		sshEnabled: relayConfig.sshPort != 0, terminals: make(map[string]*retainedTerminal),
 	}
 	for {
 		connectionFD, _, err := unix.Accept4(fd, unix.SOCK_CLOEXEC)
@@ -146,6 +146,8 @@ type controlServer struct {
 	rotationID        string
 	sshMu             sync.Mutex
 	sshDaemon         *exec.Cmd
+	terminalMu        sync.Mutex
+	terminals         map[string]*retainedTerminal
 }
 
 const execOutputLimit = 8 << 20
@@ -195,13 +197,17 @@ func (s *controlServer) serve(connection net.Conn) {
 		_ = writeResponse(connection, Response{Error: "invalid request framing"})
 		return
 	}
-	if request.Operation == "exec-terminal" || request.Operation == "exec-stream" {
+	if request.Operation == "exec-terminal" || request.Operation == "attach-terminal" || request.Operation == "terminate-terminal" || request.Operation == "exec-stream" {
 		if err := s.validateRequest(request); err != nil {
 			_ = writeResponse(connection, Response{Error: err.Error()})
 			return
 		}
 		if request.Operation == "exec-terminal" {
 			s.execTerminal(connection, request)
+		} else if request.Operation == "attach-terminal" {
+			s.attachTerminal(connection, request.SessionID)
+		} else if request.Operation == "terminate-terminal" {
+			s.terminateTerminal(connection, request.SessionID)
 		} else {
 			s.execStream(connection, request)
 		}
@@ -866,6 +872,19 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 		_ = writeResponse(connection, Response{Error: "terminal dimensions must be between 1 and 65535"})
 		return
 	}
+	if request.SessionID != "" {
+		if len(request.SessionID) > 128 || strings.TrimSpace(request.SessionID) != request.SessionID {
+			_ = writeResponse(connection, Response{Error: "terminal session ID is invalid"})
+			return
+		}
+		s.terminalMu.Lock()
+		_, exists := s.terminals[request.SessionID]
+		s.terminalMu.Unlock()
+		if exists {
+			_ = writeResponse(connection, Response{Error: "terminal session ID already exists"})
+			return
+		}
+	}
 	shellArgv, err := guestShellCommand(request.Argv, request.NoLoginShell)
 	if err != nil {
 		_ = writeResponse(connection, Response{Error: err.Error()})
@@ -892,6 +911,28 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 	terminal, err := pty.StartWithSize(command, &pty.Winsize{Cols: uint16(request.Columns), Rows: uint16(request.Rows)})
 	if err != nil {
 		_ = writeResponse(connection, Response{Error: fmt.Sprintf("start guest PTY command: %v", err)})
+		return
+	}
+	if request.SessionID != "" {
+		s.terminalMu.Lock()
+		if _, exists := s.terminals[request.SessionID]; exists {
+			s.terminalMu.Unlock()
+			_ = terminal.Close()
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+			_ = command.Wait()
+			_ = writeResponse(connection, Response{Error: "terminal session ID already exists"})
+			return
+		}
+		process, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal)
+		s.terminalMu.Unlock()
+		if retainErr != nil {
+			_ = terminal.Close()
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+			_ = command.Wait()
+			_ = writeResponse(connection, Response{Error: retainErr.Error()})
+			return
+		}
+		process.attach(connection)
 		return
 	}
 	if err := writeResponse(connection, Response{PID: command.Process.Pid}); err != nil {

@@ -3,6 +3,8 @@ package vm
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +39,13 @@ func (d *Driver) OpenExecTerminal(ctx context.Context, id core.ID, request drive
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if request.SessionID == "" {
+		sessionID, idErr := newTerminalSessionID()
+		if idErr != nil {
+			return nil, idErr
+		}
+		request.SessionID = sessionID
 	}
 	store, err := openStateStore(d.host.StateDir)
 	if err != nil {
@@ -81,12 +90,12 @@ func (d *Driver) OpenExecTerminal(ctx context.Context, id core.ID, request drive
 	connection, err := d.openControlStream(ctx, state.ID, guestSocket, controlRequest{
 		Operation: "exec-terminal", Argv: append([]string(nil), request.Argv...), Env: env,
 		WorkDir: workdir, User: launchSpec.User, NoLoginShell: request.NoLoginShell,
-		Columns: columns, Rows: rows,
+		Columns: columns, Rows: rows, SessionID: request.SessionID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	session := newVMExecTerminalSession(connection)
+	session := newVMExecTerminalSession(connection, request.SessionID)
 	go func() {
 		select {
 		case <-ctx.Done():
@@ -95,6 +104,78 @@ func (d *Driver) OpenExecTerminal(ctx context.Context, id core.ID, request drive
 		}
 	}()
 	return session, nil
+}
+
+// AttachExecTerminal reconnects to a retained guest PTY process after its
+// previous control stream disconnected.
+func (d *Driver) AttachExecTerminal(ctx context.Context, id core.ID, sessionID string) (driver.ExecTerminalSession, error) {
+	if d == nil || ctx == nil || strings.TrimSpace(sessionID) == "" {
+		return nil, fmt.Errorf("vm driver: AttachExecTerminal requires a driver, context, and session ID")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	store, err := openStateStore(d.host.StateDir)
+	if err != nil {
+		return nil, err
+	}
+	state, err := store.load(string(id))
+	if err != nil {
+		return nil, err
+	}
+	if state.Status != "running" {
+		return nil, fmt.Errorf("vm terminal attach: sandbox %q is %s", state.Name, state.Status)
+	}
+	_, guestSocket, _ := workerSocketPaths(store.root, state.ID)
+	connection, err := d.openControlStream(ctx, state.ID, guestSocket, controlRequest{Operation: "attach-terminal", SessionID: sessionID})
+	if err != nil {
+		return nil, err
+	}
+	session := newVMExecTerminalSession(connection, sessionID)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = session.Close()
+		case <-session.done:
+		}
+	}()
+	return session, nil
+}
+
+// TerminateExecTerminal stops a retained PTY process by session ID even when
+// no terminal stream is currently attached.
+func (d *Driver) TerminateExecTerminal(ctx context.Context, id core.ID, sessionID string) error {
+	if d == nil || ctx == nil || strings.TrimSpace(sessionID) == "" {
+		return fmt.Errorf("vm driver: TerminateExecTerminal requires a driver, context, and session ID")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	store, err := openStateStore(d.host.StateDir)
+	if err != nil {
+		return err
+	}
+	state, err := store.load(string(id))
+	if err != nil {
+		return err
+	}
+	if state.Status != "running" {
+		return fmt.Errorf("vm terminal terminate: sandbox %q is %s", state.Name, state.Status)
+	}
+	_, guestSocket, _ := workerSocketPaths(store.root, state.ID)
+	connection, err := d.openControlStream(ctx, state.ID, guestSocket, controlRequest{Operation: "terminate-terminal", SessionID: sessionID})
+	if err != nil {
+		return err
+	}
+	return connection.Close()
+}
+
+func newTerminalSessionID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", fmt.Errorf("generate VM terminal session ID: %w", err)
+	}
+	return hex.EncodeToString(raw[:]), nil
 }
 
 func (d *Driver) execWithTerminal(ctx context.Context, id core.ID, request driver.ExecRequest) (driver.ExecResult, error) {
@@ -263,6 +344,7 @@ func writeControlStreamRequest(ctx context.Context, socket string, request contr
 
 type vmExecTerminalSession struct {
 	connection net.Conn
+	sessionID  string
 	output     *io.PipeReader
 	outputSink *io.PipeWriter
 	done       chan struct{}
@@ -273,14 +355,16 @@ type vmExecTerminalSession struct {
 	closeOnce  sync.Once
 }
 
-func newVMExecTerminalSession(connection net.Conn) *vmExecTerminalSession {
+func newVMExecTerminalSession(connection net.Conn, sessionID string) *vmExecTerminalSession {
 	reader, writer := io.Pipe()
 	session := &vmExecTerminalSession{
-		connection: connection, output: reader, outputSink: writer, done: make(chan struct{}),
+		connection: connection, sessionID: sessionID, output: reader, outputSink: writer, done: make(chan struct{}),
 	}
 	go session.readFrames()
 	return session
 }
+
+func (session *vmExecTerminalSession) SessionID() string { return session.sessionID }
 
 func (session *vmExecTerminalSession) Read(payload []byte) (int, error) {
 	return session.output.Read(payload)

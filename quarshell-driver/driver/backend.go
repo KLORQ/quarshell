@@ -237,6 +237,7 @@ type ExecTerminalRequest struct {
 	Argv         []string
 	Env          []string
 	WorkDir      string
+	SessionID    string
 	NoLoginShell bool
 	Columns      uint32
 	Rows         uint32
@@ -254,6 +255,24 @@ type ExecTerminalSession interface {
 // sessions. Backends advertise CapabilityExecTerminal only when implemented.
 type ExecTerminal interface {
 	OpenExecTerminal(context.Context, core.ID, ExecTerminalRequest) (ExecTerminalSession, error)
+}
+
+// ExecTerminalAttach optionally reconnects to a still running terminal process
+// by its stable session ID. The returned session streams the same process.
+type ExecTerminalAttach interface {
+	AttachExecTerminal(context.Context, core.ID, string) (ExecTerminalSession, error)
+}
+
+// ExecTerminalSessionID exposes the stable identifier needed to reattach after
+// a transport disconnect.
+type ExecTerminalSessionID interface {
+	SessionID() string
+}
+
+// ExecTerminalTerminator terminates a retained PTY process by its stable ID,
+// including while no stream is attached.
+type ExecTerminalTerminator interface {
+	TerminateExecTerminal(context.Context, core.ID, string) error
 }
 
 // ExecStreamOutput is one event from a non-TTY interactive process. Exited is

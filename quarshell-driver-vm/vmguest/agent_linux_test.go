@@ -932,6 +932,164 @@ func TestGuestInteractiveExecForwardsTerminalInterrupt(t *testing.T) {
 	}
 }
 
+func TestGuestRetainedTerminalCanReattachAfterTransportLoss(t *testing.T) {
+	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("e", 64)}
+	const sessionID = "retained-terminal-test"
+	firstGuest, firstHost := net.Pipe()
+	go server.serve(firstGuest)
+	request, _ := json.Marshal(Request{
+		Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-terminal", SessionID: sessionID,
+		Argv:    []string{"/bin/sh", "-c", "printf ready; IFS= read -r line; printf 'received:%s' \"$line\""},
+		WorkDir: t.TempDir(), NoLoginShell: true, Columns: 80, Rows: 24,
+	})
+	if err := WriteFrame(firstHost, request); err != nil {
+		t.Fatal(err)
+	}
+	var handshake Response
+	payload, err := ReadFrame(firstHost)
+	if err != nil || json.Unmarshal(payload, &handshake) != nil || handshake.Error != "" || handshake.SessionID != sessionID {
+		t.Fatalf("initial terminal handshake = %+v, err=%v", handshake, err)
+	}
+	var ready strings.Builder
+	for !strings.Contains(ready.String(), "ready") {
+		payload, err = ReadFrame(firstHost)
+		if err != nil {
+			t.Fatalf("read initial output: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			t.Fatal(err)
+		}
+		if frame.Type == "output" {
+			ready.Write(frame.Data)
+		}
+	}
+	_ = firstHost.Close()
+	deadline := time.Now().Add(time.Second)
+	for {
+		server.terminalMu.Lock()
+		process := server.terminals[sessionID]
+		server.terminalMu.Unlock()
+		if process == nil {
+			t.Fatal("retained terminal was not registered")
+		}
+		process.mu.Lock()
+		detached := process.connection == nil
+		process.mu.Unlock()
+		if detached {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("terminal did not detach after transport loss")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	secondGuest, secondHost := net.Pipe()
+	defer secondHost.Close()
+	go server.serve(secondGuest)
+	attach, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "attach-terminal", SessionID: sessionID})
+	if err := WriteFrame(secondHost, attach); err != nil {
+		t.Fatal(err)
+	}
+	payload, err = ReadFrame(secondHost)
+	if err != nil || json.Unmarshal(payload, &handshake) != nil || handshake.Error != "" || handshake.SessionID != sessionID {
+		t.Fatalf("reattach handshake = %+v, err=%v", handshake, err)
+	}
+	input, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("reattached\n")})
+	if err := WriteFrame(secondHost, input); err != nil {
+		t.Fatal(err)
+	}
+	var output strings.Builder
+	for {
+		payload, err = ReadFrame(secondHost)
+		if err != nil {
+			t.Fatalf("read reattached output: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			t.Fatal(err)
+		}
+		switch frame.Type {
+		case "output":
+			output.Write(frame.Data)
+		case "exit":
+			if frame.ExitCode != 0 || !strings.Contains(output.String(), "received:reattached") {
+				t.Fatalf("reattached terminal result = exit %d, output %q", frame.ExitCode, output.String())
+			}
+			return
+		}
+	}
+}
+
+func TestGuestRetainedTerminalCanBeTerminatedWhileDetached(t *testing.T) {
+	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("f", 64)}
+	const sessionID = "detached-terminal-terminate-test"
+	guest, host := net.Pipe()
+	go server.serve(guest)
+	request, _ := json.Marshal(Request{
+		Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-terminal", SessionID: sessionID,
+		Argv: []string{"/bin/sleep", "30"}, WorkDir: t.TempDir(), NoLoginShell: true, Columns: 80, Rows: 24,
+	})
+	if err := WriteFrame(host, request); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := ReadFrame(host)
+	var handshake Response
+	if err != nil || json.Unmarshal(payload, &handshake) != nil || handshake.Error != "" {
+		t.Fatalf("terminal handshake = %+v, err=%v", handshake, err)
+	}
+	_ = host.Close()
+	deadline := time.Now().Add(time.Second)
+	var process *retainedTerminal
+	for {
+		server.terminalMu.Lock()
+		process = server.terminals[sessionID]
+		server.terminalMu.Unlock()
+		if process == nil {
+			t.Fatal("retained terminal was not registered")
+		}
+		process.mu.Lock()
+		detached := process.connection == nil
+		process.mu.Unlock()
+		if detached {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("terminal did not detach after transport loss")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	terminateGuest, terminateHost := net.Pipe()
+	defer terminateHost.Close()
+	go server.serve(terminateGuest)
+	terminate, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "terminate-terminal", SessionID: sessionID})
+	if err := WriteFrame(terminateHost, terminate); err != nil {
+		t.Fatal(err)
+	}
+	payload, err = ReadFrame(terminateHost)
+	var result Response
+	if err != nil || json.Unmarshal(payload, &result) != nil || result.Error != "" || result.SessionID != sessionID {
+		t.Fatalf("detached process terminate result = %+v, err=%v", result, err)
+	}
+	deadline = time.Now().Add(time.Second)
+	for {
+		process.mu.Lock()
+		finished, code := process.finished, process.exitCode
+		process.mu.Unlock()
+		if finished {
+			if code != 128+int(syscall.SIGTERM) {
+				t.Fatalf("terminated process exit code = %d, want %d", code, 128+int(syscall.SIGTERM))
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("detached process did not exit after terminate request")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func TestGuestTerminalSignalAllowlist(t *testing.T) {
 	for name, want := range map[string]syscall.Signal{
 		"terminate": syscall.SIGTERM,

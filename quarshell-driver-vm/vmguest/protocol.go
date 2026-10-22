@@ -28,6 +28,7 @@ type Request struct {
 	NoLoginShell  bool     `json:"no_login_shell,omitempty"`
 	Columns       uint32   `json:"columns,omitempty"`
 	Rows          uint32   `json:"rows,omitempty"`
+	SessionID     string   `json:"session_id,omitempty"`
 	Path          string   `json:"path,omitempty"`
 	Mode          uint32   `json:"mode,omitempty"`
 	Data          []byte   `json:"data,omitempty"`
@@ -42,6 +43,7 @@ type Response struct {
 	Data            []byte `json:"data,omitempty"`
 	OutputTruncated bool   `json:"output_truncated,omitempty"`
 	PID             int    `json:"pid,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
 	WorkloadUID     uint32 `json:"workload_uid,omitempty"`
 	WorkloadGID     uint32 `json:"workload_gid,omitempty"`
 }

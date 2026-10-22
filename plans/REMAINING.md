@@ -12,7 +12,7 @@
 
 | Строка | Уже проверено | Что ещё нужно для полного parity |
 |---|---|---|
-| `vm.exec-pty-signals` | Gateway-level live PTY Ctrl+C trap/exit acceptance; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup; SSH process wait returns one stable exit code to concurrent/repeated callers | Перенести полный upstream `BoundaryProcess` retained handle/attach/terminate contract |
+| `vm.exec-pty-signals` | Gateway-level live PTY Ctrl+C trap/exit acceptance; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; SSH process wait returns one stable exit code to concurrent/repeated callers; VM PTY stable session ID, same-process reattach after transport loss, detached terminate, bounded output, and 15-minute terminal-result retention, covered by guest tests and live HVF | Завершить upstream `BoundaryProcess` lifecycle/attachment semantics для supervisor-owned main process, Gateway-facing session-ID reconnect contract и согласовать retention/ownership model |
 | `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; Gateway relay; durable owner lease/UUID survives Gateway reopen, conflicting instance rejected, higher epoch reconnect accepted | Совместить с upstream host-supervisor process ownership и attachment того же процесса после reconnect |
 | `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary retained handles for the agent process and exec sessions, with stable signal/exit semantics |
 | `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing, Gateway create/start/stop/restart smoke, durable 45-second supervisor owner/session UUID record, higher-epoch reconnect and replay rejection across SQLite Gateway reopen | Host-side supervisor process bootstrap and exact upstream replica/session lifecycle replay semantics |
@@ -20,6 +20,8 @@
 | `vm.gpu-vfio-crash-recovery` | Explicitly unsupported; no claim of allocation/recovery parity | Physical GPU/VFIO host and device recovery tests required |
 
 ## Что уже зелёное
+
+- VM PTY retained-process continuation: `ExecTerminalSessionID` exposes a stable session ID and `ExecTerminalAttach` reconnects to the same guest PID after the original control stream closes. Detached output is capped at 256 KiB, completed session state expires after 15 minutes, and the guest holds at most 256 retained PTY sessions. Linux ARM64 guest-agent suite and Apple Silicon/HVF live acceptance both pass; see [VM retained PTY evidence](evidence/runs/vm-hvf-local-2026-10-22.md).
 
 - Policy: conformance 71/71, differential 71/71, parser/validation/evaluator.
 - Gateway: lifecycle stores (memory/Postgres/SQLite), use cases, HTTP API, gRPC surface для workspace/sandbox/policy chunks/templates/settings/providers/services.

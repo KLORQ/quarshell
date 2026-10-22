@@ -1246,3 +1246,10 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - Product code includes the durable Gateway supervisor owner lease/session UUID.
 - `task vm:live-darwin`: PASS on Apple Silicon/HVF. `TestLiveMicroVMLifecycle` (23.35 s), `TestLiveLocalOCIEngineImport` (1.12 s), and `TestLiveVMWatchSandboxComposition` (12.11 s) passed.
 - The Gateway composition exercised the real VM through lifecycle watch, Gateway PTY Ctrl+C/trap/exit, and built CLI archive transfer. Gateway sandbox/runtime/relay package tests separately passed against the SQLite lease/replay implementation.
+
+# Retained VM PTY process reattach and detached terminate (2026-10-23 00:48 Europe/Samara)
+
+- `task vm:live-darwin`: PASS on Apple Silicon/HVF. `TestLiveMicroVMLifecycle` (22.61 s), `TestLiveLocalOCIEngineImport` (1.13 s), and Gateway `TestLiveVMWatchSandboxComposition` (9.81 s) passed.
+- The live lifecycle starts a PTY command, reads its readiness marker, closes the first host-to-guest control stream, reconnects by stable session ID, sends input, and verifies the same process returns its output and exit status. A second process is detached, terminated by session ID without an attached PTY, then reattached to verify stable exit status 143.
+- `GOOS=linux GOARCH=arm64 go test -c ./vmguest` followed by the complete `vmguest` test binary in `alpine:3.22` on the local Linux ARM64 container: PASS. This includes retained-session reattach and detached-termination coverage.
+- The VM driver now exposes optional session-ID and attach contracts. The guest buffers at most 256 KiB of detached PTY output, retains completed sessions for 15 minutes, and caps retained terminal records at 256. Full OpenShell host-supervisor ownership and Gateway-facing reconnect integration remain partial.
