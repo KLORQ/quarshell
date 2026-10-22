@@ -1,5 +1,23 @@
 # VM Hypervisor.framework local acceptance
 
+## Workload identity parity and full workspace retest
+
+- Reverified: 2026-10-22 21:16 Europe/Samara
+- Command: `task vm:live-darwin`
+- Result: `TestLiveMicroVMLifecycle` PASS (22.82s); required Go test gate PASS
+- Workspace gate: `task test` PASS across all Go workspace modules
+- Parity/format gates: `task vm:parity-check` (30 entries), `task fmt:check`,
+  and `git diff --check` PASS
+
+VM start now validates policy `run_as_user`/`run_as_group` selectors against
+the guest's resolved non-root identity before releasing the workload start
+gate. Gateway persists the observed runtime UID/GID and exposes a
+`WorkloadIdentity` condition. Focused VM and Gateway tests cover matching and
+conflicting policy selectors, durable identity persistence, and the gRPC
+condition. Live HVF acceptance verified identity `1000:1000` and that the
+persistent `/sandbox` owner remains `1000:1000` across stop/start. Inventory:
+15 implemented, 13 partial, and 2 unsupported for physical GPU/VFIO.
+
 ## Latest retest: Gateway runtime config and proxy path
 
 - Reverified: 2026-10-22 20:47 Europe/Samara
@@ -17,7 +35,7 @@ tests verify config parsing, operator precedence, and fail-closed behavior when
 the policy broker is missing. The configuration handoff itself is unit-tested;
 the live proxy run still supplies its proxy fixture explicitly.
 
-The VM inventory is now 14 implemented, 14 partial, and 2 unsupported for
+The VM inventory was 14 implemented, 14 partial, and 2 unsupported for
 physical GPU/VFIO hardware. This remains partial OpenShell VM parity.
 
 ## SPIFFE Workload API config handoff
@@ -32,7 +50,7 @@ proxy's consumer path. A second `task vm:live-darwin` run after this change
 passed (23.98s) with live HVF, proxy allow/revoke, and Gateway credential/event
 flow. That live run does not configure a real SPIFFE Workload API endpoint;
 the endpoint handoff is unit-tested. Full workspace tests, 30-row parity,
-format and diff checks also passed after the change. Inventory: 14 implemented,
+format and diff checks also passed after the change. Inventory at that retest: 14 implemented,
 14 partial, 2 GPU/VFIO unsupported. The parity review also promoted lifecycle
 create/start/stop/delete, overlay persistence, Gateway create/readiness,
 bootstrap image preparation, and policy revision acknowledgement based on the

@@ -3,6 +3,7 @@ package applicationgrpc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
@@ -194,6 +195,13 @@ func sandboxProto(item sandbox.Sandbox, spec *gatewayv1.SandboxSpec) *gatewayv1.
 	status := &gatewayv1.SandboxStatus{
 		Phase:                 phaseFromState(item.State),
 		MainProcessInstanceId: item.MainProcessInstanceID,
+	}
+	if item.WorkloadUID != 0 && item.WorkloadGID != 0 {
+		status.Conditions = append(status.Conditions, &gatewayv1.SandboxCondition{
+			Type: "WorkloadIdentity", Status: "True", Reason: "Observed",
+			Message:        fmt.Sprintf("Resolved workload UID:GID is %d:%d", item.WorkloadUID, item.WorkloadGID),
+			TransitionTime: timestamppb.New(item.UpdatedAt),
+		})
 	}
 	if item.MainProcessExitCode != nil {
 		status.ExitCode = item.MainProcessExitCode

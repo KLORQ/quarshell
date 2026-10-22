@@ -21,6 +21,12 @@ type recordingRuntime struct {
 	stops   int
 }
 
+type identityRecordingRuntime struct{ recordingRuntime }
+
+func (*identityRecordingRuntime) Inspect(context.Context, sandboxruntime.Sandbox) (driver.Info, error) {
+	return driver.Info{Status: "running", WorkloadUID: 1000, WorkloadGID: 1001}, nil
+}
+
 func (r *recordingRuntime) Create(_ context.Context, input sandboxruntime.Sandbox) (string, error) {
 	r.created = input
 	return "runtime-id", nil
@@ -102,6 +108,28 @@ func TestCreateIsIdempotent(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatalf("View: %v", err)
+	}
+}
+
+func TestStartPersistsRuntimeWorkloadIdentity(t *testing.T) {
+	service, err := NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Runtime = &identityRecordingRuntime{}
+	if _, _, err := service.Create(context.Background(), testRequest()); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := service.Start(context.Background(), domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}, 1, "start-identity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.WorkloadUID != 1000 || started.WorkloadGID != 1001 {
+		t.Fatalf("started identity = %d:%d", started.WorkloadUID, started.WorkloadGID)
+	}
+	stored, err := service.Get(context.Background(), domain.SandboxRef{Workspace: "ws", Sandbox: "sb"})
+	if err != nil || stored.WorkloadUID != 1000 || stored.WorkloadGID != 1001 {
+		t.Fatalf("stored identity=%d:%d err=%v", stored.WorkloadUID, stored.WorkloadGID, err)
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 
 	core "github.com/KLORQ/quarshell-core"
 	"github.com/KLORQ/quarshell-core/isolation"
+	corepolicy "github.com/KLORQ/quarshell-core/policy"
 	"github.com/KLORQ/quarshell-driver-vm/vmguest"
 	"github.com/KLORQ/quarshell-driver/driver"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -622,6 +623,11 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	}
 	if startResponse.WorkloadUID == 0 || startResponse.WorkloadGID == 0 {
 		return fmt.Errorf("start guest workload: guest did not report a non-root workload identity")
+	}
+	if spec.PolicyPath != "" {
+		if err := validateVMPolicyWorkloadIdentity(spec.PolicyPath, startResponse.WorkloadUID, startResponse.WorkloadGID); err != nil {
+			return fmt.Errorf("start guest workload: %w", err)
+		}
 	}
 	if spec.SupervisorBin != "" {
 		if launchSpec.GatewayID != "" && len(launchSpec.VerificationKeys) > 0 {
@@ -1235,6 +1241,38 @@ func forceStopWorker(socket string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	_, _ = workerControl(ctx, socket, "stop")
+}
+
+// validateVMPolicyWorkloadIdentity mirrors OpenShell v0.1.4: the VM owns one
+// immutable non-root account, so policy selectors may be omitted, name that
+// account, or assert its resolved numeric ID. They cannot choose another UID
+// or GID after the guest image and overlay have established ownership.
+func validateVMPolicyWorkloadIdentity(policyPath string, uid, gid uint32) error {
+	document, err := corepolicy.Load(policyPath)
+	if err != nil {
+		return fmt.Errorf("load workload identity policy: %w", err)
+	}
+	if document.Process == nil {
+		return nil
+	}
+	for _, selector := range []struct {
+		field string
+		value string
+		want  uint32
+	}{
+		{field: "run_as_user", value: document.Process.RunAsUser, want: uid},
+		{field: "run_as_group", value: document.Process.RunAsGroup, want: gid},
+	} {
+		if selector.value == "" || selector.value == "sandbox" {
+			continue
+		}
+		value, parseErr := strconv.ParseUint(selector.value, 10, 32)
+		if parseErr == nil && uint32(value) == selector.want {
+			continue
+		}
+		return fmt.Errorf("VM %s %q conflicts with resolved workload identity %d:%d; omit the selector or use the driver-owned identity", selector.field, selector.value, uid, gid)
+	}
+	return nil
 }
 
 func (d *Driver) Exec(ctx context.Context, id core.ID, request driver.ExecRequest) (driver.ExecResult, error) {

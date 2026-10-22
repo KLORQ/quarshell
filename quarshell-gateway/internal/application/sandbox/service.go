@@ -74,6 +74,8 @@ type Sandbox struct {
 	MainProcessInstanceID string             `json:"main_process_instance_id,omitempty"`
 	MainProcessExitCode   *int32             `json:"main_process_exit_code,omitempty"`
 	MainProcessFinalized  bool               `json:"main_process_finalized,omitempty"`
+	WorkloadUID           uint32             `json:"workload_uid,omitempty"`
+	WorkloadGID           uint32             `json:"workload_gid,omitempty"`
 	State                 string             `json:"state"`
 	Image                 string             `json:"image"`
 	RuntimeID             string             `json:"runtime_id,omitempty"`
@@ -386,6 +388,9 @@ func (s *Service) Start(ctx context.Context, ref domain.SandboxRef, generation d
 			}
 			return current, replayed, domain.Wrap(err, "sandbox.start", "start runtime")
 		}
+		if err := s.observeRuntimeWorkloadIdentity(ctx, s.Runtime, current); err != nil {
+			return Sandbox{}, replayed, err
+		}
 		if latest, getErr := s.Get(ctx, ref); getErr == nil {
 			current = latest
 		}
@@ -396,7 +401,45 @@ func (s *Service) Start(ctx context.Context, ref domain.SandboxRef, generation d
 // StartRuntime starts an existing durable running intent during reconciliation.
 // Token-aware runtimes receive a fresh generation-bound credential per boot.
 func (s *Service) StartRuntime(ctx context.Context, runtime sandboxruntime.Runtime, current Sandbox) error {
-	return s.startRuntime(ctx, runtime, current)
+	if err := s.startRuntime(ctx, runtime, current); err != nil {
+		return err
+	}
+	return s.observeRuntimeWorkloadIdentity(ctx, runtime, current)
+}
+
+func (s *Service) observeRuntimeWorkloadIdentity(ctx context.Context, runtime sandboxruntime.Runtime, current Sandbox) error {
+	if runtime == nil {
+		return nil
+	}
+	info, err := runtime.Inspect(ctx, runtimeInput(current))
+	if err != nil || info.WorkloadUID == 0 || info.WorkloadGID == 0 {
+		return nil
+	}
+	ref := domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}
+	return s.store.Update(ctx, func(tx lifecycle.WriteTx) error {
+		record, exists, err := tx.Get(recordKind, refKey(ref))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return domain.Wrap(domain.ErrNotFound, "sandbox.identity", "sandbox not found")
+		}
+		var item Sandbox
+		if err := json.Unmarshal(record.Payload, &item); err != nil {
+			return err
+		}
+		if item.RuntimeGenerationOrInitial() != current.RuntimeGenerationOrInitial() || item.State != "running" {
+			return nil
+		}
+		item.WorkloadUID, item.WorkloadGID = info.WorkloadUID, info.WorkloadGID
+		item.UpdatedAt = s.now().UTC()
+		payload, err := json.Marshal(item)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Put(recordKind, refKey(ref), record.Version, payload)
+		return err
+	})
 }
 
 func (s *Service) startRuntime(ctx context.Context, runtime sandboxruntime.Runtime, current Sandbox) error {

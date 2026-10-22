@@ -80,3 +80,14 @@ func TestSandboxPhaseMapsCanonicalProcessExitStates(t *testing.T) {
 		t.Fatalf("process result not projected to sandbox status: %+v", status)
 	}
 }
+
+func TestSandboxProtoReportsObservedWorkloadIdentity(t *testing.T) {
+	status := sandboxProto(sandbox.Sandbox{Sandbox: "sb", State: "running", WorkloadUID: 1000, WorkloadGID: 1001}, nil).GetStatus()
+	if len(status.GetConditions()) != 1 {
+		t.Fatalf("conditions = %+v", status.GetConditions())
+	}
+	condition := status.GetConditions()[0]
+	if condition.GetType() != "WorkloadIdentity" || condition.GetStatus() != "True" || condition.GetMessage() != "Resolved workload UID:GID is 1000:1001" {
+		t.Fatalf("workload identity condition = %+v", condition)
+	}
+}

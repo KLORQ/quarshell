@@ -45,11 +45,14 @@
       "id": "vm.identity-status",
       "upstream": "e2e/rust/tests/vm_overlay.rs::vm_identity_matches_status_and_rejects_conflicts",
       "cautem": "quarshell-driver-vm/vm/state.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-runtime/internal/app/supervisor/run_test_unix_test.go::TestRunPublishesReadinessAfterInitializerHandshake",
         "quarshell-driver-vm/vm/lifecycle_test.go::TestVMStartExecCopyLogsStopDeleteLifecycle",
-        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveWorkloadIdentity"
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveWorkloadIdentity",
+        "quarshell-driver-vm/vm/workload_identity_test.go::TestValidateVMPolicyWorkloadIdentity",
+        "quarshell-gateway/internal/application/sandbox/service_test.go::TestStartPersistsRuntimeWorkloadIdentity",
+        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_test.go::TestSandboxProtoReportsObservedWorkloadIdentity"
       ]
     },
     {
