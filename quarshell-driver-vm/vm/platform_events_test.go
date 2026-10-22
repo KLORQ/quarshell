@@ -4,6 +4,8 @@ package vm
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -51,6 +53,97 @@ func TestVMPlatformWatchSnapshotsLifecycleAndDeletion(t *testing.T) {
 	}
 	if _, open := <-stream; open {
 		t.Fatal("stream remained open after deletion")
+	}
+}
+
+func TestVMPlatformWatchPollsStateWrittenByAnotherProcess(t *testing.T) {
+	stateDir := filepath.Join(t.TempDir(), "state")
+	d := NewWithHostConfig(HostConfig{StateDir: stateDir})
+	store, err := openStateStore(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.create("external", "image:latest", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := d.WatchPlatformEvents(ctx, driver.PlatformEventWatchRequest{SandboxID: core.ID(state.ID)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = receiveVMPlatformEvent(t, stream)
+	state.Status = "running"
+	state.UpdatedAt = time.Now().UTC().Add(time.Second)
+	writeVMStateWithoutPublishing(t, store, state)
+	updated := receiveVMPlatformEvent(t, stream)
+	if updated.Event.Reason != "running" {
+		t.Fatalf("polled event = %+v", updated)
+	}
+	path, err := store.path(state.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	deleted := receiveVMPlatformEvent(t, stream)
+	if deleted.Event.Type != "deleted" || !deleted.Event.Terminal {
+		t.Fatalf("polled deletion = %+v", deleted)
+	}
+}
+
+func TestVMWatchSandboxesPollsStateWrittenByAnotherProcess(t *testing.T) {
+	stateDir := filepath.Join(t.TempDir(), "state")
+	d := NewWithHostConfig(HostConfig{StateDir: stateDir})
+	store, err := openStateStore(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.create("external", "image:latest", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := d.WatchSandboxes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = receiveVMSandboxWatchEvent(t, stream)
+	state.Status = "running"
+	state.UpdatedAt = time.Now().UTC().Add(time.Second)
+	writeVMStateWithoutPublishing(t, store, state)
+	updated := receiveVMSandboxWatchEvent(t, stream)
+	if got := updated.Event.Sandbox; got == nil || got.ID != core.ID(state.ID) || got.Status != "running" {
+		t.Fatalf("polled update = %+v", updated)
+	}
+	path, err := store.path(state.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	deleted := receiveVMSandboxWatchEvent(t, stream)
+	if deleted.Event.DeletedID != core.ID(state.ID) {
+		t.Fatalf("polled deletion = %+v", deleted)
+	}
+}
+
+func writeVMStateWithoutPublishing(t *testing.T, store *stateStore, state sandboxState) {
+	t.Helper()
+	path, err := store.path(state.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

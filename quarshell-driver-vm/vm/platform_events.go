@@ -2,7 +2,9 @@ package vm
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"sync"
 	"time"
@@ -15,6 +17,8 @@ var _ driver.PlatformEventStream = (*Driver)(nil)
 var _ driver.SandboxWatchStream = (*Driver)(nil)
 
 const vmPlatformWatchBuffer = 128
+const vmPlatformWatchPollInterval = 250 * time.Millisecond
+const vmSandboxWatchPollInterval = time.Second
 
 type vmPlatformWatchKey struct {
 	stateRoot string
@@ -36,7 +40,9 @@ var vmSandboxWatchers = struct {
 }{watchers: make(map[vmSandboxWatchKey]map[uint64]chan driver.SandboxWatchResult)}
 
 // WatchSandboxes emits current VM snapshots followed by state changes and
-// deletions. Like WatchPlatformEvents, the feed is process-local and best effort.
+// deletions. Local updates are delivered immediately; polling the shared state
+// directory also observes changes made by other processes. Intermediate states
+// may be coalesced between polls.
 func (d *Driver) WatchSandboxes(ctx context.Context) (<-chan driver.SandboxWatchResult, error) {
 	if d == nil || ctx == nil {
 		return nil, fmt.Errorf("vm sandbox watch: driver and context are required")
@@ -55,19 +61,64 @@ func (d *Driver) WatchSandboxes(ctx context.Context) (<-chan driver.SandboxWatch
 	go func() {
 		defer close(results)
 		defer unsubscribe()
+		known := make(map[core.ID]driver.Info, len(snapshots))
 		for index := range snapshots {
 			info := snapshots[index]
+			known[info.ID] = info
 			if !sendVMSandboxWatchEvent(ctx, results, driver.SandboxWatchResult{Event: driver.SandboxWatchEvent{Sandbox: &info}}) {
 				return
 			}
 		}
+		ticker := time.NewTicker(vmSandboxWatchPollInterval)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case update := <-updates:
+				if update.Event.Sandbox != nil {
+					info := *update.Event.Sandbox
+					if previous, ok := known[info.ID]; ok && previous == info {
+						continue
+					}
+					known[info.ID] = info
+				} else if update.Event.DeletedID != "" {
+					if _, ok := known[update.Event.DeletedID]; !ok {
+						continue
+					}
+					delete(known, update.Event.DeletedID)
+				}
 				if !sendVMSandboxWatchEvent(ctx, results, update) {
 					return
+				}
+			case <-ticker.C:
+				states, err := store.list()
+				if err != nil {
+					if !sendVMSandboxWatchEvent(ctx, results, driver.SandboxWatchResult{Err: err}) {
+						return
+					}
+					return
+				}
+				seen := make(map[core.ID]struct{}, len(states))
+				for _, state := range states {
+					info := stateInfo(state)
+					seen[info.ID] = struct{}{}
+					if previous, ok := known[info.ID]; ok && previous == info {
+						continue
+					}
+					known[info.ID] = info
+					if !sendVMSandboxWatchEvent(ctx, results, driver.SandboxWatchResult{Event: driver.SandboxWatchEvent{Sandbox: &info}}) {
+						return
+					}
+				}
+				for id := range known {
+					if _, ok := seen[id]; ok {
+						continue
+					}
+					delete(known, id)
+					if !sendVMSandboxWatchEvent(ctx, results, driver.SandboxWatchResult{Event: driver.SandboxWatchEvent{DeletedID: id}}) {
+						return
+					}
 				}
 			}
 		}
@@ -137,8 +188,9 @@ func sendVMSandboxWatchEvent(ctx context.Context, results chan<- driver.SandboxW
 }
 
 // WatchPlatformEvents sends a persisted-state snapshot, then lifecycle changes
-// published by the state store. The feed is process-local and best effort; it
-// does not provide durable replay or cross-process delivery.
+// published by the state store. Polling the shared state directory observes
+// changes made by other processes, but does not provide durable replay and may
+// coalesce intermediate states.
 func (d *Driver) WatchPlatformEvents(ctx context.Context, request driver.PlatformEventWatchRequest) (<-chan driver.PlatformEventResult, error) {
 	if d == nil || ctx == nil {
 		return nil, fmt.Errorf("vm platform watch: driver and context are required")
@@ -161,6 +213,8 @@ func (d *Driver) WatchPlatformEvents(ctx context.Context, request driver.Platfor
 	go func() {
 		defer close(results)
 		defer unsubscribe()
+		ticker := time.NewTicker(vmPlatformWatchPollInterval)
+		defer ticker.Stop()
 		lastUpdate := state.UpdatedAt
 		lastStatus := state.Status
 		if !sendVMPlatformEvent(ctx, results, vmStateEvent(state, false)) {
@@ -170,6 +224,28 @@ func (d *Driver) WatchPlatformEvents(ctx context.Context, request driver.Platfor
 			select {
 			case <-ctx.Done():
 				return
+			case <-ticker.C:
+				current, err := store.load(string(request.SandboxID))
+				if errors.Is(err, fs.ErrNotExist) {
+					_ = sendVMPlatformEvent(ctx, results, driver.PlatformEventResult{Event: driver.PlatformEvent{
+						SandboxID: request.SandboxID, Time: time.Now().UTC(), Source: "vm", Type: "deleted", Reason: "sandbox_deleted", Terminal: true,
+					}})
+					return
+				}
+				if err != nil {
+					_ = sendVMPlatformEvent(ctx, results, driver.PlatformEventResult{Err: err})
+					return
+				}
+				if current.Status == lastStatus && !current.UpdatedAt.After(lastUpdate) {
+					continue
+				}
+				if !sendVMPlatformEvent(ctx, results, vmStateEvent(current, vmStateTerminal(current.Status))) {
+					return
+				}
+				if current.UpdatedAt.After(lastUpdate) {
+					lastUpdate = current.UpdatedAt
+				}
+				lastStatus = current.Status
 			case update := <-updates:
 				if update.Event.Type == "sandbox_state" && update.Event.Reason == lastStatus && !update.Event.Time.After(lastUpdate) {
 					continue
@@ -214,7 +290,7 @@ func subscribeVMPlatformEvents(key vmPlatformWatchKey) (<-chan driver.PlatformEv
 
 func publishVMPlatformState(stateRoot string, state sandboxState) {
 	publishVMSandboxSnapshot(stateRoot, state)
-	publishVMPlatformEvent(vmPlatformWatchKey{stateRoot: filepath.Clean(stateRoot), sandboxID: state.ID}, vmStateEvent(state, state.Status == "stopped" || state.Status == "failed"))
+	publishVMPlatformEvent(vmPlatformWatchKey{stateRoot: filepath.Clean(stateRoot), sandboxID: state.ID}, vmStateEvent(state, vmStateTerminal(state.Status)))
 }
 
 func publishVMPlatformDeleted(stateRoot, sandboxID string) {
@@ -250,6 +326,10 @@ func vmStateEvent(state sandboxState, terminal bool) driver.PlatformEventResult 
 		SandboxID: core.ID(state.ID), Time: state.UpdatedAt.UTC(), Source: "vm", Type: "sandbox_state",
 		Reason: state.Status, Message: "VM sandbox state changed", Metadata: map[string]string{"status": state.Status}, Terminal: terminal,
 	}}
+}
+
+func vmStateTerminal(status string) bool {
+	return status == "stopped" || status == "completed" || status == "error"
 }
 
 func sendVMPlatformEvent(ctx context.Context, results chan<- driver.PlatformEventResult, event driver.PlatformEventResult) bool {
