@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -89,7 +90,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	forwardEchoHelper := buildLiveForwardEchoHelper(t, ctx)
 	proxyHTTPProbe := buildLiveProxyHTTPProbe(t, ctx)
 	upstreamRequests := make(chan string, 8)
-	upstreamProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+	upstreamProxy := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodConnect {
 			select {
 			case upstreamRequests <- request.URL.String():
@@ -150,6 +151,11 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	proxyCABundle := newTestProxyCABundle(t)
 	proxyCAPath := filepath.Join(policyDir, "corporate-proxy-ca.pem")
+	if err := os.WriteFile(proxyCAPath, proxyCABundle, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	upstreamCA := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: upstreamProxy.Certificate().Raw})
+	proxyCABundle = append(proxyCABundle, upstreamCA...)
 	if err := os.WriteFile(proxyCAPath, proxyCABundle, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1014,8 +1020,8 @@ func main() {
 
 func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *Driver, id core.ID, policyPath, ackPath, probePath, upstreamProxyURL string, upstreamRequests <-chan string) {
 	t.Helper()
-	if !strings.HasPrefix(upstreamProxyURL, "http://") {
-		t.Fatalf("local upstream proxy URL must use HTTP, got %q", upstreamProxyURL)
+	if !strings.HasPrefix(upstreamProxyURL, "https://") {
+		t.Fatalf("local upstream proxy URL must use HTTPS, got %q", upstreamProxyURL)
 	}
 	probeHost := "policy-probe.invalid"
 	policyDocument := []byte(fmt.Sprintf("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: %s\n        port: 80\n", probeHost))

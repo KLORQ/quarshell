@@ -875,3 +875,14 @@ workspace `task test`, `task vm:parity-check`, `task fmt:check`, and
 also passed under `-race`; Gateway WatchSandbox test binaries cross-compiled
 for Linux ARM64 and Windows AMD64 with CGO disabled. The inventory remains 5
 implemented, 23 partial, and 2 hardware-specific unsupported.
+
+## Working upstream proxy in live HVF acceptance
+
+At 2026-10-22 20:00 Europe/Samara, `task vm:live-darwin` passed on Apple
+Silicon/HVF (`TestLiveMicroVMLifecycle`, 86.01s). The test now starts a local
+HTTP CONNECT upstream proxy, sends a guest request to the previously blocked
+`policy-probe.invalid` endpoint after policy revision 2 allows it, verifies the
+request reached the upstream tunnel and got HTTP 200, then confirms revision 3
+revokes access with HTTP 403. This exercises the host policy proxy and a working
+upstream connection end to end; it does not replace the separate live Gateway
+`WatchSandbox` composition test or real external corporate proxy deployment.
