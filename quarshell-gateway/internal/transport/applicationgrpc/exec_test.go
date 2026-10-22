@@ -97,6 +97,19 @@ func TestExecSandboxRPC(t *testing.T) {
 	if len(stream.events) != 3 || string(stream.events[0].GetStdout().GetData()) != "out" || string(stream.events[1].GetStderr().GetData()) != "err" || stream.events[2].GetExit().GetExitCode() != 7 {
 		t.Fatalf("events = %+v", stream.events)
 	}
+	requestID := "286175e2-d5f4-45bd-99dc-48f8d1032ca8"
+	request := &gatewayv1.ExecSandboxRequest{WorkspaceScope: selector, Sandbox: "sb", Command: []string{"true"}, RequestId: requestID}
+	completed := &execTestStream{ctx: ctx}
+	if err := server.ExecSandbox(request, completed); err != nil {
+		t.Fatalf("ExecSandbox with durable request ID: %v", err)
+	}
+	callsAfterFirstRequest := runtime.execCalls
+	if err := server.ExecSandbox(request, &execTestStream{ctx: ctx}); status.Code(err) != codes.Aborted {
+		t.Fatalf("completed duplicate request ID status = %v, want Aborted", err)
+	}
+	if runtime.execCalls != callsAfterFirstRequest {
+		t.Fatalf("runtime was invoked for a duplicate completed request ID")
+	}
 }
 
 func TestExecSandboxExecutionTimeoutCancelsRuntime(t *testing.T) {
