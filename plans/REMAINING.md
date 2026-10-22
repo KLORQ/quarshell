@@ -4,7 +4,7 @@
 
 ## Приоритет текущей работы
 
-По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 00:27 Europe/Samara inventory: 24 implemented, 4 partial, 0 blocked, 2 unsupported, 0 open.
+По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 00:31 Europe/Samara inventory: 24 implemented, 4 partial, 0 blocked, 2 unsupported, 0 open.
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 
@@ -13,9 +13,9 @@
 | Строка | Уже проверено | Что ещё нужно для полного parity |
 |---|---|---|
 | `vm.exec-pty-signals` | Gateway-level live PTY Ctrl+C trap/exit acceptance; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup; SSH process wait returns one stable exit code to concurrent/repeated callers | Перенести полный upstream `BoundaryProcess` retained handle/attach/terminate contract |
-| `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; authenticated Gateway relay tests | Совместить с upstream host-supervisor spawn/ownership lifecycle и переживающим reconnect процессным attachment |
+| `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; Gateway relay; durable owner lease/UUID survives Gateway reopen, conflicting instance rejected, higher epoch reconnect accepted | Совместить с upstream host-supervisor process ownership и attachment того же процесса после reconnect |
 | `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary retained handles for the agent process and exec sessions, with stable signal/exit semantics |
-| `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing, Gateway create/start/stop/restart smoke, durable 45-second supervisor owner lease, higher-epoch reconnect and replay rejection across SQLite Gateway reopen | Host-side supervisor process bootstrap and exact upstream lifecycle/session rotation replay semantics |
+| `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing, Gateway create/start/stop/restart smoke, durable 45-second supervisor owner/session UUID record, higher-epoch reconnect and replay rejection across SQLite Gateway reopen | Host-side supervisor process bootstrap and exact upstream replica/session lifecycle replay semantics |
 | `vm.gpu-vfio-inventory-allocation` | Unsupported capability is rejected before VM side effects | Physical GPU/VFIO host required |
 | `vm.gpu-vfio-crash-recovery` | Explicitly unsupported; no claim of allocation/recovery parity | Physical GPU/VFIO host and device recovery tests required |
 

@@ -214,6 +214,30 @@ func (h *Hub) ReleaseSupervisor(sandbox string) {
 	closeActiveRelays(closing)
 }
 
+// ReleaseSupervisorClaim removes a claim rejected by a durable owner index.
+// It acts only on the exact local session so a stale rejection cannot evict a
+// newer reconnect that has already replaced it.
+func (h *Hub) ReleaseSupervisorClaim(sandbox, instanceID string, connectionEpoch uint64) bool {
+	if h == nil || sandbox == "" || instanceID == "" || connectionEpoch == 0 {
+		return false
+	}
+	h.mu.Lock()
+	s := h.sessions[sandbox]
+	if s == nil || s.instanceID != instanceID || s.connectionEpoch != connectionEpoch {
+		h.mu.Unlock()
+		return false
+	}
+	delete(h.sessions, sandbox)
+	if owner := h.owners[sandbox]; owner.instanceID == instanceID && owner.epoch == connectionEpoch {
+		delete(h.owners, sandbox)
+	}
+	closing := h.takeActiveRelaysLocked(sandbox)
+	h.mu.Unlock()
+	s.close()
+	closeActiveRelays(closing)
+	return true
+}
+
 // SupervisorInstance returns the instance ID for the currently
 // connected pinned OpenShell control stream.
 func (h *Hub) SupervisorInstance(sandbox string) (string, bool) {

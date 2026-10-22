@@ -179,6 +179,7 @@ func (s *Server) ConnectSupervisor(stream gatewayv1.OpenShell_ConnectSupervisorS
 	}
 	if err := s.Sandboxes.ClaimSupervisorSession(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch, sessionID, hello.GetInstanceId(), hello.GetConnectionEpoch()); err != nil {
 		_ = stream.Send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_SessionRejected{SessionRejected: &gatewayv1.SessionRejected{Reason: err.Error()}}})
+		s.SupervisorHub.ReleaseSupervisorClaim(string(principal.sandbox), hello.GetInstanceId(), hello.GetConnectionEpoch())
 		unregister()
 		return nil
 	}

@@ -2,8 +2,10 @@ package applicationgrpc
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -129,4 +131,133 @@ func TestRelayStreamReturnsWhenGuestTargetCloses(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("RelayStream did not finish after guest target closed")
 	}
+}
+
+type supervisorConnectStream struct {
+	grpc.ServerStream
+	ctx  context.Context
+	recv chan *gatewayv1.SupervisorMessage
+	sent chan *gatewayv1.GatewayMessage
+}
+
+func (stream *supervisorConnectStream) Context() context.Context { return stream.ctx }
+func (stream *supervisorConnectStream) Send(message *gatewayv1.GatewayMessage) error {
+	select {
+	case stream.sent <- message:
+		return nil
+	case <-stream.ctx.Done():
+		return stream.ctx.Err()
+	}
+}
+func (stream *supervisorConnectStream) Recv() (*gatewayv1.SupervisorMessage, error) {
+	select {
+	case message := <-stream.recv:
+		return message, nil
+	case <-stream.ctx.Done():
+		return nil, stream.ctx.Err()
+	}
+}
+
+func TestConnectSupervisorOwnerLeaseSurvivesGatewayReopen(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "gateway.db")
+	store, err := lifecycle.NewSQLiteStore(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	sandboxes, err := sandboxapp.NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "image"}); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal := authenticatedPrincipal{
+		identityProvider: "sandbox-token", workspace: ref.Workspace, sandbox: ref.Sandbox,
+		generation: started.RuntimeGenerationOrInitial(), credentialEpoch: started.CredentialEpochOrInitial(),
+	}
+	newStream := func(instance string, epoch uint64) (*supervisorConnectStream, context.CancelFunc) {
+		streamCtx, cancel := context.WithCancel(context.WithValue(ctx, principalContextKey{}, principal))
+		stream := &supervisorConnectStream{ctx: streamCtx, recv: make(chan *gatewayv1.SupervisorMessage, 1), sent: make(chan *gatewayv1.GatewayMessage, 4)}
+		stream.recv <- &gatewayv1.SupervisorMessage{Payload: &gatewayv1.SupervisorMessage_Hello{Hello: &gatewayv1.SupervisorHello{
+			SandboxId: string(ref.Sandbox), InstanceId: instance, ConnectionEpoch: epoch,
+		}}}
+		return stream, cancel
+	}
+	waitResult := func(done <-chan error) {
+		t.Helper()
+		select {
+		case err := <-done:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Fatalf("ConnectSupervisor returned %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("ConnectSupervisor did not stop after stream cancellation")
+		}
+	}
+
+	server1 := New("gateway-1", nil, sandboxes, nil, nil, nil, nil, nil)
+	first, cancelFirst := newStream("instance-1", 1)
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- server1.ConnectSupervisor(first) }()
+	var firstAccepted *gatewayv1.SessionAccepted
+	select {
+	case message := <-first.sent:
+		firstAccepted = message.GetSessionAccepted()
+	case <-time.After(time.Second):
+		t.Fatal("first supervisor session was not accepted")
+	}
+	if firstAccepted == nil {
+		t.Fatalf("first supervisor response=%+v", firstAccepted)
+	}
+	cancelFirst()
+	waitResult(firstDone)
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := lifecycle.NewSQLiteStore(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	restartedSandboxes, err := sandboxapp.NewService(reopened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server2 := New("gateway-2", nil, restartedSandboxes, nil, nil, nil, nil, nil)
+	other, cancelOther := newStream("instance-2", 1)
+	otherDone := make(chan error, 1)
+	go func() { otherDone <- server2.ConnectSupervisor(other) }()
+	select {
+	case message := <-other.sent:
+		if message.GetSessionRejected() == nil {
+			t.Fatalf("different instance acquired durable owner lease: %+v", message)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("durable owner rejection was not sent")
+	}
+	waitResult(otherDone)
+	cancelOther()
+
+	reconnect, cancelReconnect := newStream("instance-1", 2)
+	reconnectDone := make(chan error, 1)
+	go func() { reconnectDone <- server2.ConnectSupervisor(reconnect) }()
+	select {
+	case message := <-reconnect.sent:
+		accepted := message.GetSessionAccepted()
+		if accepted == nil || accepted.GetSessionId() == firstAccepted.GetSessionId() {
+			t.Fatalf("higher-epoch reconnect response=%+v; want a fresh durable session ID", message)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("higher-epoch supervisor reconnect was not accepted")
+	}
+	cancelReconnect()
+	waitResult(reconnectDone)
 }

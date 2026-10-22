@@ -81,6 +81,26 @@ func TestReleaseSupervisorAllowsImmediateReplacementAfterExplicitStop(t *testing
 	}
 }
 
+func TestRejectedSupervisorClaimCannotRemoveNewerSession(t *testing.T) {
+	h := NewHub()
+	noop := func(string, string) error { return nil }
+	if _, err := h.RegisterSupervisor("sandbox", "instance", 1, noop, make(chan struct{}), nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.RegisterSupervisor("sandbox", "instance", 2, noop, make(chan struct{}), nil); err != nil {
+		t.Fatal(err)
+	}
+	if h.ReleaseSupervisorClaim("sandbox", "instance", 1) {
+		t.Fatal("stale rejected claim removed a newer local session")
+	}
+	if !h.Connected("sandbox") {
+		t.Fatal("newer local session was removed")
+	}
+	if !h.ReleaseSupervisorClaim("sandbox", "instance", 2) || h.Connected("sandbox") {
+		t.Fatal("exact rejected claim was not released")
+	}
+}
+
 func TestReleaseSupervisorClosesActiveLoopbackForward(t *testing.T) {
 	h := NewHub()
 	done := make(chan struct{})
