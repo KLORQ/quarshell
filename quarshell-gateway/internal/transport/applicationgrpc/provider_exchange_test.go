@@ -32,7 +32,12 @@ func TestExchangeProviderSubjectToken(t *testing.T) {
 	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
 	server.OAuthExchange = exchange
 	ctx := context.Background()
+	ref := sandboxappRef("ws", "sb")
 	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: "ws", Sandbox: "sb", Generation: 1, Image: "img"}); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start-sb")
+	if err != nil {
 		t.Fatal(err)
 	}
 	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
@@ -41,7 +46,11 @@ func TestExchangeProviderSubjectToken(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	response, err := server.ExchangeProviderSubjectToken(ctx, &gatewayv1.ExchangeProviderSubjectTokenRequest{
+	sandboxCtx := context.WithValue(ctx, principalContextKey{}, authenticatedPrincipal{
+		identityProvider: "sandbox-token", sandbox: ref.Sandbox,
+		generation: started.RuntimeGeneration, credentialEpoch: started.CredentialEpoch,
+	})
+	response, err := server.ExchangeProviderSubjectToken(sandboxCtx, &gatewayv1.ExchangeProviderSubjectTokenRequest{
 		SandboxId: "sb", Provider: "p", CredentialKey: "access_token", SupervisorJwtSvid: "svid",
 	})
 	if err != nil || response.GetAccessToken() != "token" {

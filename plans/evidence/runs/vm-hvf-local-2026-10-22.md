@@ -724,3 +724,22 @@ authenticated sandbox generation and epoch by its handler.
   AMD64 (`CGO_ENABLED=0`). Gateway cross-builds require the repository
   `go.work`; the initial invocation without `GOWORK` failed to resolve that
   workspace and was repeated successfully with it configured.
+
+## Provider environment scope and secret withholding
+
+- Sandbox-scoped runtime reports now require the authenticated Sandbox bearer
+  to match the requested sandbox and its active runtime generation and
+  credential epoch. This check is shared by provider environment, provider
+  readiness, endpoint status and sandbox configuration report handlers.
+- Until provider profile/policy resolution can produce endpoint bindings,
+  `GetSandboxProviderEnvironment` returns no credential values and sets
+  `CREDENTIALS_WITHHELD` when an attached provider has an unexpired secret.
+  This prevents a provider token from becoming unrestricted workload
+  environment. Durable provider credentials remain encrypted at rest.
+- Focused tests verify cross-sandbox and stale-generation rejection and that
+  attached unbound credentials are not returned. Full workspace gates are
+  running after this correction.
+- Full `task test`, `task vm:parity-check` (30 pinned rows), `task fmt:check`
+  and `git diff --check` passed after this correction. The subject-token
+  exchange fixture now carries the active sandbox principal and generation,
+  matching the enforced runtime scope.
