@@ -18,10 +18,13 @@ import (
 )
 
 type process struct {
-	cmd    *exec.Cmd
-	master *os.File
-	copies sync.WaitGroup
-	exited atomic.Bool
+	cmd      *exec.Cmd
+	master   *os.File
+	copies   sync.WaitGroup
+	exited   atomic.Bool
+	waitOnce sync.Once
+	waitDone chan struct{}
+	exitCode int
 }
 
 func openPTY() (master, slave *os.File, err error) {
@@ -65,7 +68,7 @@ func startProcess(argv, env []string, dir string, pty *ptyRequest, ch ssh.Channe
 			cmd.Dir = dir
 		}
 	}
-	p := &process{cmd: cmd}
+	p := &process{cmd: cmd, waitDone: make(chan struct{})}
 	if pty != nil {
 		master, slave, err := openPTY()
 		if err != nil {
@@ -118,23 +121,34 @@ func startProcess(argv, env []string, dir string, pty *ptyRequest, ch ssh.Channe
 
 // wait drains output, reaps the child and returns its exit code.
 func (p *process) wait() int {
-	p.copies.Wait()
-	err := p.cmd.Wait()
-	p.exited.Store(true)
-	if p.master != nil {
-		_ = p.master.Close()
+	if p == nil || p.cmd == nil {
+		return 255
 	}
-	if err == nil {
-		return 0
-	}
-	var ee *exec.ExitError
-	if errors.As(err, &ee) {
-		if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
-			return 128 + int(ws.Signal())
+	p.waitOnce.Do(func() {
+		p.copies.Wait()
+		err := p.cmd.Wait()
+		if err == nil {
+			p.exitCode = 0
+		} else {
+			var ee *exec.ExitError
+			if errors.As(err, &ee) {
+				if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+					p.exitCode = 128 + int(ws.Signal())
+				} else {
+					p.exitCode = ee.ExitCode()
+				}
+			} else {
+				p.exitCode = 255
+			}
 		}
-		return ee.ExitCode()
-	}
-	return 255
+		p.exited.Store(true)
+		if p.master != nil {
+			_ = p.master.Close()
+		}
+		close(p.waitDone)
+	})
+	<-p.waitDone
+	return p.exitCode
 }
 
 func (p *process) resize(rows, cols uint32) { setWinsize(p.master, rows, cols) }
