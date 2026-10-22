@@ -578,6 +578,9 @@ func (s *Service) transition(ctx context.Context, operation, state, topic string
 		}
 		changed = true
 		if operation == "start" && state == "running" {
+			if err := deleteSupervisorLease(tx, ref); err != nil {
+				return nil, err
+			}
 			current.MainProcessInstanceID = ""
 			current.MainProcessExitCode = nil
 			current.MainProcessFinalized = false
@@ -598,6 +601,11 @@ func (s *Service) transition(ctx context.Context, operation, state, topic string
 				return nil, domain.Wrap(err, "sandbox.start", "create runtime session identity")
 			}
 			current.SessionID = sessionID
+		}
+		if state == "stopped" {
+			if err := deleteSupervisorLease(tx, ref); err != nil {
+				return nil, err
+			}
 		}
 		current.State = state
 		current.UpdatedAt = s.now().UTC()
@@ -657,7 +665,7 @@ func (s *Service) FinalizeMainProcessExit(ctx context.Context, ref domain.Sandbo
 	if !ref.Valid() || generation == 0 || strings.TrimSpace(instanceID) == "" {
 		return domain.Invalidf("sandbox.process_exit_finalize", "sandbox, runtime generation and instance ID are required")
 	}
-	return s.updateProcessExit(ctx, ref, generation, instanceID, func(current *Sandbox) error {
+	if err := s.updateProcessExit(ctx, ref, generation, instanceID, func(current *Sandbox) error {
 		if current.MainProcessExitCode == nil {
 			return domain.New(domain.CodeConflict, "sandbox.process_exit_finalize", "main-process exit has not been reported")
 		}
@@ -666,7 +674,13 @@ func (s *Service) FinalizeMainProcessExit(ctx context.Context, ref domain.Sandbo
 		}
 		current.MainProcessFinalized = true
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	if s.SupervisorSessions != nil {
+		s.SupervisorSessions.ReleaseSupervisor(string(ref.Sandbox))
+	}
+	return nil
 }
 
 func (s *Service) updateProcessExit(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, instanceID string, mutate func(*Sandbox) error) error {
@@ -691,6 +705,11 @@ func (s *Service) updateProcessExit(ctx context.Context, ref domain.SandboxRef, 
 		}
 		if err := mutate(&current); err != nil {
 			return err
+		}
+		if current.State != "running" {
+			if err := deleteSupervisorLease(tx, ref); err != nil {
+				return err
+			}
 		}
 		updated, err := json.Marshal(current)
 		if err != nil {
@@ -755,6 +774,9 @@ func (s *Service) Delete(ctx context.Context, ref domain.SandboxRef, key domain.
 		}
 		if !exists {
 			return []byte(`{}`), nil
+		}
+		if err := deleteSupervisorLease(tx, ref); err != nil {
+			return nil, err
 		}
 		if err := tx.Delete(recordKind, refKey(ref), record.Version); err != nil {
 			return nil, err

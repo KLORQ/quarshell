@@ -1233,3 +1233,15 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - `task vm:live-darwin`: PASS. `TestLiveVMWatchSandboxComposition` now also opens a TTY through the Gateway sandbox service, sends Ctrl+C as streamed PTY input, and checks that the guest trap ran and returned exit code 42.
 - The exact acceptance run passed `TestLiveMicroVMLifecycle` (22.28 s), `TestLiveLocalOCIEngineImport` (1.17 s), and Gateway composition (`TestLiveVMWatchSandboxComposition`, 14.68 s).
 - This closes the Gateway-level signal acceptance gap in `vm.exec-pty-signals`; the upstream retained `BoundaryProcess` attach/terminate handle remains partial. Inventory: 24 implemented, 4 partial, 2 hardware-specific unsupported.
+
+# Durable Gateway supervisor ownership (2026-10-23 00:23 Europe/Samara)
+
+- Supervisor instance ID, runtime generation, credential epoch, connection epoch, and 45-second expiry are now atomically stored in the shared lifecycle database. A restarted Gateway rejects another instance while the lease is live, permits same-instance reconnect only at a higher connection epoch, rejects epoch replay and stale heartbeat renewal, and clears ownership on Stop, new runtime generation, process finalization, and Delete.
+- `go test ./internal/application/sandbox ./internal/transport/applicationgrpc ./internal/sshrelay -count=1` in `quarshell-gateway`: PASS. `TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay` exercises SQLite close/reopen, ownership conflict, monotonic reconnect, replay rejection, heartbeat validation, and Stop/Start replacement.
+- This closes durable owner-lease persistence. Exact upstream owner-record session/replica lineage and host-side supervisor process bootstrap remain partial.
+
+# Latest Mac VM acceptance after Gateway lease changes (2026-10-23 00:27 Europe/Samara)
+
+- Product code includes the durable Gateway supervisor owner lease/session UUID.
+- `task vm:live-darwin`: PASS on Apple Silicon/HVF. `TestLiveMicroVMLifecycle` (23.35 s), `TestLiveLocalOCIEngineImport` (1.12 s), and `TestLiveVMWatchSandboxComposition` (12.11 s) passed.
+- The Gateway composition exercised the real VM through lifecycle watch, Gateway PTY Ctrl+C/trap/exit, and built CLI archive transfer. Gateway sandbox/runtime/relay package tests separately passed against the SQLite lease/replay implementation.

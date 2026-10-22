@@ -264,6 +264,7 @@
       "evidence": [
         "quarshell-driver-vm/vm/spec.go::validateGatewayRuntime",
         "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapPreservesGRPCEndpoint",
+        "quarshell-gateway/internal/application/sandbox/supervisor_lease_test.go::TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay",
         "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapReadsGRPCEndpointEnvironment",
         "quarshell-driver-vm/vm/lifecycle.go::startLocked",
         "quarshell-driver-vm/vm/isolation_backend.go::vmIsolationBackend",

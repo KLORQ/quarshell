@@ -177,6 +177,11 @@ func (s *Server) ConnectSupervisor(stream gatewayv1.OpenShell_ConnectSupervisorS
 		_ = stream.Send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_SessionRejected{SessionRejected: &gatewayv1.SessionRejected{Reason: err.Error()}}})
 		return nil
 	}
+	if err := s.Sandboxes.ClaimSupervisorSession(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch, sessionID, hello.GetInstanceId(), hello.GetConnectionEpoch()); err != nil {
+		_ = stream.Send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_SessionRejected{SessionRejected: &gatewayv1.SessionRejected{Reason: err.Error()}}})
+		unregister()
+		return nil
+	}
 	defer unregister()
 	if err := stream.Send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_SessionAccepted{SessionAccepted: &gatewayv1.SessionAccepted{SessionId: sessionID, HeartbeatInterval: durationpb.New(15 * time.Second)}}}); err != nil {
 		return err
@@ -207,7 +212,7 @@ func (s *Server) ConnectSupervisor(stream gatewayv1.OpenShell_ConnectSupervisorS
 		}
 		switch payload := msg.GetPayload().(type) {
 		case *gatewayv1.SupervisorMessage_Heartbeat:
-			if !s.SupervisorHub.RenewSupervisorOwner(string(principal.sandbox), hello.GetInstanceId(), hello.GetConnectionEpoch()) {
+			if err := s.Sandboxes.RenewSupervisorSession(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch, hello.GetInstanceId(), hello.GetConnectionEpoch()); err != nil || !s.SupervisorHub.RenewSupervisorOwner(string(principal.sandbox), hello.GetInstanceId(), hello.GetConnectionEpoch()) {
 				return status.Error(codes.Aborted, "supervisor session ownership expired")
 			}
 			if err := send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_Heartbeat{Heartbeat: &gatewayv1.GatewayHeartbeat{}}}); err != nil {
