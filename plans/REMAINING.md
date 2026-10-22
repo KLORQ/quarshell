@@ -13,7 +13,7 @@
 | Строка | Уже проверено | Что ещё нужно для полного parity |
 |---|---|---|
 | `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; Gateway relay; durable owner lease/UUID survives Gateway reopen, conflicting instance rejected, higher epoch reconnect accepted | Совместить с upstream host-supervisor process ownership и attachment того же процесса после reconnect |
-| `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary retained handles for the agent process and exec sessions, with stable signal/exit semantics |
+| `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance; exec PTY sessions now retain stable IDs and reattach/terminate the same process across stream loss | Upstream `BoundaryProcess` ownership/attachment for the canonical guest main process, including stable wait/signal/terminal semantics |
 | `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing, Gateway create/start/stop/restart smoke, durable 45-second supervisor owner/session UUID record, higher-epoch reconnect and replay rejection across SQLite Gateway reopen | Host-side supervisor process bootstrap and exact upstream replica/session lifecycle replay semantics |
 | `vm.gpu-vfio-inventory-allocation` | Unsupported capability is rejected before VM side effects | Physical GPU/VFIO host required |
 | `vm.gpu-vfio-crash-recovery` | Explicitly unsupported; no claim of allocation/recovery parity | Physical GPU/VFIO host and device recovery tests required |
