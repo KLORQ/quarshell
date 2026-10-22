@@ -1128,3 +1128,15 @@ Linux ARM64 test binary ran in local `alpine:3.22`; the test passed ten
 consecutive times. It confirmed transport loss terminates the command process
 group and exits the stream handler. Linux process zombies are considered
 terminated because minimal container init processes may not reap them promptly.
+
+## VM CopyTo source handling
+
+`CopyTo` now uses a no-follow descriptor open on macOS/Linux, checks type and
+initial size on that descriptor, and caps bytes read to the maximum control
+frame payload. The non-Unix implementation also bounds the read. The focused
+test rejects a final symlink and oversized source and preserves regular-file
+permissions. Full `task test`, parity, format/diff checks, and Windows VM test
+binary cross-compilation passed. The subsequent `task vm:live-darwin` passed
+(`TestLiveMicroVMLifecycle`, 22.87 s; local OCI import, 1.39 s), including the
+existing live file copy round-trip. Directory/archive transfer through the
+complete live VM+Gateway CLI path is not yet covered.
