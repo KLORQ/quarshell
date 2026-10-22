@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"testing"
 	"time"
 )
@@ -76,6 +78,63 @@ func TestReleaseSupervisorAllowsImmediateReplacementAfterExplicitStop(t *testing
 	h.ReleaseSupervisor("sandbox")
 	if _, err := h.RegisterSupervisor("sandbox", "instance-2", 1, noop, make(chan struct{}), nil); err != nil {
 		t.Fatalf("explicit stop did not release previous owner: %v", err)
+	}
+}
+
+func TestReleaseSupervisorClosesActiveLoopbackForward(t *testing.T) {
+	h := NewHub()
+	done := make(chan struct{})
+	guestStreams := make(chan net.Conn, 1)
+	_, err := h.RegisterSupervisor("sandbox", "instance", 1, func(channel, _ string) error {
+		stream, err := h.AcceptRelay("sandbox", channel)
+		if err == nil {
+			guestStreams <- stream
+		}
+		return err
+	}, done, nil)
+	if err != nil {
+		t.Fatalf("RegisterSupervisor: %v", err)
+	}
+
+	client, err := h.OpenChannel(context.Background(), "sandbox", "tcp://127.0.0.1:8080")
+	if err != nil {
+		t.Fatalf("OpenChannel: %v", err)
+	}
+	defer client.Close()
+	guest := <-guestStreams
+	defer guest.Close()
+	echoed := make(chan error, 1)
+	go func() {
+		payload := make([]byte, 4)
+		if _, err := io.ReadFull(guest, payload); err != nil {
+			echoed <- err
+			return
+		}
+		if string(payload) != "ping" {
+			echoed <- fmt.Errorf("guest received %q", payload)
+			return
+		}
+		_, err := guest.Write(payload)
+		echoed <- err
+	}()
+	if _, err := client.Write([]byte("ping")); err != nil {
+		t.Fatalf("write through forwarded channel: %v", err)
+	}
+	got := make([]byte, 4)
+	if _, err := io.ReadFull(client, got); err != nil || string(got) != "ping" {
+		t.Fatalf("client received %q, %v; want ping", got, err)
+	}
+	if err := <-echoed; err != nil {
+		t.Fatalf("loopback relay round trip: %v", err)
+	}
+
+	h.ReleaseSupervisor("sandbox")
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := client.Read(make([]byte, 1)); err == nil {
+		t.Fatal("active loopback forward remained open after supervisor stop")
+	}
+	if _, err := h.OpenChannel(context.Background(), "sandbox", "tcp://127.0.0.1:8080"); !errors.Is(err, ErrNotConnected) {
+		t.Fatalf("forward after stop error = %v, want ErrNotConnected", err)
 	}
 }
 

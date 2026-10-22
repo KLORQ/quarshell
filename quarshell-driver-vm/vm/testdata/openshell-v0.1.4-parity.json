@@ -180,11 +180,12 @@
       "id": "vm.service-forward",
       "upstream": "crates/openshell-driver-vm/src/isolation/mod.rs",
       "cautem": "quarshell-driver-vm/vm",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-cli/internal/service/forward_live.go::ForwardStart",
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveSSHDirectTCPForward",
-        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveSSHRelay"
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveSSHRelay",
+        "quarshell-gateway/internal/sshrelay/hub_test.go::TestReleaseSupervisorClosesActiveLoopbackForward"
       ]
     },
     {

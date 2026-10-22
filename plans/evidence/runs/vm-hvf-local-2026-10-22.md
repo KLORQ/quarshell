@@ -1221,3 +1221,9 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - The live lifecycle repeated guest boot/readiness, policy egress allow/revoke, broker-loss recovery, VM worker adoption, explicit Stop/Start with rotated supervisor mTLS identity, OCI image recovery, explicit guest TERM signaling, and Gateway supervisor-session/process-event acceptance. Gateway watch observed create/start/stop and the built CLI completed archive upload/download through the live Gateway and VM.
 - GitHub Actions on `00c6029`: Linux workspace run `39845933145`, macOS `39845933912`, platform-backends `39845933518`, and secret-scan `39845933429` all passed. Linux tests exercise stable concurrent/repeated SSH process wait status; macOS live tests do not exercise that Linux-only implementation directly.
 - Pinned VM parity inventory remains 23 implemented, 5 partial, 2 hardware-specific unsupported. Remaining partial contracts are retained process attachment/ownership, SSH reconnect attachment, backend-owned loopback service lifecycle, and exact host-supervisor lifecycle/session replay semantics.
+
+# Gateway service-forward lifecycle (2026-10-23 00:18 Europe/Samara)
+
+- `go test ./internal/sshrelay -count=1` in `quarshell-gateway`: PASS.
+- `TestReleaseSupervisorClosesActiveLoopbackForward` opens a real in-memory duplex relay to a loopback TCP target, verifies bytes cross the host/guest relay, releases the supervisor as sandbox Stop does, then verifies the active channel is closed and new forwards fail with `ErrNotConnected`.
+- Alongside the existing live HVF direct/relay TCP probes and Gateway loopback target validation, this verifies the end-to-end forwarding lifecycle. `vm.service-forward` is now implemented; inventory: 24 implemented, 4 partial, 2 hardware-specific unsupported.

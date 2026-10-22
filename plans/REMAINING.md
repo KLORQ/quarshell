@@ -4,7 +4,7 @@
 
 ## Приоритет текущей работы
 
-По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 00:12 Europe/Samara inventory: 23 implemented, 5 partial, 0 blocked, 2 unsupported, 0 open.
+По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 00:18 Europe/Samara inventory: 24 implemented, 4 partial, 0 blocked, 2 unsupported, 0 open.
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 
@@ -14,8 +14,7 @@
 |---|---|---|
 | `vm.exec-pty-signals` | PTY resize/interrupt; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup; SSH process wait returns one stable exit code to concurrent/repeated callers | Перенести полный upstream `BoundaryProcess` retained handle/attach/terminate contract и проверить его через Gateway; current signal acceptance is VM PTY level |
 | `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; authenticated Gateway relay tests | Совместить с upstream host-supervisor spawn/ownership lifecycle и переживающим reconnect процессным attachment |
-| `vm.service-forward` | CLI Gateway forwarding и loopback target validation; VM direct/relay TCP live probes | Перенести backend-owned `RunningBoundary.loopback_connector`/service lifecycle semantics end to end |
-| `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary handles: agent process, exec sessions, loopback connector, stable signal/exit semantics |
+| `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary retained handles for the agent process and exec sessions, with stable signal/exit semantics |
 | `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing and Gateway create/start/stop/restart smoke | Host-side supervisor process bootstrap, exact lifecycle replay and durable session-rotation/replay lineage |
 | `vm.gpu-vfio-inventory-allocation` | Unsupported capability is rejected before VM side effects | Physical GPU/VFIO host required |
 | `vm.gpu-vfio-crash-recovery` | Explicitly unsupported; no claim of allocation/recovery parity | Physical GPU/VFIO host and device recovery tests required |
