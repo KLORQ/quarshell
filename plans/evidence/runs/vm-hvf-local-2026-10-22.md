@@ -1180,10 +1180,9 @@ the loaded Sandbox record, and ignores events carrying another runtime's ID.
 A focused Gateway test verifies both cases. Existing Gateway tests cover
 cursor persistence, replay, trimming, deduplication and cross-instance polling.
 This closes `vm.logs-watch` for the pinned contract. Final local gates passed: full workspace `task test`, `task vm:parity-check` (30 pinned entries), `task fmt:check`, `git diff --check`, and `task vm:live-darwin` (live VM lifecycle 24.66s, local OCI import, plus Gateway WatchSandbox 10.45s). The parity inventory is now 21 implemented, 7 partial, and 2 hardware-specific unsupported entries.
-# Gateway archive transfer on live HVF (2026-10-22 23:28 Europe/Samara)
+# CLI upload/download through live Gateway and HVF VM (2026-10-22 23:39 Europe/Samara)
 
 - Command: `task vm:live-darwin`.
-- Result: PASS. Driver lifecycle (24.39s) + local OCI import passed; Gateway composition test passed in 11.51s.
-- The Gateway composition probe created and started a real macOS ARM64/HVF VM through the sandbox service, then used the generated `ExecSandboxInteractive` gRPC client/server stream. The Gateway runtime relayed through the VM's authenticated guest exec stream.
-- Uploaded a tar archive containing a nested regular file and a relative symlink; downloaded the directory as a tar archive and verified both entries and file contents.
-- Limitation: the gRPC stream uses in-process `bufconn`; invoking the CLI against an externally listening Gateway endpoint has not yet been exercised for archive transfer.
+- Result: PASS. Driver lifecycle + local OCI import passed; Gateway composition test passed in 19.63s.
+- The test started a real Gateway gRPC server on loopback, then executed the built `cautem` binary as a separate process with the Gateway endpoint selected. `sandbox upload` and `sandbox download` used the CLI's normal archive path through generated Gateway gRPC streams and the live VM's authenticated guest exec stream.
+- The round-trip preserved a nested file and relative symlink.

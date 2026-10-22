@@ -3,14 +3,13 @@
 package applicationgrpc
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,8 +26,6 @@ import (
 	dm "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/test/bufconn"
 )
 
 type liveVMWatchRuntime struct {
@@ -66,6 +63,10 @@ func (r *liveVMWatchRuntime) WatchPlatformEvents(ctx context.Context, sandbox sa
 
 func (r *liveVMWatchRuntime) OpenExecStream(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
 	return r.backend.OpenExecStream(ctx, core.ID(sandbox.RuntimeID), request)
+}
+
+func (r *liveVMWatchRuntime) Exec(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecRequest) (driver.ExecResult, error) {
+	return r.backend.Exec(ctx, core.ID(sandbox.RuntimeID), request)
 }
 
 func TestLiveVMWatchSandboxComposition(t *testing.T) {
@@ -203,7 +204,14 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 
 func assertLiveVMArchiveTransferThroughGateway(t *testing.T, server *Server, ref domain.SandboxRef, ctx context.Context) {
 	t.Helper()
-	listener := bufconn.Listen(1 << 20)
+	cliBinary := strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_CLI"))
+	if cliBinary == "" {
+		t.Fatal("CAUTEM_VM_TEST_CLI is required for live CLI-to-Gateway VM archive acceptance")
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for live Gateway gRPC fixture: %v", err)
+	}
 	grpcServer := grpc.NewServer()
 	gatewayv1.RegisterOpenShellServer(grpcServer, server)
 	go func() { _ = grpcServer.Serve(listener) }()
@@ -211,113 +219,37 @@ func assertLiveVMArchiveTransferThroughGateway(t *testing.T, server *Server, ref
 		grpcServer.Stop()
 		_ = listener.Close()
 	})
-	connection, err := grpc.NewClient("passthrough:///live-vm-gateway",
-		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-	)
-	if err != nil {
-		t.Fatalf("connect to live Gateway gRPC fixture: %v", err)
-	}
-	t.Cleanup(func() { _ = connection.Close() })
-	client := gatewayv1.NewOpenShellClient(connection)
-	var archive bytes.Buffer
-	writer := tar.NewWriter(&archive)
-	entries := []struct {
-		name, body string
-		kind       byte
-		link       string
-	}{
-		{name: "gateway-transfer/nested/payload.txt", body: "gateway-live-vm-archive"},
-		{name: "gateway-transfer/nested/relative-link", kind: tar.TypeSymlink, link: "payload.txt"},
-	}
-	for _, entry := range entries {
-		header := &tar.Header{Name: entry.name, Mode: 0o640, Typeflag: tar.TypeReg, Size: int64(len(entry.body))}
-		if entry.kind != 0 {
-			header.Typeflag, header.Linkname, header.Size = entry.kind, entry.link, 0
-		}
-		if err := writer.WriteHeader(header); err != nil {
-			t.Fatal(err)
-		}
-		if entry.kind == 0 {
-			if _, err := writer.Write([]byte(entry.body)); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	if err := writer.Close(); err != nil {
+	sourceDir := filepath.Join(t.TempDir(), "gateway-transfer")
+	if err := os.MkdirAll(filepath.Join(sourceDir, "nested"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	selector := &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: string(ref.Workspace)}}
-	run := func(requestID string, command []string, input []byte) []*gatewayv1.ExecSandboxEvent {
-		stream, err := client.ExecSandboxInteractive(ctx)
+	if err := os.WriteFile(filepath.Join(sourceDir, "nested", "payload.txt"), []byte("gateway-live-vm-archive"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("payload.txt", filepath.Join(sourceDir, "nested", "relative-link")); err != nil {
+		t.Fatal(err)
+	}
+	endpoint := "http://" + listener.Addr().String()
+	command := func(args ...string) {
+		t.Helper()
+		cliArgs := append([]string{"--gateway-endpoint", endpoint, "--workspace", string(ref.Workspace)}, args...)
+		output, err := exec.CommandContext(ctx, cliBinary, cliArgs...).CombinedOutput()
 		if err != nil {
-			t.Fatalf("open live Gateway exec stream: %v", err)
-		}
-		if err := stream.Send(&gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: &gatewayv1.ExecSandboxRequest{
-			WorkspaceScope: selector, Sandbox: string(ref.Sandbox), Command: command, RequestId: requestID,
-		}}}); err != nil {
-			t.Fatalf("send live Gateway exec start: %v", err)
-		}
-		if input != nil {
-			if err := stream.Send(&gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: input}}); err != nil {
-				t.Fatalf("send live Gateway archive: %v", err)
-			}
-		}
-		if err := stream.CloseSend(); err != nil {
-			t.Fatalf("close live Gateway exec input: %v", err)
-		}
-		var events []*gatewayv1.ExecSandboxEvent
-		for {
-			event, err := stream.Recv()
-			if err == io.EOF {
-				return events
-			}
-			if err != nil {
-				t.Fatalf("receive live Gateway VM archive exec %v: %v", command, err)
-			}
-			events = append(events, event)
+			t.Fatalf("CLI %v failed: %v\n%s", args, err, output)
 		}
 	}
-	uploadEvents := run("3f655244-c0a7-4a2e-8125-2ee06d0e0423", []string{"/bin/tar", "-xf", "-", "-C", "/sandbox"}, archive.Bytes())
-	if len(uploadEvents) != 1 || uploadEvents[0].GetExit() == nil || uploadEvents[0].GetExit().GetExitCode() != 0 {
-		t.Fatalf("Gateway archive upload events=%+v", uploadEvents)
+	command("sandbox", "upload", string(ref.Sandbox), sourceDir, "/sandbox", "--no-git-ignore")
+	downloadDir := filepath.Join(t.TempDir(), "downloaded")
+	command("sandbox", "download", string(ref.Sandbox), "/sandbox/gateway-transfer", downloadDir)
+	filePath := filepath.Join(downloadDir, "gateway-transfer", "nested", "payload.txt")
+	body, err := os.ReadFile(filePath)
+	if err != nil || string(body) != "gateway-live-vm-archive" {
+		t.Fatalf("CLI downloaded payload=%q err=%v", body, err)
 	}
-	downloadEvents := run("f2f8396d-93db-48d9-8d82-47747d91bf8c", []string{"/bin/tar", "-cf", "-", "-C", "/sandbox", "gateway-transfer"}, nil)
-	var downloaded bytes.Buffer
-	for _, event := range downloadEvents {
-		if stdout := event.GetStdout(); stdout != nil {
-			_, _ = downloaded.Write(stdout.GetData())
-		}
-	}
-	if len(downloadEvents) == 0 || downloadEvents[len(downloadEvents)-1].GetExit() == nil || downloadEvents[len(downloadEvents)-1].GetExit().GetExitCode() != 0 {
-		t.Fatalf("Gateway archive download events=%+v", downloadEvents)
-	}
-	reader := tar.NewReader(bytes.NewReader(downloaded.Bytes()))
-	seenFile, seenLink := false, false
-	for {
-		header, err := reader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			t.Fatalf("read downloaded Gateway VM archive: %v", err)
-		}
-		switch header.Name {
-		case "gateway-transfer/nested/payload.txt":
-			body, err := io.ReadAll(reader)
-			if err != nil || string(body) != "gateway-live-vm-archive" {
-				t.Fatalf("downloaded archive payload=%q err=%v", body, err)
-			}
-			seenFile = true
-		case "gateway-transfer/nested/relative-link":
-			if header.Typeflag != tar.TypeSymlink || header.Linkname != "payload.txt" {
-				t.Fatalf("downloaded archive symlink=%+v", header)
-			}
-			seenLink = true
-		}
-	}
-	if !seenFile || !seenLink {
-		t.Fatalf("downloaded Gateway VM archive lost entries: file=%v symlink=%v", seenFile, seenLink)
+	linkPath := filepath.Join(downloadDir, "gateway-transfer", "nested", "relative-link")
+	link, err := os.Readlink(linkPath)
+	if err != nil || link != "payload.txt" {
+		t.Fatalf("CLI downloaded symlink target=%q err=%v", link, err)
 	}
 }
 

@@ -124,6 +124,7 @@ CAUTEM_VM_TEST_ROOTFS_TAR=$rootfs_tar \
 CAUTEM_VM_TEST_GUEST_AGENT=$guest_agent \
 CAUTEM_VM_TEST_E2FS_FORMATTER=$formatter \
 CAUTEM_VM_WORKER=$worker \
+CAUTEM_VM_TEST_CLI=$proxy_cli \
 OPENSHELL_VM_RUNTIME_DIR=$runtime_dir \
 DYLD_LIBRARY_PATH=$runtime_dir \
 python3 "$script_dir/run-required-go-test.py" \
