@@ -1312,3 +1312,9 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - A one-time owner check when opening relay RPCs left an already-established stream alive after a new Gateway claimed the shared lease. SSH/TCP/peer relay streams and `RelayStream` now monitor the durable owner every 250 ms, close their active connection after a handoff, and return `Aborted`.
 - `TestActiveSupervisorRelayIsClosedAfterDurableOwnerHandoff` claims a higher epoch while the first Gateway's relay remains active and verifies the relay connection is closed. `go test -C quarshell-gateway ./internal/transport/applicationgrpc -count=1`: PASS.
 - This closes the stale active data-plane connection gap. Upstream host-supervisor process bootstrap, non-TTY main-process attachment and complete replica/session replay remain partial; GPU/VFIO needs physical hardware.
+
+# Final current-tree Mac acceptance (2026-10-23 02:50 Europe/Samara)
+
+- After the active-owner monitor landed, `task vm:live-darwin` passed on the committed tree: `TestLiveMicroVMLifecycle` 24.23 s, local OCI import 1.09 s, and Gateway `TestLiveVMWatchSandboxComposition` 8.55 s. The lifecycle included supervisor-authenticated `AwaitMainProcessAttachment`, retained output/exit and delayed shutdown until the late TTY closed.
+- On the same tree, full workspace `task test`, Gateway relay tests under `-race`, parity inventory (30/30), docs strict build, formatting and `git diff --check` passed. Gitleaks hosted scan for commit `605ed6a` passed.
+- GitHub platform run `39867430432` has macOS and Windows package/build lanes passing; Linux is building the pinned runtime before the hosted KVM live lane. The previous `74c632a` run was cancelled after this newer run started to avoid duplicate libkrun builds.
