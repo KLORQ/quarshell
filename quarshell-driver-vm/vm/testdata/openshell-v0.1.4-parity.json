@@ -192,6 +192,7 @@
       "status": "partial",
       "evidence": [
         "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-gateway/internal/transport/applicationgrpc/live_vm_watch_acceptance_test.go::assertLiveVMArchiveTransferThroughGateway",
         "quarshell-driver-vm/vm/control_test.go::TestReadCopySourceRejectsSymlinkAndEnforcesLimit"
       ]
     },

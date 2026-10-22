@@ -3,6 +3,8 @@
 package applicationgrpc
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -56,6 +58,10 @@ func (r *liveVMWatchRuntime) Inspect(ctx context.Context, sandbox sandboxruntime
 }
 func (r *liveVMWatchRuntime) WatchPlatformEvents(ctx context.Context, sandbox sandboxruntime.Sandbox) (<-chan driver.PlatformEventResult, error) {
 	return r.backend.WatchPlatformEvents(ctx, driver.PlatformEventWatchRequest{SandboxID: core.ID(sandbox.RuntimeID), SandboxName: string(sandbox.Sandbox)})
+}
+
+func (r *liveVMWatchRuntime) OpenExecStream(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecStreamSession, error) {
+	return r.backend.OpenExecStream(ctx, core.ID(sandbox.RuntimeID), request)
 }
 
 func TestLiveVMWatchSandboxComposition(t *testing.T) {
@@ -168,6 +174,7 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 			t.Fatalf("waiting for live VM running event through Gateway WatchSandbox (runtime=%s, state=%s): %v", started.RuntimeID, started.State, ctx.Err())
 		}
 	}
+	assertLiveVMArchiveTransferThroughGateway(t, server, ref, ctx)
 	stopped, _, err := sandboxes.Stop(ctx, ref, started.Generation, "live-vm-watch-stop")
 	if err != nil {
 		t.Fatalf("stop VM through Gateway sandbox service: %v", err)
@@ -187,6 +194,93 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 	stopWatch()
 	if err := <-watchDone; err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatalf("Gateway WatchSandbox returned %v", err)
+	}
+}
+
+func assertLiveVMArchiveTransferThroughGateway(t *testing.T, server *Server, ref domain.SandboxRef, ctx context.Context) {
+	t.Helper()
+	var archive bytes.Buffer
+	writer := tar.NewWriter(&archive)
+	entries := []struct {
+		name, body string
+		kind       byte
+		link       string
+	}{
+		{name: "gateway-transfer/nested/payload.txt", body: "gateway-live-vm-archive"},
+		{name: "gateway-transfer/nested/relative-link", kind: tar.TypeSymlink, link: "payload.txt"},
+	}
+	for _, entry := range entries {
+		header := &tar.Header{Name: entry.name, Mode: 0o640, Typeflag: tar.TypeReg, Size: int64(len(entry.body))}
+		if entry.kind != 0 {
+			header.Typeflag, header.Linkname, header.Size = entry.kind, entry.link, 0
+		}
+		if err := writer.WriteHeader(header); err != nil {
+			t.Fatal(err)
+		}
+		if entry.kind == 0 {
+			if _, err := writer.Write([]byte(entry.body)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	selector := &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: string(ref.Workspace)}}
+	run := func(requestID string, command []string, input []byte) []*gatewayv1.ExecSandboxEvent {
+		stream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 2)}
+		stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: &gatewayv1.ExecSandboxRequest{
+			WorkspaceScope: selector, Sandbox: string(ref.Sandbox), Command: command, RequestId: requestID,
+		}}}
+		if input != nil {
+			stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: input}}
+		}
+		close(stream.inputs)
+		if err := server.ExecSandboxInteractive(stream); err != nil {
+			t.Fatalf("Gateway live VM archive exec %v: %v", command, err)
+		}
+		return stream.events
+	}
+	uploadEvents := run("3f655244-c0a7-4a2e-8125-2ee06d0e0423", []string{"/bin/tar", "-xf", "-", "-C", "/sandbox"}, archive.Bytes())
+	if len(uploadEvents) != 1 || uploadEvents[0].GetExit() == nil || uploadEvents[0].GetExit().GetExitCode() != 0 {
+		t.Fatalf("Gateway archive upload events=%+v", uploadEvents)
+	}
+	downloadEvents := run("f2f8396d-93db-48d9-8d82-47747d91bf8c", []string{"/bin/tar", "-cf", "-", "-C", "/sandbox", "gateway-transfer"}, nil)
+	var downloaded bytes.Buffer
+	for _, event := range downloadEvents {
+		if stdout := event.GetStdout(); stdout != nil {
+			_, _ = downloaded.Write(stdout.GetData())
+		}
+	}
+	if len(downloadEvents) == 0 || downloadEvents[len(downloadEvents)-1].GetExit() == nil || downloadEvents[len(downloadEvents)-1].GetExit().GetExitCode() != 0 {
+		t.Fatalf("Gateway archive download events=%+v", downloadEvents)
+	}
+	reader := tar.NewReader(bytes.NewReader(downloaded.Bytes()))
+	seenFile, seenLink := false, false
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("read downloaded Gateway VM archive: %v", err)
+		}
+		switch header.Name {
+		case "gateway-transfer/nested/payload.txt":
+			body, err := io.ReadAll(reader)
+			if err != nil || string(body) != "gateway-live-vm-archive" {
+				t.Fatalf("downloaded archive payload=%q err=%v", body, err)
+			}
+			seenFile = true
+		case "gateway-transfer/nested/relative-link":
+			if header.Typeflag != tar.TypeSymlink || header.Linkname != "payload.txt" {
+				t.Fatalf("downloaded archive symlink=%+v", header)
+			}
+			seenLink = true
+		}
+	}
+	if !seenFile || !seenLink {
+		t.Fatalf("downloaded Gateway VM archive lost entries: file=%v symlink=%v", seenFile, seenLink)
 	}
 }
 

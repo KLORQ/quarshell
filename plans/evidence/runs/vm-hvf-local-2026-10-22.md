@@ -1180,3 +1180,10 @@ the loaded Sandbox record, and ignores events carrying another runtime's ID.
 A focused Gateway test verifies both cases. Existing Gateway tests cover
 cursor persistence, replay, trimming, deduplication and cross-instance polling.
 This closes `vm.logs-watch` for the pinned contract. Final local gates passed: full workspace `task test`, `task vm:parity-check` (30 pinned entries), `task fmt:check`, `git diff --check`, and `task vm:live-darwin` (live VM lifecycle 24.66s, local OCI import, plus Gateway WatchSandbox 10.45s). The parity inventory is now 21 implemented, 7 partial, and 2 hardware-specific unsupported entries.
+# Gateway archive transfer on live HVF (2026-10-22 23:25 Europe/Samara)
+
+- Command: `task vm:live-darwin`.
+- Result: PASS. Driver lifecycle + local OCI import passed; Gateway composition test passed in 15.14s.
+- The Gateway composition probe created and started a real macOS ARM64/HVF VM through the sandbox service, then invoked the real `ExecSandboxInteractive` handler over the VM runtime's authenticated guest exec stream.
+- Uploaded a tar archive containing a nested regular file and a relative symlink; downloaded the directory as a tar archive and verified both entries and file contents.
+- Limitation: the handler is invoked directly in-process by the acceptance fixture. A real CLI↔Gateway gRPC network connection has not yet been exercised for archive transfer.
