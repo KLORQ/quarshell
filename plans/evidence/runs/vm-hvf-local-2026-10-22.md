@@ -1101,3 +1101,21 @@ probe used here.
 - Gateway test: non-TTY interactive stdin, EOF, separate stdout/stderr, exit code, and completed request-ID duplicate suppression pass under race.
 
 The guest accepts an authenticated `exec-stream` control operation, starts a non-PTY process group, streams stdout and stderr separately, forwards stdin, half-closes on EOF, kills the process group if the transport is lost, and sends the normalized exit code. The live HVF acceptance verified those operations against the Linux guest. `vm.exec-pty-signals` remains partial for full upstream PTY signal behavior.
+
+## Exact-current-HEAD Mac retest
+
+- Commit: `d1b904debc9ceb2066905c0f92229a769005a24d`
+- Reverified: 2026-10-22 22:28 Europe/Samara
+- `task vm:live-darwin`: PASS; `TestLiveMicroVMLifecycle` (22.83 s) and
+  `TestLiveLocalOCIEngineImport` (1.21 s). The real HVF run observed
+  created/running/stopped, worker recovery, policy allow/revoke through
+  authenticated HTTPS CONNECT, gateway credential exchange, non-TTY
+  stdin/stdout/stderr/exit, terminal interrupt, image pinning, and broker-loss
+  shutdown.
+- `task test`: PASS across all workspace Go modules.
+- `task vm:parity-check`: PASS (30 pinned entries); `task fmt:check` and
+  `git diff --check`: PASS.
+- The Gateway-composition WatchSandbox live probe and full upstream running
+  boundary, session rotation/replay, KVM live lane, and physical GPU/VFIO remain
+  open. Hosted workflows had not yet been dispatched for this exact commit at
+  the time of this record.
