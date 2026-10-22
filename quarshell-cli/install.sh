@@ -85,6 +85,7 @@ main() {
   _exe=""; case "$_target" in windows-*) _exe=".exe" ;; esac
   _cli="quarshell-cli-${_target}${_exe}"
   _gateway="quarshell-gateway-${_target}${_exe}"
+  _prover="quarshell-prover-${_target}${_exe}"
   _base="${CAUTEM_RELEASE_URL:-${GITHUB_URL}/releases/download}/${_version}"
   _dir="$(install_dir)"
   _tmp="$(mktemp -d)"
@@ -96,12 +97,21 @@ main() {
   download "${_base}/SHA256SUMS" "${_tmp}/SHA256SUMS" 2>/dev/null || true
   verify_checksum "$_cli" "${_tmp}/${_cli}" "${_tmp}/SHA256SUMS"
   verify_checksum "$_gateway" "${_tmp}/${_gateway}" "${_tmp}/SHA256SUMS"
+  if download "${_base}/${_prover}" "${_tmp}/${_prover}" 2>/dev/null; then
+    verify_checksum "$_prover" "${_tmp}/${_prover}" "${_tmp}/SHA256SUMS"
+  else
+    info "prover asset not published for ${_version}; skipping"
+  fi
 
   _sudo=""
   mkdir -p "$_dir" 2>/dev/null || true
   if [ ! -w "$_dir" ]; then _sudo="sudo"; sudo mkdir -p "$_dir"; fi
   $_sudo install -m 755 "${_tmp}/${_cli}" "${_dir}/${APP_NAME}${_exe}"
   $_sudo install -m 755 "${_tmp}/${_gateway}" "${_dir}/quarshell-gateway${_exe}"
+  if [ -f "${_tmp}/${_prover}" ]; then
+    $_sudo install -m 755 "${_tmp}/${_prover}" "${_dir}/quarshell-prover${_exe}"
+    info "installed ${_dir}/quarshell-prover${_exe}"
+  fi
   info "installed ${_dir}/${APP_NAME}${_exe}"
   info "installed ${_dir}/quarshell-gateway${_exe}"
 

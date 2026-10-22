@@ -34,6 +34,7 @@ for target in "${TARGETS[@]}"; do
 	read -r os arch <<< "$target"
 	build "$os" "$arch" quarshell-gateway ./cmd/quarshell-gateway quarshell-gateway
 	build "$os" "$arch" quarshell-cli ./cmd/cautem quarshell-cli
+	build "$os" "$arch" quarshell-prover ./cmd/quarshell-prover quarshell-prover
 done
 
 ( cd "$OUT" && shasum -a 256 quarshell-* > SHA256SUMS )

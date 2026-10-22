@@ -75,21 +75,33 @@ func (a *App) GatewayEnsure() error {
 		_ = logF.Close()
 		return fmt.Errorf("gateway ensure: TLS: %w", err)
 	}
-	cmd := exec.Command(bin, "--listen", "127.0.0.1:17670", "--grpc-listen", localGatewayGRPCEndpoint, "--data-dir", dataDir, "--tls-cert", certPath, "--tls-key", keyPath)
-	cmd.Env = append(os.Environ(), "QUARSHELL_TOKEN="+token)
-	cmd.Stdout = logF
-	cmd.Stderr = logF
-	cmd.SysProcAttr = gatewaySysProcAttr()
-	if err := cmd.Start(); err != nil {
-		_ = logF.Close()
-		log.Error("failed to start gateway", slogx.Err(err))
-		return fmt.Errorf("gateway ensure: start %s: %w", bin, err)
+	gatewayArgs := []string{"--listen", "127.0.0.1:17670", "--grpc-listen", localGatewayGRPCEndpoint, "--data-dir", dataDir, "--tls-cert", certPath, "--tls-key", keyPath}
+	gatewayEnv := []string{"QUARSHELL_TOKEN=" + token}
+	serviceStarted := false
+	if os.Getenv("CAUTEM_GATEWAY_SERVICE") != "0" {
+		serviceStarted, _ = startGatewayService(bin, gatewayArgs, gatewayEnv, dataDir, logPath)
 	}
-	// Detach: do not wait; log file stays open in child.
-	go func() {
-		_ = cmd.Wait()
+	pid := 0
+	if serviceStarted {
 		_ = logF.Close()
-	}()
+	} else {
+		cmd := exec.Command(bin, gatewayArgs...)
+		cmd.Env = append(os.Environ(), gatewayEnv...)
+		cmd.Stdout = logF
+		cmd.Stderr = logF
+		cmd.SysProcAttr = gatewaySysProcAttr()
+		if err := cmd.Start(); err != nil {
+			_ = logF.Close()
+			log.Error("failed to start gateway", slogx.Err(err))
+			return fmt.Errorf("gateway ensure: start %s: %w", bin, err)
+		}
+		pid = cmd.Process.Pid
+		// Detach: do not wait; log file stays open in child.
+		go func() {
+			_ = cmd.Wait()
+			_ = logF.Close()
+		}()
+	}
 	deadline := time.Now().Add(gatewayStartupTimeout)
 	for time.Now().Before(deadline) {
 		ctx, cancel := a.withTimeout(TimeoutProbeFast)
@@ -98,8 +110,8 @@ func (a *App) GatewayEnsure() error {
 		if err == nil {
 			_ = a.GatewayAdd(localGatewayName, localGatewayURL)
 			_ = a.GatewaySelect(localGatewayName)
-			log.Info("local gateway ready", slog.Int("pid", cmd.Process.Pid), slog.String("log", logPath))
-			fmt.Printf("gateway ensure: started %s (pid %d, log %s)\n", localGatewayURL, cmd.Process.Pid, logPath)
+			log.Info("local gateway ready", slog.Int("pid", pid), slog.String("log", logPath))
+			fmt.Printf("gateway ensure: started %s (pid %d, log %s)\n", localGatewayURL, pid, logPath)
 			return nil
 		}
 		time.Sleep(gatewayStartupPollInterval)
