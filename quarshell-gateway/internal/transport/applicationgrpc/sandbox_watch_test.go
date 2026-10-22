@@ -50,7 +50,7 @@ func (s *captureSandboxWatchStream) Send(event *gatewayv1.SandboxStreamEvent) er
 	}
 }
 
-func TestWatchSandboxReplaysTailAndStreamsLiveSandboxLogs(t *testing.T) {
+func TestWatchSandboxReplaysTailAndPollsLogsFromOtherGatewayInstance(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	store := lifecycle.NewMemoryStore()
@@ -101,19 +101,21 @@ func TestWatchSandboxReplaysTailAndStreamsLiveSandboxLogs(t *testing.T) {
 	sandboxCtx := context.WithValue(context.Background(), principalContextKey{}, authenticatedPrincipal{
 		identityProvider: "sandbox-token", sandbox: "sb", generation: started.RuntimeGeneration, credentialEpoch: started.CredentialEpoch,
 	})
-	push := &sandboxLogsStream{ctx: sandboxCtx, requests: []*gatewayv1.PushSandboxLogsRequest{{SandboxId: "sb", Logs: []*gatewayv1.SandboxLogLine{{SandboxId: "sb", Source: "sandbox", Level: "WARN", Message: "live"}}}}}
-	if err := server.PushSandboxLogs(push); err != nil {
+	writerServer := New("writer", nil, sandboxes, nil, nil, nil, nil, nil)
+	writerServer.SandboxLogs = logs
+	push := &sandboxLogsStream{ctx: sandboxCtx, requests: []*gatewayv1.PushSandboxLogsRequest{{SandboxId: "sb", Logs: []*gatewayv1.SandboxLogLine{{SandboxId: "sb", Source: "sandbox", Level: "WARN", Message: "cross-instance"}}}}}
+	if err := writerServer.PushSandboxLogs(push); err != nil {
 		t.Fatal(err)
 	}
 	liveCursor := ""
 	select {
 	case event := <-stream.events:
-		if line := event.GetLog(); line == nil || line.GetMessage() != "live" {
+		if line := event.GetLog(); line == nil || line.GetMessage() != "cross-instance" {
 			t.Fatalf("live event=%v", event)
 		}
 		liveCursor = event.GetCursor()
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for live log")
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for cross-instance live log")
 	}
 	cancel()
 	if err := <-done; !errors.Is(err, context.Canceled) {
@@ -123,8 +125,14 @@ func TestWatchSandboxReplaysTailAndStreamsLiveSandboxLogs(t *testing.T) {
 	resumeCtx, resumeCancel := context.WithCancel(context.Background())
 	resumeStream := &captureSandboxWatchStream{ctx: resumeCtx, events: make(chan *gatewayv1.SandboxStreamEvent, 8)}
 	resumeDone := make(chan error, 1)
+	reopenedLogs, err := sandboxlogs.New(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumedServer := New("test-restarted", nil, sandboxes, nil, nil, nil, nil, nil)
+	resumedServer.SandboxLogs = reopenedLogs
 	go func() {
-		resumeDone <- server.WatchSandbox(&gatewayv1.WatchSandboxRequest{
+		resumeDone <- resumedServer.WatchSandbox(&gatewayv1.WatchSandboxRequest{
 			WorkspaceScope: request.GetWorkspaceScope(), Sandbox: "sb", FollowLogs: true, ResumeAfterCursor: tailCursor,
 		}, resumeStream)
 	}()
@@ -138,7 +146,7 @@ func TestWatchSandboxReplaysTailAndStreamsLiveSandboxLogs(t *testing.T) {
 	}
 	select {
 	case event := <-resumeStream.events:
-		if line := event.GetLog(); line == nil || line.GetMessage() != "live" || event.GetCursor() != liveCursor {
+		if line := event.GetLog(); line == nil || line.GetMessage() != "cross-instance" || event.GetCursor() != liveCursor {
 			t.Fatalf("resumed event=%v cursor=%q want=%q", event, event.GetCursor(), liveCursor)
 		}
 	case <-time.After(time.Second):
@@ -324,7 +332,8 @@ func TestWatchSandboxReplaysAndResumesPlatformEvents(t *testing.T) {
 	if _, err := logs.Append(context.Background(), "sb", []sandboxlogs.Line{{SandboxID: "sb", EventTime: eventTime.Add(2500 * time.Millisecond), Level: "INFO", Source: "sandbox", Message: "after terminal event"}}); err != nil {
 		t.Fatal(err)
 	}
-	secondEvents <- driver.PlatformEventResult{Event: eventC}
+	// Simulate another Gateway replica persisting this event and the following
+	// log line into the shared lifecycle store. The watch must poll and catch up.
 	liveAfterResume := receiveSandboxWatchEvent(t, secondStream.events)
 	if liveAfterResume.GetEvent() == nil || liveAfterResume.GetEvent().GetReason() != "stopped" || liveAfterResume.GetCursor() <= resumed.GetCursor() {
 		t.Fatalf("event after resume=%v", liveAfterResume)
@@ -344,7 +353,7 @@ func receiveSandboxWatchEvent(t *testing.T, events <-chan *gatewayv1.SandboxStre
 	select {
 	case event := <-events:
 		return event
-	case <-time.After(time.Second):
+	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for sandbox watch event")
 		return nil
 	}

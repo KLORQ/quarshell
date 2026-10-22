@@ -65,6 +65,40 @@ func TestLogWindowPersistsAcrossStoreRestartAndRetainsNewestLines(t *testing.T) 
 	}
 }
 
+func TestCursorEpochPersistsAcrossStoreRestart(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "gateway.db")
+	store, err := lifecycle.NewSQLiteStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := New(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := service.CursorEpoch(ctx)
+	if err != nil || len(first) != 32 {
+		t.Fatalf("first CursorEpoch()=(%q, %v)", first, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := lifecycle.NewSQLiteStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	restored, err := New(reopened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := restored.CursorEpoch(ctx)
+	if err != nil || second != first {
+		t.Fatalf("reopened CursorEpoch()=(%q, %v), want %q", second, err, first)
+	}
+}
+
 func TestPlatformEventDeduplicationSharesPerSandboxCursor(t *testing.T) {
 	service, err := New(lifecycle.NewMemoryStore())
 	if err != nil {

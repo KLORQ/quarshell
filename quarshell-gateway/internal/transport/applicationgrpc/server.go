@@ -56,6 +56,7 @@ type Server struct {
 	logMu            sync.RWMutex
 	sandboxLogs      map[string][]*gatewayv1.SandboxLogLine
 	logWatchers      map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}
+	logCursorMu      sync.Mutex
 	logCursorEpoch   string
 	logCursorSeq     map[string]uint64
 }

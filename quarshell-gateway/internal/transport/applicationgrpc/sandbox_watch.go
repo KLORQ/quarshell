@@ -44,6 +44,13 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 	if err != nil {
 		return grpcError(err)
 	}
+	if s.SandboxLogs != nil {
+		epoch, err := s.SandboxLogs.CursorEpoch(stream.Context())
+		if err != nil {
+			return status.Error(codes.Unavailable, "sandbox watch cursor storage is unavailable")
+		}
+		s.setSandboxLogCursorEpoch(epoch)
+	}
 	var platformEvents <-chan driver.PlatformEventResult
 	if request.GetFollowEvents() {
 		watcher, ok := s.Sandboxes.Runtime.(interface {
@@ -213,8 +220,12 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 			return stream.Context().Err()
 		case event := <-live:
 			if s.SandboxLogs != nil {
-				if err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence); err != nil {
+				terminal, err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence)
+				if err != nil {
 					return err
+				}
+				if request.GetStopOnTerminal() && terminal {
+					return nil
 				}
 			} else {
 				if line := event.GetLog(); line != nil {
@@ -252,8 +263,12 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 				if appendErr != nil {
 					return status.Error(codes.Internal, "persist sandbox platform event")
 				}
-				if err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence); err != nil {
+				terminal, err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence)
+				if err != nil {
 					return err
+				}
+				if request.GetStopOnTerminal() && terminal {
+					return nil
 				}
 			} else {
 				wireEvent := platformStreamEvent(sandboxlogs.PlatformEvent{
@@ -269,6 +284,15 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 				return nil
 			}
 		case <-ticker.C:
+			if request.GetFollowLogs() || request.GetFollowEvents() {
+				terminal, err := s.sendSandboxWatchCatchup(stream.Context(), stream, request, &lastLogSequence, &lastPlatformSequence)
+				if err != nil {
+					return err
+				}
+				if request.GetStopOnTerminal() && terminal {
+					return nil
+				}
+			}
 			if !request.GetFollowStatus() && !request.GetStopOnTerminal() {
 				continue
 			}
@@ -326,20 +350,21 @@ func (s *Server) sendSandboxWatchCatchup(
 	stream gatewayv1.OpenShell_WatchSandboxServer,
 	request *gatewayv1.WatchSandboxRequest,
 	lastLogSequence, lastPlatformSequence *uint64,
-) error {
+) (bool, error) {
 	snapshot, err := s.SandboxLogs.Snapshot(ctx, request.GetSandbox())
 	if err != nil {
-		return status.Error(codes.Internal, "read sandbox watch live window")
+		return false, status.Error(codes.Internal, "read sandbox watch live window")
 	}
 	if request.GetFollowLogs() && *lastLogSequence < snapshot.LogsTrimmedThrough {
-		return status.Error(codes.OutOfRange, "sandbox log events were trimmed while the watch was live")
+		return false, status.Error(codes.OutOfRange, "sandbox log events were trimmed while the watch was live")
 	}
 	if request.GetFollowEvents() && *lastPlatformSequence < snapshot.EventsTrimmedThrough {
-		return status.Error(codes.OutOfRange, "platform events were trimmed while the watch was live")
+		return false, status.Error(codes.OutOfRange, "platform events were trimmed while the watch was live")
 	}
 	type pendingEvent struct {
 		sequence uint64
 		payload  *gatewayv1.SandboxStreamEvent
+		terminal bool
 	}
 	pending := make([]pendingEvent, 0, len(snapshot.Lines)+len(snapshot.Events))
 	if request.GetFollowLogs() {
@@ -363,16 +388,19 @@ func (s *Server) sendSandboxWatchCatchup(
 			pending = append(pending, pendingEvent{
 				sequence: event.Sequence,
 				payload:  platformStreamEvent(event, s.sandboxLogCursor(request.GetSandbox(), event.Sequence)),
+				terminal: event.Terminal,
 			})
 		}
 	}
 	sort.Slice(pending, func(i, j int) bool { return pending[i].sequence < pending[j].sequence })
+	terminal := false
 	for _, event := range pending {
 		if err := stream.Send(event.payload); err != nil {
-			return err
+			return false, err
 		}
+		terminal = terminal || event.terminal
 	}
-	return nil
+	return terminal, nil
 }
 
 func platformStreamEvent(event sandboxlogs.PlatformEvent, cursor string) *gatewayv1.SandboxStreamEvent {
@@ -446,18 +474,23 @@ func logStreamEvent(line *gatewayv1.SandboxLogLine, cursor string) *gatewayv1.Sa
 }
 
 func (s *Server) sandboxLogCursor(sandboxID string, sequence uint64) string {
+	s.logCursorMu.Lock()
 	if s.logCursorEpoch == "" {
 		s.logCursorEpoch = randomSessionID()
 	}
+	epoch := s.logCursorEpoch
+	s.logCursorMu.Unlock()
 	digest := sha256.Sum256([]byte(sandboxID))
-	return fmt.Sprintf("%s-%s-%020d", s.logCursorEpoch, hex.EncodeToString(digest[:6]), sequence)
+	return fmt.Sprintf("%s-%s-%020d", epoch, hex.EncodeToString(digest[:6]), sequence)
 }
 
 func (s *Server) parseSandboxLogCursor(sandboxID, cursor string) (uint64, bool, bool) {
+	s.logCursorMu.Lock()
 	if s.logCursorEpoch == "" {
 		s.logCursorEpoch = randomSessionID()
 	}
 	epochPrefix := s.logCursorEpoch + "-"
+	s.logCursorMu.Unlock()
 	if !strings.HasPrefix(cursor, epochPrefix) {
 		return 0, false, false
 	}
@@ -468,6 +501,12 @@ func (s *Server) parseSandboxLogCursor(sandboxID, cursor string) (uint64, bool, 
 	}
 	sequence, err := strconv.ParseUint(strings.TrimPrefix(cursor, prefix), 10, 64)
 	return sequence, true, err == nil && sequence > 0
+}
+
+func (s *Server) setSandboxLogCursorEpoch(epoch string) {
+	s.logCursorMu.Lock()
+	s.logCursorEpoch = epoch
+	s.logCursorMu.Unlock()
 }
 
 func cursorSequence(cursor string) uint64 {

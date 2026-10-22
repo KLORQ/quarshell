@@ -192,6 +192,8 @@
         "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch.go::WatchSandbox",
         "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxStreamsVMPlatformEvents",
         "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxReplaysAndResumesPlatformEvents",
+        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxReplaysTailAndPollsLogsFromOtherGatewayInstance",
+        "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestCursorEpochPersistsAcrossStoreRestart",
         "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestPlatformEventDeduplicationSharesPerSandboxCursor",
         "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestPlatformEventWindowTracksTrimmedCursorRange"
       ]
