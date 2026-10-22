@@ -151,6 +151,7 @@
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestGuestControlExecStreamSupportsSeparateOutputAndStdinEOF",
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect",
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveGuestExec",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLivePTYSignal",
         "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxInteractiveStreamsNonTTYAndFencesDuplicate"
       ]
     },

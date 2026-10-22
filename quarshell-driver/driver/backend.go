@@ -285,6 +285,22 @@ type ExecTerminalInputCloser interface {
 	CloseStdin() error
 }
 
+// ExecTerminalSignaler optionally delivers a process signal to the process
+// group owned by an interactive terminal session. The session remains the
+// process owner; callers never address a host or guest PID directly.
+type ExecTerminalSignaler interface {
+	Signal(context.Context, ExecProcessSignal) error
+}
+
+type ExecProcessSignal string
+
+const (
+	ExecSignalTerminate ExecProcessSignal = "terminate"
+	ExecSignalKill      ExecProcessSignal = "kill"
+	ExecSignalInterrupt ExecProcessSignal = "interrupt"
+	ExecSignalHangup    ExecProcessSignal = "hangup"
+)
+
 // LogAccess is optional and streams workload logs to the caller.
 type LogAccess interface {
 	Logs(context.Context, core.ID, bool, io.Writer) error

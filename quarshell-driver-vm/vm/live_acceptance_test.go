@@ -1587,4 +1587,44 @@ func assertLivePTYInterrupt(t *testing.T, ctx context.Context, d *Driver, id cor
 	if err != nil || exitCode != 42 || !bytes.Contains(output, []byte("interrupted")) {
 		t.Fatalf("live guest terminal interrupt = exit %d output %q err=%v; want trap exit 42", exitCode, output, err)
 	}
+	assertLivePTYSignal(t, ctx, d, id)
+}
+
+func assertLivePTYSignal(t *testing.T, ctx context.Context, d *Driver, id core.ID) {
+	t.Helper()
+	session, err := d.OpenExecTerminal(ctx, id, driver.ExecTerminalRequest{
+		Argv:         []string{"/bin/sh", "-c", "trap 'printf terminated; exit 43' TERM; printf 'ready\\n'; while :; do sleep 1; done"},
+		NoLoginShell: true, Columns: 80, Rows: 24,
+	})
+	if err != nil {
+		t.Fatalf("open live guest signal terminal: %v", err)
+	}
+	defer session.Close()
+	terminalOutput := bufio.NewReader(session)
+	var readyOutput strings.Builder
+	for !strings.Contains(readyOutput.String(), "ready") {
+		line, err := terminalOutput.ReadString('\n')
+		readyOutput.WriteString(line)
+		if err != nil {
+			t.Fatalf("read live guest signal readiness from %q: %v", readyOutput.String(), err)
+		}
+		if readyOutput.Len() > 4096 {
+			t.Fatalf("live guest signal command did not become ready: %q", readyOutput.String())
+		}
+	}
+	signaler, ok := session.(driver.ExecTerminalSignaler)
+	if !ok {
+		t.Fatal("live guest terminal does not expose process-group signaling")
+	}
+	if err := signaler.Signal(ctx, driver.ExecSignalTerminate); err != nil {
+		t.Fatalf("signal live guest process group with TERM: %v", err)
+	}
+	output, err := io.ReadAll(terminalOutput)
+	if err != nil {
+		t.Fatalf("read live guest signal output: %v", err)
+	}
+	exitCode, err := session.Wait(ctx)
+	if err != nil || exitCode != 43 || !bytes.Contains(output, []byte("terminated")) {
+		t.Fatalf("live guest TERM signal = exit %d output %q err=%v; want trap exit 43", exitCode, output, err)
+	}
 }

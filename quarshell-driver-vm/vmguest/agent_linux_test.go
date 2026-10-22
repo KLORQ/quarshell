@@ -932,6 +932,23 @@ func TestGuestInteractiveExecForwardsTerminalInterrupt(t *testing.T) {
 	}
 }
 
+func TestGuestTerminalSignalAllowlist(t *testing.T) {
+	for name, want := range map[string]syscall.Signal{
+		"terminate": syscall.SIGTERM,
+		"kill":      syscall.SIGKILL,
+		"interrupt": syscall.SIGINT,
+		"hangup":    syscall.SIGHUP,
+	} {
+		got, ok := guestTerminalSignal(name)
+		if !ok || got != want {
+			t.Errorf("guestTerminalSignal(%q) = (%v, %v), want (%v, true)", name, got, ok, want)
+		}
+	}
+	if _, ok := guestTerminalSignal("SIGSTOP"); ok {
+		t.Fatal("guestTerminalSignal accepted a signal outside the protocol allowlist")
+	}
+}
+
 func TestGuestExecOutputBufferIsBounded(t *testing.T) {
 	buffer := boundedBuffer{limit: 4}
 	if written, err := buffer.Write([]byte("abcdefgh")); written != 8 || err != nil {

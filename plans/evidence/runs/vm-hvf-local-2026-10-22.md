@@ -1193,3 +1193,10 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - Result: PASS. The live lifecycle captured the supervisor mTLS client certificate and SPIFFE identity on initial boot, then checked the same identity remained in place when a fresh driver adopted the running worker.
 - After explicit Stop/Start, the runtime generation and client certificate changed, the new SPIFFE URI bound that new generation, and the guest supervisor completed its readiness handshake through the new authenticated control connection.
 - Existing runtime integration coverage exercises reconnect after a dropped control stream; this adds physical HVF evidence for identity retention during adoption and rotation across restart.
+
+# Explicit guest process-group signal over HVF PTY (2026-10-22 23:53 Europe/Samara)
+
+- Command: `task vm:live-darwin`.
+- Result: PASS. `TestLiveMicroVMLifecycle` and `TestLiveLocalOCIEngineImport` passed on Apple Silicon/HVF.
+- The VM PTY session sent the protocol `terminate` signal over the authenticated host-to-guest control connection. The guest mapped it through a fixed allowlist to `SIGTERM` for the owned process group; the guest command's TERM trap ran and returned exit code 43. The test also retains the interactive Ctrl+C check.
+- The protocol does not accept arbitrary signal names. Process handles that survive stream loss and independent attach/wait/terminate operations remain part of the upstream `BoundaryProcess` gap.

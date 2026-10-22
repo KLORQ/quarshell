@@ -319,6 +319,28 @@ func (session *vmExecTerminalSession) Resize(ctx context.Context, columns, rows 
 	return session.writeFrame(vmguest.TerminalFrame{Type: "resize", Columns: columns, Rows: rows})
 }
 
+func (session *vmExecTerminalSession) Signal(ctx context.Context, signal driver.ExecProcessSignal) error {
+	if ctx == nil {
+		return fmt.Errorf("VM terminal signal context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !validExecProcessSignal(signal) {
+		return fmt.Errorf("unsupported VM terminal process signal %q", signal)
+	}
+	return session.writeFrame(vmguest.TerminalFrame{Type: "signal", Signal: string(signal)})
+}
+
+func validExecProcessSignal(signal driver.ExecProcessSignal) bool {
+	switch signal {
+	case driver.ExecSignalTerminate, driver.ExecSignalKill, driver.ExecSignalInterrupt, driver.ExecSignalHangup:
+		return true
+	default:
+		return false
+	}
+}
+
 func (session *vmExecTerminalSession) Wait(ctx context.Context) (int, error) {
 	if ctx == nil {
 		return 0, fmt.Errorf("VM terminal wait context is nil")

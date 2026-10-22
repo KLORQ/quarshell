@@ -954,6 +954,12 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 				}
 			case "eof":
 				_, _ = terminal.Write([]byte{4})
+			case "signal":
+				signal, ok := guestTerminalSignal(frame.Signal)
+				if !ok || syscall.Kill(-command.Process.Pid, signal) != nil {
+					terminatePTYProcess(command.Process.Pid, processDone)
+					return
+				}
 			default:
 				terminatePTYProcess(command.Process.Pid, processDone)
 				return
@@ -969,6 +975,21 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 	_ = writeTerminalFrame(connection, TerminalFrame{Type: "exit", ExitCode: normalizeGuestExitCode(waitErr)})
 	_ = connection.Close()
 	<-inputDone
+}
+
+func guestTerminalSignal(name string) (syscall.Signal, bool) {
+	switch name {
+	case "terminate":
+		return syscall.SIGTERM, true
+	case "kill":
+		return syscall.SIGKILL, true
+	case "interrupt":
+		return syscall.SIGINT, true
+	case "hangup":
+		return syscall.SIGHUP, true
+	default:
+		return 0, false
+	}
 }
 
 func (s *controlServer) execStream(connection net.Conn, request Request) {

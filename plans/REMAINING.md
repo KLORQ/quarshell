@@ -12,7 +12,7 @@
 
 | Строка | Уже проверено | Что ещё нужно для полного parity |
 |---|---|---|
-| `vm.exec-pty-signals` | PTY resize/interrupt, non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup | Перенести полный upstream `BoundaryProcess` attach/wait/signal/terminate контракт и проверить его через Gateway |
+| `vm.exec-pty-signals` | PTY resize/interrupt; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup | Перенести полный upstream `BoundaryProcess` retained handle/attach/wait/terminate contract и проверить его через Gateway; current signal acceptance is VM PTY level |
 | `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; authenticated Gateway relay tests | Совместить с upstream host-supervisor spawn/ownership lifecycle и переживающим reconnect процессным attachment |
 | `vm.service-forward` | CLI Gateway forwarding и loopback target validation; VM direct/relay TCP live probes | Перенести backend-owned `RunningBoundary.loopback_connector`/service lifecycle semantics end to end |
 | `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary handles: agent process, exec sessions, loopback connector, stable signal/exit semantics |

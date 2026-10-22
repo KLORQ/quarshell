@@ -54,6 +54,7 @@ type TerminalFrame struct {
 	Columns  uint32 `json:"columns,omitempty"`
 	Rows     uint32 `json:"rows,omitempty"`
 	ExitCode int    `json:"exit_code,omitempty"`
+	Signal   string `json:"signal,omitempty"`
 }
 
 func WriteFrame(writer io.Writer, payload []byte) error {
