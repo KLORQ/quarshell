@@ -1237,7 +1237,7 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 # Durable Gateway supervisor ownership (2026-10-23 00:23 Europe/Samara)
 
 - Supervisor instance ID, runtime generation, credential epoch, connection epoch, and 45-second expiry are now atomically stored in the shared lifecycle database. A restarted Gateway rejects another instance while the lease is live, permits same-instance reconnect only at a higher connection epoch, rejects epoch replay and stale heartbeat renewal, and clears ownership on Stop, new runtime generation, process finalization, and Delete.
-- `go test ./internal/application/sandbox ./internal/transport/applicationgrpc ./internal/sshrelay -count=1` in `quarshell-gateway`: PASS. `TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay` exercises SQLite close/reopen, ownership conflict, monotonic reconnect, replay rejection, heartbeat validation, and Stop/Start replacement.
+- `go test ./internal/application/sandbox ./internal/transport/applicationgrpc ./internal/sshrelay -count=1` in `quarshell-gateway`: PASS. `TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay` exercises SQLite close/reopen, ownership conflict, monotonic reconnect, persisted session UUID replacement, replay rejection, stale heartbeat rejection, and lease removal on Stop/Delete.
 - This closes durable owner-lease persistence. Exact upstream owner-record session/replica lineage and host-side supervisor process bootstrap remain partial.
 
 # Latest Mac VM acceptance after Gateway lease changes (2026-10-23 00:27 Europe/Samara)

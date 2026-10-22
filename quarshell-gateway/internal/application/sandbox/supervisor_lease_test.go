@@ -19,6 +19,7 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = store.Close() })
 	service, err := NewService(store)
 	if err != nil {
 		t.Fatal(err)
@@ -49,6 +50,7 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = reopened.Close() })
 	if err := claim(restarted, "instance-2", 1); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("different instance claimed a durable live lease: %v", err)
 	}
@@ -83,6 +85,9 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	if _, _, err := restarted.Stop(ctx, ref, 1, "stop-1"); err != nil {
 		t.Fatal(err)
 	}
+	if err := assertSupervisorLeaseAbsent(ctx, reopened, ref); err != nil {
+		t.Fatalf("Stop did not clear supervisor lease: %v", err)
+	}
 	restartedSandbox, _, err := restarted.Start(ctx, ref, 1, "start-2")
 	if err != nil {
 		t.Fatal(err)
@@ -90,5 +95,24 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	if err := restarted.ClaimSupervisorSession(ctx, ref, restartedSandbox.RuntimeGenerationOrInitial(), restartedSandbox.CredentialEpochOrInitial(), "session-instance-2", "instance-2", 1); err != nil {
 		t.Fatalf("new generation could not claim after explicit Stop: %v", err)
 	}
+	if err := restarted.Delete(ctx, ref, "delete-1"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if err := assertSupervisorLeaseAbsent(ctx, reopened, ref); err != nil {
+		t.Fatalf("Delete did not clear supervisor lease: %v", err)
+	}
 	_ = reopened.Close()
+}
+
+func assertSupervisorLeaseAbsent(ctx context.Context, store lifecycle.Store, ref domain.SandboxRef) error {
+	return store.View(ctx, func(tx lifecycle.ReadTx) error {
+		_, exists, err := tx.Get(supervisorLeaseKind, refKey(ref))
+		if err != nil {
+			return err
+		}
+		if exists {
+			return fmt.Errorf("owner lease still exists")
+		}
+		return nil
+	})
 }
