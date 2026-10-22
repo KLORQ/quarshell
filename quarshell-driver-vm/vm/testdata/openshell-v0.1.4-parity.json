@@ -361,7 +361,7 @@
       "id": "vm.resource-capabilities",
       "upstream": "crates/openshell-driver-vm/src/driver.rs::capabilities",
       "cautem": "quarshell-driver-vm/vm/backend_capabilities.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/backend_capabilities_test.go"
       ]

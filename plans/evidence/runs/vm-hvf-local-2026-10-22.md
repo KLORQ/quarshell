@@ -847,3 +847,11 @@ under `-race`; VM test binaries cross-compiled for Linux ARM64 and Windows
 AMD64 with CGO disabled. The newest `task vm:live-darwin` rerun passed on
 Apple Silicon/HVF at 18:42 (22.55s), again observing lifecycle events and
 completing the credential/session acceptance.
+
+The inventory also marks `vm.resource-capabilities` implemented for the
+default configuration: the VM reports CPU/memory limit overrides unsupported
+and GPU selection disabled, matching the pinned VM driver's default capability
+response. `TestBackendCapabilitiesAdvertiseRuntimeExtensions` now asserts all
+three resource capability fields and the disabled GPU selection flags. The
+GPU/VFIO inventory and crash-recovery entries remain unsupported without GPU
+implementation and hardware.

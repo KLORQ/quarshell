@@ -14,6 +14,15 @@ func TestBackendCapabilitiesAdvertiseRuntimeExtensions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if info.Resources == nil || info.Resources.CPU == nil || info.Resources.Memory == nil || info.Resources.GPU == nil {
+		t.Fatalf("VM backend omitted OpenShell VM resource capability fields: %+v", info.Resources)
+	}
+	if info.Resources.CPU.LimitSupported || info.Resources.Memory.LimitSupported {
+		t.Fatalf("VM backend must report that CPU/memory limit overrides are unsupported: %+v", info.Resources)
+	}
+	if info.Resources.GPU.DefaultSelectionSupported || info.Resources.GPU.CountSelectionSupported {
+		t.Fatalf("VM backend without GPU enablement must not advertise GPU selection: %+v", info.Resources.GPU)
+	}
 	for _, capability := range []driver.Capability{
 		driver.CapabilityPlatformEvents,
 		driver.CapabilitySandboxWatch,
