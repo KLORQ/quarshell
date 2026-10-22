@@ -3,6 +3,7 @@
 package vm
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -88,10 +89,58 @@ func prepareWorkerIsolation(config workerIsolationConfig) error {
 	if os.Geteuid() != 0 || os.Getegid() != 0 {
 		return fmt.Errorf("VM worker must run as namespace root with a mapped host identity")
 	}
-	if err := unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
-		return fmt.Errorf("make VM worker mount propagation private: %w", err)
+	private, err := mountNamespaceIsPrivate()
+	if err != nil {
+		return fmt.Errorf("inspect VM worker mount propagation: %w", err)
+	}
+	if !private {
+		if err := unix.Mount("", "/", "", unix.MS_REC|unix.MS_PRIVATE, ""); err != nil {
+			return fmt.Errorf("make VM worker mount propagation private: %w", err)
+		}
+		private, err = mountNamespaceIsPrivate()
+		if err != nil {
+			return fmt.Errorf("verify VM worker mount propagation: %w", err)
+		}
+		if !private {
+			return fmt.Errorf("VM worker mount namespace still has shared or slave mounts")
+		}
 	}
 	return nil
+}
+
+func mountNamespaceIsPrivate() (bool, error) {
+	file, err := os.Open("/proc/self/mountinfo")
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	return mountInfoIsPrivate(file)
+}
+
+func mountInfoIsPrivate(info *os.File) (bool, error) {
+	scanner := bufio.NewScanner(info)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		separator := -1
+		for index, field := range fields {
+			if field == "-" {
+				separator = index
+				break
+			}
+		}
+		if separator < 0 || separator < 6 {
+			return false, fmt.Errorf("invalid /proc/self/mountinfo entry")
+		}
+		for _, optional := range fields[6:separator] {
+			if strings.HasPrefix(optional, "shared:") || strings.HasPrefix(optional, "master:") || strings.HasPrefix(optional, "propagate_from:") {
+				return false, nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func verifyWorkerCodeSignature(string, string) error {

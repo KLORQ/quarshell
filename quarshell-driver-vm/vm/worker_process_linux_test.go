@@ -39,6 +39,40 @@ func TestPrepareWorkerIsolationFailsClosedWithoutNamespaceIdentity(t *testing.T)
 	}
 }
 
+func TestMountInfoIsPrivateDetectsPropagationPeers(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{name: "private", line: "29 23 0:26 / / rw,relatime - overlay overlay rw", want: true},
+		{name: "shared", line: "29 23 0:26 / / rw,relatime shared:1 - overlay overlay rw", want: false},
+		{name: "slave", line: "29 23 0:26 / / rw,relatime master:1 - overlay overlay rw", want: false},
+		{name: "propagate-from", line: "29 23 0:26 / / rw,relatime propagate_from:1 - overlay overlay rw", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			file, err := os.CreateTemp(t.TempDir(), "mountinfo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := file.WriteString(test.line + "\n"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := file.Seek(0, 0); err != nil {
+				t.Fatal(err)
+			}
+			private, err := mountInfoIsPrivate(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if private != test.want {
+				t.Fatalf("mountInfoIsPrivate() = %t, want %t", private, test.want)
+			}
+		})
+	}
+}
+
 func TestWorkerIsolationNamespaceSubprocess(t *testing.T) {
 	if os.Getuid() == 0 || os.Getgid() == 0 {
 		t.Skip("worker isolation probe requires a non-root host identity")
