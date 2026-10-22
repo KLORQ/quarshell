@@ -277,9 +277,11 @@
       "id": "vm.authenticated-vsock",
       "upstream": "crates/openshell-isolation-interface; rfc/0012-isolation-backend",
       "cautem": "quarshell-driver-vm/vm/control.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/control_test.go",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::liveVMControlClientIdentity",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestSandboxTokensAreRestrictedToSandboxMethods",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestRefreshSandboxTokenRequiresCurrentGeneration",
         "quarshell-gateway/internal/application/token/service_test.go::TestTokenRefreshPreservesSandboxGeneration",

@@ -329,6 +329,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	if restartedControlCert == initialControlCert || restartedControlIdentity == initialControlIdentity || !strings.HasSuffix(restartedControlIdentity, "/generation/"+restartedGeneration) {
 		t.Fatalf("explicit VM restart did not rotate the mTLS client identity: digest=%x identity=%q generation=%q", restartedControlCert, restartedControlIdentity, restartedGeneration)
 	}
+	t.Log("live supervisor mTLS identity remained stable during worker adoption and rotated on explicit restart; the guest re-established its control connection")
 	assertLiveWorkloadIdentity(t, ctx, recovered, handle.ID)
 	assertLiveRestartWorkloadIdentity(t, ctx, recovered, handle.ID)
 	assertLiveNetworkBroker(t, ctx, recovered, handle.ID, "blocked-probe.invalid", proxyHTTPProbe)

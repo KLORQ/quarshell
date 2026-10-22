@@ -1186,3 +1186,10 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - Result: PASS. Driver lifecycle + local OCI import passed; Gateway composition test passed in 19.63s.
 - The test started a real Gateway gRPC server on loopback, then executed the built `cautem` binary as a separate process with the Gateway endpoint selected. `sandbox upload` and `sandbox download` used the CLI's normal archive path through generated Gateway gRPC streams and the live VM's authenticated guest exec stream.
 - The round-trip preserved a nested file and relative symlink.
+
+# VM authenticated vsock identity rotation on HVF (2026-10-22 23:45 Europe/Samara)
+
+- Command: `task vm:live-darwin`.
+- Result: PASS. The live lifecycle captured the supervisor mTLS client certificate and SPIFFE identity on initial boot, then checked the same identity remained in place when a fresh driver adopted the running worker.
+- After explicit Stop/Start, the runtime generation and client certificate changed, the new SPIFFE URI bound that new generation, and the guest supervisor completed its readiness handshake through the new authenticated control connection.
+- Existing runtime integration coverage exercises reconnect after a dropped control stream; this adds physical HVF evidence for identity retention during adoption and rotation across restart.
