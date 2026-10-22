@@ -18,6 +18,21 @@ archive files, non-regular files, oversized inputs, and replacement between
 validation and use. Inventory: 20 implemented, 8 partial, 2 unsupported for
 physical GPU/VFIO.
 
+## Durable exec request admission
+
+- Reverified: 2026-10-22
+- Checks: Gateway sandbox admission and RPC behavior under `-race`: PASS;
+  full workspace `task test`: PASS.
+
+Both unary and interactive exec validate nonzero UUID request IDs and write an
+admission fence atomically to the shared lifecycle store before starting a
+runtime process. Concurrent duplicates cannot both launch. A duplicate after
+SQLite close/reopen remains rejected; an unknown outcome stays fenced, while a
+known terminal result starts a 24-hour retention period. After the retention
+period, an expired completed record is deleted and replaced in one transaction.
+The broader `vm.exec-pty-signals` row remains partial because interactive
+non-TTY and full upstream PTY/signal acceptance are still outstanding.
+
 ## Gateway restart intent persistence
 
 - Reverified: 2026-10-22

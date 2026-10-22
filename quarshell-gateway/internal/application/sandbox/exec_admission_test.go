@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"context"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -66,5 +67,39 @@ func TestExecAdmissionIsAtomicAndRetainedUntilCompletion(t *testing.T) {
 	now = now.Add(execAdmissionRetention)
 	if err := second.AdmitExecRequest(context.Background(), ref, id, hash); err != nil {
 		t.Fatalf("completed request ID was not released after 24h: %v", err)
+	}
+}
+
+func TestExecAdmissionSurvivesSQLiteReopen(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "lifecycle.db")
+	store, err := lifecycle.NewSQLiteStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	const id = "6b6f8519-f7d4-471e-925b-4ccf11d03c8b"
+	if err := service.AdmitExecRequest(ctx, ref, id, "payload-hash"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := lifecycle.NewSQLiteStore(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	service, err = NewService(reopened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.AdmitExecRequest(ctx, ref, id, "payload-hash"); domain.CodeOf(err) != domain.CodeConflict {
+		t.Fatalf("duplicate after SQLite reopen = %v, want conflict", err)
 	}
 }

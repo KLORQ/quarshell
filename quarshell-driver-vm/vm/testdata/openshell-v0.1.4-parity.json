@@ -144,7 +144,10 @@
       "cautem": "quarshell-driver-vm/vm/terminal.go",
       "status": "partial",
       "evidence": [
-        "quarshell-driver-vm/vm/live_acceptance_test.go"
+        "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-gateway/internal/application/sandbox/exec_admission_test.go::TestExecAdmissionIsAtomicAndRetainedUntilCompletion",
+        "quarshell-gateway/internal/application/sandbox/exec_admission_test.go::TestExecAdmissionSurvivesSQLiteReopen",
+        "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxRPC"
       ]
     },
     {
