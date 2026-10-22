@@ -12,6 +12,7 @@ import (
 )
 
 var _ driver.PlatformEventStream = (*Driver)(nil)
+var _ driver.SandboxWatchStream = (*Driver)(nil)
 
 const vmPlatformWatchBuffer = 128
 
@@ -25,6 +26,115 @@ var vmPlatformWatchers = struct {
 	next     uint64
 	watchers map[vmPlatformWatchKey]map[uint64]chan driver.PlatformEventResult
 }{watchers: make(map[vmPlatformWatchKey]map[uint64]chan driver.PlatformEventResult)}
+
+type vmSandboxWatchKey struct{ stateRoot string }
+
+var vmSandboxWatchers = struct {
+	sync.Mutex
+	next     uint64
+	watchers map[vmSandboxWatchKey]map[uint64]chan driver.SandboxWatchResult
+}{watchers: make(map[vmSandboxWatchKey]map[uint64]chan driver.SandboxWatchResult)}
+
+// WatchSandboxes emits current VM snapshots followed by state changes and
+// deletions. Like WatchPlatformEvents, the feed is process-local and best effort.
+func (d *Driver) WatchSandboxes(ctx context.Context) (<-chan driver.SandboxWatchResult, error) {
+	if d == nil || ctx == nil {
+		return nil, fmt.Errorf("vm sandbox watch: driver and context are required")
+	}
+	store, err := openStateStore(d.host.StateDir)
+	if err != nil {
+		return nil, err
+	}
+	updates, unsubscribe := subscribeVMSandboxes(vmSandboxWatchKey{stateRoot: filepath.Clean(store.root)})
+	snapshots, err := d.List(ctx)
+	if err != nil {
+		unsubscribe()
+		return nil, err
+	}
+	results := make(chan driver.SandboxWatchResult)
+	go func() {
+		defer close(results)
+		defer unsubscribe()
+		for index := range snapshots {
+			info := snapshots[index]
+			if !sendVMSandboxWatchEvent(ctx, results, driver.SandboxWatchResult{Event: driver.SandboxWatchEvent{Sandbox: &info}}) {
+				return
+			}
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case update := <-updates:
+				if !sendVMSandboxWatchEvent(ctx, results, update) {
+					return
+				}
+			}
+		}
+	}()
+	return results, nil
+}
+
+func subscribeVMSandboxes(key vmSandboxWatchKey) (<-chan driver.SandboxWatchResult, func()) {
+	vmSandboxWatchers.Lock()
+	vmSandboxWatchers.next++
+	id := vmSandboxWatchers.next
+	updates := make(chan driver.SandboxWatchResult, vmPlatformWatchBuffer)
+	if vmSandboxWatchers.watchers[key] == nil {
+		vmSandboxWatchers.watchers[key] = make(map[uint64]chan driver.SandboxWatchResult)
+	}
+	vmSandboxWatchers.watchers[key][id] = updates
+	vmSandboxWatchers.Unlock()
+	return updates, func() {
+		vmSandboxWatchers.Lock()
+		defer vmSandboxWatchers.Unlock()
+		delete(vmSandboxWatchers.watchers[key], id)
+		if len(vmSandboxWatchers.watchers[key]) == 0 {
+			delete(vmSandboxWatchers.watchers, key)
+		}
+	}
+}
+
+func publishVMSandboxSnapshot(stateRoot string, state sandboxState) {
+	info := stateInfo(state)
+	publishVMSandboxUpdate(vmSandboxWatchKey{stateRoot: filepath.Clean(stateRoot)}, driver.SandboxWatchResult{
+		Event: driver.SandboxWatchEvent{Sandbox: &info},
+	})
+}
+
+func publishVMSandboxDeleted(stateRoot, sandboxID string) {
+	publishVMSandboxUpdate(vmSandboxWatchKey{stateRoot: filepath.Clean(stateRoot)}, driver.SandboxWatchResult{
+		Event: driver.SandboxWatchEvent{DeletedID: core.ID(sandboxID)},
+	})
+}
+
+func publishVMSandboxUpdate(key vmSandboxWatchKey, event driver.SandboxWatchResult) {
+	vmSandboxWatchers.Lock()
+	defer vmSandboxWatchers.Unlock()
+	for _, updates := range vmSandboxWatchers.watchers[key] {
+		select {
+		case updates <- event:
+		default:
+			select {
+			case <-updates:
+			default:
+			}
+			select {
+			case updates <- event:
+			default:
+			}
+		}
+	}
+}
+
+func sendVMSandboxWatchEvent(ctx context.Context, results chan<- driver.SandboxWatchResult, event driver.SandboxWatchResult) bool {
+	select {
+	case results <- event:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
 
 // WatchPlatformEvents sends a persisted-state snapshot, then lifecycle changes
 // published by the state store. The feed is process-local and best effort; it
@@ -103,10 +213,12 @@ func subscribeVMPlatformEvents(key vmPlatformWatchKey) (<-chan driver.PlatformEv
 }
 
 func publishVMPlatformState(stateRoot string, state sandboxState) {
+	publishVMSandboxSnapshot(stateRoot, state)
 	publishVMPlatformEvent(vmPlatformWatchKey{stateRoot: filepath.Clean(stateRoot), sandboxID: state.ID}, vmStateEvent(state, state.Status == "stopped" || state.Status == "failed"))
 }
 
 func publishVMPlatformDeleted(stateRoot, sandboxID string) {
+	publishVMSandboxDeleted(stateRoot, sandboxID)
 	publishVMPlatformEvent(vmPlatformWatchKey{stateRoot: filepath.Clean(stateRoot), sandboxID: sandboxID}, driver.PlatformEventResult{Event: driver.PlatformEvent{
 		SandboxID: core.ID(sandboxID), Time: time.Now().UTC(), Source: "vm", Type: "deleted", Reason: "sandbox_deleted", Terminal: true,
 	}})

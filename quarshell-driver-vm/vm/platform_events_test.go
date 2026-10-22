@@ -54,6 +54,62 @@ func TestVMPlatformWatchSnapshotsLifecycleAndDeletion(t *testing.T) {
 	}
 }
 
+func TestVMWatchSandboxesSnapshotsUpdatesAndDeletion(t *testing.T) {
+	stateDir := filepath.Join(t.TempDir(), "state")
+	d := NewWithHostConfig(HostConfig{StateDir: stateDir})
+	store, err := openStateStore(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := store.create("first", "image:latest", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.create("second", "image:latest", time.Now().UTC().Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream, err := d.WatchSandboxes(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	initial := receiveVMSandboxWatchEvent(t, stream)
+	if got := initial.Event.Sandbox; got == nil || got.ID != core.ID(first.ID) || got.Status != "created" {
+		t.Fatalf("first snapshot = %+v", initial)
+	}
+	initial = receiveVMSandboxWatchEvent(t, stream)
+	if got := initial.Event.Sandbox; got == nil || got.ID != core.ID(second.ID) || got.Status != "created" {
+		t.Fatalf("second snapshot = %+v", initial)
+	}
+	first.Status = "running"
+	first.UpdatedAt = time.Now().UTC().Add(2 * time.Second)
+	if err := store.save(first); err != nil {
+		t.Fatal(err)
+	}
+	updated := receiveVMSandboxWatchEvent(t, stream)
+	if got := updated.Event.Sandbox; got == nil || got.ID != core.ID(first.ID) || got.Status != "running" {
+		t.Fatalf("updated snapshot = %+v", updated)
+	}
+	if err := store.delete(second.ID); err != nil {
+		t.Fatal(err)
+	}
+	deleted := receiveVMSandboxWatchEvent(t, stream)
+	if deleted.Event.DeletedID != core.ID(second.ID) || deleted.Event.Sandbox != nil {
+		t.Fatalf("deletion event = %+v", deleted)
+	}
+	cancel()
+	select {
+	case _, open := <-stream:
+		if open {
+			t.Fatal("watch stream remained open after cancellation")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("watch stream did not close after cancellation")
+	}
+}
+
 func TestVMPlatformWatchOverflowKeepsNewestEvent(t *testing.T) {
 	key := vmPlatformWatchKey{stateRoot: filepath.Join(t.TempDir(), "state"), sandboxID: "sandbox-overflow"}
 	updates, unsubscribe := subscribeVMPlatformEvents(key)
@@ -91,5 +147,22 @@ func receiveVMPlatformEvent(t *testing.T, stream <-chan driver.PlatformEventResu
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for VM platform event")
 		return driver.PlatformEventResult{}
+	}
+}
+
+func receiveVMSandboxWatchEvent(t *testing.T, stream <-chan driver.SandboxWatchResult) driver.SandboxWatchResult {
+	t.Helper()
+	select {
+	case event, open := <-stream:
+		if !open {
+			t.Fatal("sandbox watch stream closed")
+		}
+		if event.Err != nil {
+			t.Fatalf("sandbox watch error: %v", event.Err)
+		}
+		return event
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for VM sandbox watch event")
+		return driver.SandboxWatchResult{}
 	}
 }

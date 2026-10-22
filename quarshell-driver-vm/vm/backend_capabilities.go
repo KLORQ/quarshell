@@ -14,6 +14,8 @@ func (*Driver) backendInfo() driver.BackendInfo {
 		},
 		Capabilities: map[driver.Capability]struct{}{
 			driver.CapabilityTokenAwareStart:          {},
+			driver.CapabilityPlatformEvents:           {},
+			driver.CapabilitySandboxWatch:             {},
 			driver.CapabilityInteractiveExec:          {},
 			driver.CapabilityPTY:                      {},
 			driver.CapabilityExecTerminal:             {},

@@ -15,6 +15,8 @@ func TestBackendCapabilitiesAdvertiseRuntimeExtensions(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, capability := range []driver.Capability{
+		driver.CapabilityPlatformEvents,
+		driver.CapabilitySandboxWatch,
 		driver.CapabilityInteractiveExec,
 		driver.CapabilityPTY,
 		driver.CapabilityExecTerminal,

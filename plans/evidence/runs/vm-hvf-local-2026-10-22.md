@@ -828,3 +828,15 @@ authenticated sandbox generation and epoch by its handler.
 - This confirms the VM backend after the recent watch work. It does not exercise
   the live Gateway `WatchSandbox` composition bridge or turn the partial
   `vm.logs-watch` row into full parity.
+
+## Driver-wide VM sandbox watch
+
+The VM driver now exposes an optional `SandboxWatchStream` contract. Its
+`WatchSandboxes` feed emits a snapshot for each persisted VM, then state updates
+and deletion IDs from successful state-store mutations. Subscription is
+registered before the snapshot read to avoid missing transitions during
+startup. The feed uses a bounded 128-event process-local queue and does not
+claim cross-process replay. `TestVMWatchSandboxesSnapshotsUpdatesAndDeletion`
+covers initial snapshots, state change, deletion, and cancellation. The
+`vm.logs-watch` parity row remains partial because Gateway composition and
+process-independent replay are still missing.

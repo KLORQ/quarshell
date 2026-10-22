@@ -30,6 +30,7 @@ const (
 	CapabilityLogAccess                Capability = "log-access"
 	CapabilityEventStream              Capability = "event-stream"
 	CapabilityPlatformEvents           Capability = "platform-events"
+	CapabilitySandboxWatch             Capability = "sandbox-watch"
 	CapabilityFileTransfer             Capability = "file-transfer"
 	CapabilityPersistentData           Capability = "persistent-data"
 	CapabilityGPU                      Capability = "gpu"
@@ -305,6 +306,25 @@ type PlatformEventResult struct {
 // durable cursor and is suitable for adapting a backend's native watch RPC.
 type PlatformEventStream interface {
 	WatchPlatformEvents(context.Context, PlatformEventWatchRequest) (<-chan PlatformEventResult, error)
+}
+
+// SandboxWatchEvent is a driver-wide snapshot update or deletion observation.
+// It intentionally carries only the portable fields available in Info.
+type SandboxWatchEvent struct {
+	Sandbox   *Info
+	DeletedID core.ID
+}
+
+// SandboxWatchResult carries a driver-wide watch update or stream error.
+type SandboxWatchResult struct {
+	Event SandboxWatchEvent
+	Err   error
+}
+
+// SandboxWatchStream is an optional best-effort feed of current sandbox
+// snapshots followed by lifecycle updates. It does not promise durable replay.
+type SandboxWatchStream interface {
+	WatchSandboxes(context.Context) (<-chan SandboxWatchResult, error)
 }
 
 // FileTransfer is optional. Implementations enforce archive and path limits
