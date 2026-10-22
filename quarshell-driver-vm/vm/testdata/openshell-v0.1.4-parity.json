@@ -306,10 +306,13 @@
       "id": "vm.corporate-proxy-config-validation",
       "upstream": "e2e/rust/tests/vm_corporate_proxy.rs::vm_corporate_proxy_rejects_incoherent_configuration",
       "cautem": "quarshell-gateway/internal/gatewayconfig/load.go;quarshell-driver-vm/vm/network_broker_unix.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-gateway/internal/gatewayconfig/load_test.go::TestVMCorporateProxyConfigurationValidation",
-        "quarshell-driver-vm/vm/network_broker_unix_test.go::TestValidateNetworkBrokerConfigRequiresPrivatePolicyAndSafeEnvironment"
+        "quarshell-driver-vm/vm/network_broker_unix_test.go::TestValidateNetworkBrokerConfigRequiresPrivatePolicyAndSafeEnvironment",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapReadsCorporateProxySettings",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestApplyCorporateProxyKeepsGatewaySettingsAuthoritative",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestApplyCorporateProxyRequiresPolicyBroker"
       ]
     },
     {

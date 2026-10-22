@@ -1,5 +1,25 @@
 # VM Hypervisor.framework local acceptance
 
+## Latest retest: Gateway runtime config and proxy path
+
+- Reverified: 2026-10-22 20:47 Europe/Samara
+- Command: `task vm:live-darwin`
+- Result: `TestLiveMicroVMLifecycle` PASS (23.96s); required Go test gate PASS
+- Related checks: full workspace `task test`, VM parity inventory (30 entries),
+  `task fmt:check`, and `git diff --check` PASS
+
+The live HVF lifecycle again verified boot/readiness, identity and ownership,
+default-deny egress, authenticated HTTPS CONNECT allow/revoke, worker recovery,
+stop/start, broker-loss shutdown, pinned OCI pulls, natural workload exit, and
+Gateway credential/process-event flow. Gateway TOML selection and driver table
+registration now feed corporate proxy settings into the VM broker; focused
+tests verify config parsing, operator precedence, and fail-closed behavior when
+the policy broker is missing. The configuration handoff itself is unit-tested;
+the live proxy run still supplies its proxy fixture explicitly.
+
+The VM inventory is now 8 implemented, 20 partial, and 2 unsupported for
+physical GPU/VFIO hardware. This remains partial OpenShell VM parity.
+
 - Verified: 2026-10-22 (Europe/Samara)
 - VM source snapshot: `7d26991760bc9932067dc77db9e00005c934b30a`
 - Host: local Apple Silicon Mac, `darwin/arm64`, `kern.hv_support=1`

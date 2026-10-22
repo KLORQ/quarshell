@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"io"
@@ -69,6 +68,7 @@ func main() {
 	name := flag.String("name", "quarshell", "gateway name")
 	gatewayID := flag.String("gateway-id", envOrDefault("QUARSHELL_GATEWAY_ID", "openshell"), "stable OpenShell Gateway identity used in session JWTs")
 	grpcListen := flag.String("grpc-listen", "127.0.0.1:7444", "gRPC listen address; empty disables")
+	gatewayConfigPath := flag.String("config", "", "OpenShell Gateway TOML config path")
 	runtimeName := flag.String("runtime", "docker", "compute backend; empty disables")
 	runtimeConfig := flag.String("runtime-config", "{}", "backend config JSON (rootless/mounts/etc.)")
 	publicGatewayURL := flag.String("gateway-public-url", os.Getenv("QUARSHELL_GATEWAY_PUBLIC_URL"), "public Gateway URL reachable from runtime guests")
@@ -87,6 +87,17 @@ func main() {
 	oauthClientID := flag.String("oauth-exchange-client-id", os.Getenv("QUARSHELL_OAUTH_CLIENT_ID"), "OAuth client ID")
 	oauthClientSecret := flag.String("oauth-exchange-client-secret", os.Getenv("QUARSHELL_OAUTH_CLIENT_SECRET"), "OAuth client secret")
 	flag.Parse()
+	runtimeExplicit := false
+	flag.Visit(func(value *flag.Flag) {
+		if value.Name == "runtime" {
+			runtimeExplicit = true
+		}
+	})
+	resolvedRuntime, resolvedRuntimeConfig, err := resolveRuntimeConfig(*gatewayConfigPath, *runtimeConfig, *runtimeName, runtimeExplicit)
+	if err != nil {
+		log.Fatalf("gateway config: %v", err)
+	}
+	*runtimeName = resolvedRuntime
 
 	if strings.TrimSpace(*tokenValue) == "" {
 		log.Fatal("quarshell-gateway: --token or QUARSHELL_TOKEN is required")
@@ -126,11 +137,7 @@ func main() {
 	var dockerRuntime *sandboxruntime.Docker
 	var runtimeBackendID string
 	if strings.TrimSpace(*runtimeName) != "" {
-		config := map[string]any{}
-		if err := json.Unmarshal([]byte(*runtimeConfig), &config); err != nil {
-			log.Fatalf("runtime-config: %v", err)
-		}
-		backend, registered, err := driver.OpenRegisteredBackendWithConfig(*runtimeName, config)
+		backend, registered, err := driver.OpenRegisteredBackendWithConfig(*runtimeName, resolvedRuntimeConfig)
 		if err != nil || !registered {
 			log.Printf("sandbox runtime %q unavailable: %v", *runtimeName, err)
 		} else if runtime := sandboxruntime.NewForBackend(backend, runtimeWorkspaceKind(*runtimeName)); runtime == nil {

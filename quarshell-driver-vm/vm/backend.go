@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	core "github.com/KLORQ/quarshell-core"
 	"github.com/KLORQ/quarshell-driver/driver"
@@ -54,6 +55,9 @@ func (d *Driver) ValidateCreate(ctx context.Context, request driver.BackendCreat
 	if err != nil {
 		return fmt.Errorf("vm backend request: %w", err)
 	}
+	if err := d.applyCorporateProxy(&spec); err != nil {
+		return err
+	}
 	return d.validateCreateSpec(spec)
 }
 
@@ -67,6 +71,9 @@ func (d *Driver) Create(ctx context.Context, request driver.BackendCreateRequest
 	spec, err := vmSpecFromBackendRequest(ctx, request)
 	if err != nil {
 		return driver.Handle{}, fmt.Errorf("vm backend request: %w", err)
+	}
+	if err := d.applyCorporateProxy(&spec); err != nil {
+		return driver.Handle{}, err
 	}
 	return d.createSandbox(ctx, spec)
 }
@@ -85,7 +92,65 @@ func (d *Driver) RestoreLaunchSpec(ctx context.Context, id core.ID, request driv
 	if err != nil {
 		return fmt.Errorf("vm backend restore request: %w", err)
 	}
+	if err := d.applyCorporateProxy(&spec); err != nil {
+		return err
+	}
 	return d.restoreLaunchSpec(ctx, id, spec)
+}
+
+// applyCorporateProxy makes Gateway operator configuration authoritative over
+// sandbox supplied broker environment. Proxy credentials remain a file path;
+// the credential contents are read by the proxy process itself.
+func (d *Driver) applyCorporateProxy(spec *vmCreateSpec) error {
+	if d == nil || spec == nil {
+		return fmt.Errorf("vm backend: corporate proxy configuration requires a driver and launch spec")
+	}
+	host := d.host
+	if err := validateCorporateProxySettings(host); err != nil {
+		return err
+	}
+	if host.CorporateProxyURL == "" {
+		return nil
+	}
+	if spec.ProxyBin == "" || spec.PolicyPath == "" {
+		return fmt.Errorf("vm backend: https_proxy requires the policy network proxy binary and policy path")
+	}
+	managed := map[string]string{
+		"HTTP_PROXY":  host.CorporateProxyURL,
+		"HTTPS_PROXY": host.CorporateProxyURL,
+	}
+	if host.CorporateProxyNoProxy != "" {
+		managed["NO_PROXY"] = host.CorporateProxyNoProxy
+	}
+	if host.CorporateProxyAuthFile != "" {
+		managed["CAUTEM_PROXY_AUTH_FILE"] = host.CorporateProxyAuthFile
+	}
+	if host.CorporateProxyCABundle != "" {
+		managed["CAUTEM_PROXY_CA_BUNDLE"] = host.CorporateProxyCABundle
+	}
+	if host.CorporateProxyConnectByHostname != nil && *host.CorporateProxyConnectByHostname {
+		managed["CAUTEM_PROXY_CONNECT_BY_HOSTNAME"] = "true"
+	}
+	filtered := make([]string, 0, len(spec.ProxyEnv)+len(managed))
+	operatorKeys := map[string]struct{}{"HTTP_PROXY": {}, "HTTPS_PROXY": {}, "NO_PROXY": {}, "CAUTEM_PROXY_AUTH_FILE": {}, "CAUTEM_PROXY_CA_BUNDLE": {}, "CAUTEM_PROXY_CONNECT_BY_HOSTNAME": {}}
+	for _, entry := range spec.ProxyEnv {
+		key, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			filtered = append(filtered, entry)
+			continue
+		}
+		if _, operatorManaged := operatorKeys[key]; !operatorManaged {
+			filtered = append(filtered, entry)
+		}
+	}
+	keys := []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "CAUTEM_PROXY_AUTH_FILE", "CAUTEM_PROXY_CA_BUNDLE", "CAUTEM_PROXY_CONNECT_BY_HOSTNAME"}
+	for _, key := range keys {
+		if value, ok := managed[key]; ok {
+			filtered = append(filtered, key+"="+value)
+		}
+	}
+	spec.ProxyEnv = filtered
+	return nil
 }
 
 func (d *Driver) validateBackendDriverConfig(config any) error {

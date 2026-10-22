@@ -25,12 +25,18 @@ type HostConfig struct {
 	RuntimeDir string
 	// GRPCEndpoint is the Gateway supervisor gRPC endpoint supplied to the
 	// guest. OpenShell keeps this host deployment setting out of sandbox config.
-	GRPCEndpoint      string
-	DefaultImage      string
-	AllowDriverConfig bool
-	SandboxUID        *uint32
-	SandboxGID        *uint32
-	GuestTLSCA        string
+	GRPCEndpoint                    string
+	DefaultImage                    string
+	AllowDriverConfig               bool
+	SandboxUID                      *uint32
+	SandboxGID                      *uint32
+	GuestTLSCA                      string
+	CorporateProxyURL               string
+	CorporateProxyNoProxy           string
+	CorporateProxyAuthFile          string
+	CorporateProxyAuthAllowInsecure *bool
+	CorporateProxyConnectByHostname *bool
+	CorporateProxyCABundle          string
 	// BootstrapImage overrides the trusted DefaultImage fallback for the
 	// OpenShell-style two-disk boot layout.
 	BootstrapImage               string

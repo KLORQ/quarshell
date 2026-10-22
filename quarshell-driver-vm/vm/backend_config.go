@@ -132,6 +132,26 @@ func hostConfigFromMap(values map[string]any) (HostConfig, error) {
 			}
 		case "guest_tls_cert", "guest_tls_key":
 			err = fmt.Errorf("sandbox client certificates are no longer supported; remove guest_tls_cert and guest_tls_key")
+		case "https_proxy":
+			config.CorporateProxyURL, err = vmConfigString(value, key)
+		case "no_proxy":
+			config.CorporateProxyNoProxy, err = vmConfigString(value, key)
+		case "proxy_auth_file":
+			config.CorporateProxyAuthFile, err = vmConfigString(value, key)
+		case "proxy_auth_allow_insecure":
+			var allowed bool
+			allowed, err = vmConfigBool(value, key)
+			if err == nil {
+				config.CorporateProxyAuthAllowInsecure = &allowed
+			}
+		case "proxy_connect_by_hostname":
+			var enabled bool
+			enabled, err = vmConfigBool(value, key)
+			if err == nil {
+				config.CorporateProxyConnectByHostname = &enabled
+			}
+		case "proxy_ca_bundle":
+			config.CorporateProxyCABundle, err = vmConfigString(value, key)
 		default:
 			err = fmt.Errorf("unsupported VM deployment setting %q", key)
 		}
@@ -150,6 +170,9 @@ func hostConfigFromMap(values map[string]any) (HostConfig, error) {
 	}
 	endpointScheme, err := applyVMEnvironmentOverrides(&config, endpointScheme, environmentFallbacks)
 	if err != nil {
+		return HostConfig{}, err
+	}
+	if err := validateCorporateProxySettings(config); err != nil {
 		return HostConfig{}, err
 	}
 	_, explicitlySetDefaultImage := values["default_image"]
@@ -194,6 +217,57 @@ func parseHostGRPCEndpoint(endpoint string) (*url.URL, error) {
 	return parsed, nil
 }
 
+func validateCorporateProxySettings(config HostConfig) error {
+	proxyURL := strings.TrimSpace(config.CorporateProxyURL)
+	proxyScheme := ""
+	if proxyURL != "" {
+		parsed, err := url.Parse(proxyURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Opaque != "" || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+			return fmt.Errorf("vm config https_proxy must be an http(s) proxy URL without credentials, path, query or fragment")
+		}
+		proxyScheme = parsed.Scheme
+	}
+	if config.CorporateProxyNoProxy != "" && proxyURL == "" {
+		return fmt.Errorf("vm config no_proxy is set but no https_proxy is configured")
+	}
+	if config.CorporateProxyAuthFile != "" {
+		if proxyURL == "" {
+			return fmt.Errorf("vm config proxy_auth_file is set but no https_proxy is configured")
+		}
+		if err := validateVMConfigFile("proxy_auth_file", config.CorporateProxyAuthFile); err != nil {
+			return err
+		}
+		if proxyScheme == "http" && (config.CorporateProxyAuthAllowInsecure == nil || !*config.CorporateProxyAuthAllowInsecure) {
+			return fmt.Errorf("vm config proxy_auth_allow_insecure must be true for Basic auth over an http proxy")
+		}
+	} else if config.CorporateProxyAuthAllowInsecure != nil {
+		return fmt.Errorf("vm config proxy_auth_allow_insecure is set but no proxy_auth_file is configured")
+	}
+	if config.CorporateProxyConnectByHostname != nil && proxyURL == "" {
+		return fmt.Errorf("vm config proxy_connect_by_hostname is set but no https_proxy is configured")
+	}
+	if config.CorporateProxyCABundle != "" {
+		if proxyURL == "" {
+			return fmt.Errorf("vm config proxy_ca_bundle is set but no https_proxy is configured")
+		}
+		if err := validateVMConfigFile("proxy_ca_bundle", config.CorporateProxyCABundle); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateVMConfigFile(key, path string) error {
+	if strings.TrimSpace(path) == "" || strings.TrimSpace(path) != path || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return fmt.Errorf("vm config %s must be a non-empty absolute clean path", key)
+	}
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("vm config %s must reference an existing regular file", key)
+	}
+	return nil
+}
+
 func applyVMEnvironmentOverrides(config *HostConfig, endpointScheme string, explicit map[string]any) (string, error) {
 	for _, unsupported := range []struct {
 		env, label string
@@ -205,12 +279,6 @@ func applyVMEnvironmentOverrides(config *HostConfig, endpointScheme string, expl
 		{"OPENSHELL_VM_UPSTREAM_PROXY_AUTH_ALLOW_INSECURE", "upstream proxy auth", true},
 		{"OPENSHELL_VM_UPSTREAM_PROXY_CONNECT_BY_HOSTNAME", "upstream proxy", true},
 		{"OPENSHELL_VM_UPSTREAM_PROXY_CA_BUNDLE", "upstream proxy CA", false},
-		{"OPENSHELL_VM_HTTPS_PROXY", "VM proxy", false},
-		{"OPENSHELL_VM_NO_PROXY", "VM proxy", false},
-		{"OPENSHELL_VM_PROXY_AUTH_FILE", "VM proxy auth", false},
-		{"OPENSHELL_VM_PROXY_AUTH_ALLOW_INSECURE", "VM proxy auth", true},
-		{"OPENSHELL_VM_PROXY_CONNECT_BY_HOSTNAME", "VM proxy", true},
-		{"OPENSHELL_VM_PROXY_CA_BUNDLE", "VM proxy CA", false},
 		{"OPENSHELL_PROVIDER_SPIFFE_WORKLOAD_API_TCP_ENDPOINT", "SPIFFE Workload API", false},
 		{"OPENSHELL_PROVIDER_SPIFFE_ALLOW_GUEST_TCP", "SPIFFE Workload API", true},
 		{"OPENSHELL_VM_GPU", "GPU passthrough", true},
@@ -222,6 +290,46 @@ func applyVMEnvironmentOverrides(config *HostConfig, endpointScheme string, expl
 				continue
 			}
 			return "", fmt.Errorf("%s is not implemented by the in-process Go VM backend; remove %s", label, env)
+		}
+	}
+	for _, setting := range []struct{ env, key string }{
+		{"OPENSHELL_VM_HTTPS_PROXY", "https_proxy"},
+		{"OPENSHELL_VM_NO_PROXY", "no_proxy"},
+		{"OPENSHELL_VM_PROXY_AUTH_FILE", "proxy_auth_file"},
+		{"OPENSHELL_VM_PROXY_CA_BUNDLE", "proxy_ca_bundle"},
+	} {
+		if _, explicit := explicit[setting.key]; explicit {
+			continue
+		}
+		if value, configured := os.LookupEnv(setting.env); configured {
+			switch setting.key {
+			case "https_proxy":
+				config.CorporateProxyURL = value
+			case "no_proxy":
+				config.CorporateProxyNoProxy = value
+			case "proxy_auth_file":
+				config.CorporateProxyAuthFile = value
+			case "proxy_ca_bundle":
+				config.CorporateProxyCABundle = value
+			}
+		}
+	}
+	if _, explicit := explicit["proxy_auth_allow_insecure"]; !explicit {
+		if value, configured := os.LookupEnv("OPENSHELL_VM_PROXY_AUTH_ALLOW_INSECURE"); configured {
+			allowed, err := strconv.ParseBool(value)
+			if err != nil {
+				return "", fmt.Errorf("OPENSHELL_VM_PROXY_AUTH_ALLOW_INSECURE must be a boolean")
+			}
+			config.CorporateProxyAuthAllowInsecure = &allowed
+		}
+	}
+	if _, explicit := explicit["proxy_connect_by_hostname"]; !explicit {
+		if value, configured := os.LookupEnv("OPENSHELL_VM_PROXY_CONNECT_BY_HOSTNAME"); configured {
+			enabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return "", fmt.Errorf("OPENSHELL_VM_PROXY_CONNECT_BY_HOSTNAME must be a boolean")
+			}
+			config.CorporateProxyConnectByHostname = &enabled
 		}
 	}
 	for _, numericEnv := range []struct {
