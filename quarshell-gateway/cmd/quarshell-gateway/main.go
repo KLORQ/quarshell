@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -35,6 +38,7 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/application/template"
 	"github.com/KLORQ/quarshell-gateway/internal/application/token"
 	"github.com/KLORQ/quarshell-gateway/internal/application/workspace"
+	"github.com/KLORQ/quarshell-gateway/internal/gatewayconfig"
 	"github.com/KLORQ/quarshell-gateway/internal/sshrelay"
 	applicationgrpc "github.com/KLORQ/quarshell-gateway/internal/transport/applicationgrpc"
 	applicationhttp "github.com/KLORQ/quarshell-gateway/internal/transport/applicationhttp"
@@ -50,6 +54,18 @@ func envOrDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func loadClientCA(path string) (*x509.CertPool, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(data) {
+		return nil, fmt.Errorf("no certificates in %s", path)
+	}
+	return pool, nil
 }
 
 func runtimeWorkspaceKind(name string) driver.WorkspaceKind {
@@ -74,6 +90,7 @@ func main() {
 	gatewayConfigPath := flag.String("config", "", "OpenShell Gateway TOML config path")
 	tlsCert := flag.String("tls-cert", "", "TLS certificate path")
 	tlsKey := flag.String("tls-key", "", "TLS private key path")
+	tlsClientCA := flag.String("tls-client-ca", "", "CA bundle for required client certificates")
 	runtimeName := flag.String("runtime", "docker", "compute backend; empty disables")
 	runtimeConfig := flag.String("runtime-config", "{}", "backend config JSON (rootless/mounts/etc.)")
 	publicGatewayURL := flag.String("gateway-public-url", os.Getenv("QUARSHELL_GATEWAY_PUBLIC_URL"), "public Gateway URL reachable from runtime guests")
@@ -92,13 +109,43 @@ func main() {
 	oauthClientID := flag.String("oauth-exchange-client-id", os.Getenv("QUARSHELL_OAUTH_CLIENT_ID"), "OAuth client ID")
 	oauthClientSecret := flag.String("oauth-exchange-client-secret", os.Getenv("QUARSHELL_OAUTH_CLIENT_SECRET"), "OAuth client secret")
 	flag.Parse()
-	runtimeExplicit := false
-	flag.Visit(func(value *flag.Flag) {
-		if value.Name == "runtime" {
-			runtimeExplicit = true
+	explicit := map[string]bool{}
+	flag.Visit(func(value *flag.Flag) { explicit[value.Name] = true })
+	runtimeExplicit := explicit["runtime"]
+	configPath, found, err := gatewayconfig.SelectPath(*gatewayConfigPath)
+	if err != nil {
+		log.Fatalf("gateway config: %v", err)
+	}
+	var databaseURL string
+	if found {
+		file, err := gatewayconfig.Load(configPath)
+		if err != nil {
+			log.Fatalf("gateway config: %v", err)
 		}
-	})
-	resolvedRuntime, resolvedRuntimeConfig, err := resolveRuntimeConfig(*gatewayConfigPath, *runtimeConfig, *runtimeName, runtimeExplicit)
+		gateway := file.OpenShell.Gateway
+		if !explicit["name"] && gateway.Name != nil {
+			*name = *gateway.Name
+		}
+		if !explicit["listen"] && gateway.BindAddress != nil {
+			*listen = *gateway.BindAddress
+		}
+		if gateway.TLS != nil {
+			if !explicit["tls-cert"] && gateway.TLS.CertPath != nil {
+				*tlsCert = *gateway.TLS.CertPath
+			}
+			if !explicit["tls-key"] && gateway.TLS.KeyPath != nil {
+				*tlsKey = *gateway.TLS.KeyPath
+			}
+			if !explicit["tls-client-ca"] && gateway.TLS.ClientCAPath != nil {
+				*tlsClientCA = *gateway.TLS.ClientCAPath
+			}
+		}
+		if gateway.DatabaseURL != nil {
+			databaseURL = *gateway.DatabaseURL
+		}
+	}
+	*gatewayConfigPath = configPath
+	resolvedRuntime, resolvedRuntimeConfig, err := resolveRuntimeConfig(configPath, *runtimeConfig, *runtimeName, runtimeExplicit)
 	if err != nil {
 		log.Fatalf("gateway config: %v", err)
 	}
@@ -120,7 +167,14 @@ func main() {
 
 	var store lifecycle.Store
 	var closer func() error
-	if strings.TrimSpace(*dataPath) == "" {
+	if strings.TrimSpace(databaseURL) != "" && strings.TrimSpace(*dataPath) == "" {
+		postgres, err := lifecycle.NewPostgresStore(ctx, databaseURL)
+		if err != nil {
+			log.Fatalf("open PostgreSQL store: %v", err)
+		}
+		store = postgres
+		closer = postgres.Close
+	} else if strings.TrimSpace(*dataPath) == "" {
 		store = lifecycle.NewMemoryStore()
 		log.Printf("quarshell-gateway: using in-memory lifecycle state")
 	} else {
@@ -277,11 +331,20 @@ func main() {
 			grpc.StreamInterceptor(applicationgrpc.StreamAuthInterceptorWithSandboxTokens(*tokenValue, "gateway-client", tokens)),
 		}
 		if *tlsCert != "" && *tlsKey != "" {
-			creds, err := grpcCredentials.NewServerTLSFromFile(*tlsCert, *tlsKey)
+			certificate, err := tls.LoadX509KeyPair(*tlsCert, *tlsKey)
 			if err != nil {
 				log.Fatalf("grpc TLS: %v", err)
 			}
-			options = append(options, grpc.Creds(creds))
+			tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}}
+			if *tlsClientCA != "" {
+				pool, err := loadClientCA(*tlsClientCA)
+				if err != nil {
+					log.Fatalf("grpc client CA: %v", err)
+				}
+				tlsConfig.ClientCAs = pool
+				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+			}
+			options = append(options, grpc.Creds(grpcCredentials.NewTLS(tlsConfig)))
 		}
 		grpcServer = grpc.NewServer(options...)
 		grpcApplication := applicationgrpc.New(gatewayVersion, workspaces, sandboxes, chunks, templates, settingsService, providerDefs, services)
@@ -336,6 +399,13 @@ func main() {
 	if *tlsCert != "" || *tlsKey != "" {
 		if *tlsCert == "" || *tlsKey == "" {
 			log.Fatal("both --tls-cert and --tls-key are required")
+		}
+		if *tlsClientCA != "" {
+			pool, err := loadClientCA(*tlsClientCA)
+			if err != nil {
+				log.Fatalf("http client CA: %v", err)
+			}
+			server.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12, ClientCAs: pool, ClientAuth: tls.RequireAndVerifyClientCert}
 		}
 		serve = func(l net.Listener) error { return server.ServeTLS(l, *tlsCert, *tlsKey) }
 	}

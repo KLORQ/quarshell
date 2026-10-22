@@ -213,10 +213,21 @@ func (a *App) clientFor(u string) *klorq.Client {
 	client := a.clientWithToken(u, a.gatewayTokenForURL(u))
 	client.Workspace = a.GlobalWorkspace
 	if isLocalGatewayURL(u) {
-		client.SetInsecureSkipVerify(true)
+		if err := configureLocalTLS(client); err != nil {
+			client.SetInsecureSkipVerify(true)
+		}
 		client.SetGRPCEndpoint(localGatewayGRPCEndpoint)
 	}
 	return client
+}
+
+func configureLocalTLS(client *klorq.Client) error {
+	dir := filepath.Join(defaultGatewayDataDir(), "tls")
+	return client.SetTLSCertificate(
+		filepath.Join(dir, "client", "client.crt"),
+		filepath.Join(dir, "client", "client.key"),
+		filepath.Join(dir, "ca.crt"),
+	)
 }
 
 func (a *App) clientWithToken(u, token string) *klorq.Client {
@@ -229,7 +240,9 @@ func (a *App) clientWithToken(u, token string) *klorq.Client {
 	client := klorq.NewWithToken(u, token)
 	client.SetEdgeToken(edgeToken)
 	if isLocalGatewayURL(u) {
-		client.SetInsecureSkipVerify(true)
+		if err := configureLocalTLS(client); err != nil {
+			client.SetInsecureSkipVerify(true)
+		}
 		client.SetGRPCEndpoint(localGatewayGRPCEndpoint)
 	}
 	if a != nil && a.GatewayInsecure {

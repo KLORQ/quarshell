@@ -80,3 +80,5 @@
 **/.aws/credentials
 **/.aws/sso/cache/
 **/application_default_credentials.json
+/release-packages/
+/release-dry-run/

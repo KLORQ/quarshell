@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${1:-$ROOT/release-dry-run}"
+VERSION="${VERSION:-0.0.0-dev}"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
@@ -37,7 +38,17 @@ for target in "${TARGETS[@]}"; do
 	build "$os" "$arch" quarshell-prover ./cmd/quarshell-prover quarshell-prover
 done
 
-( cd "$OUT" && shasum -a 256 quarshell-* > SHA256SUMS )
+for target in "${TARGETS[@]}"; do
+	read -r os arch <<< "$target"
+	extension=""
+	[[ "$os" == "windows" ]] && extension=".exe"
+	archive="$OUT/quarshell_${VERSION}_${os}_${arch}.tar.gz"
+	tar -czf "$archive" -C "$OUT" \
+		"quarshell-cli-${os}-${arch}${extension}" \
+		"quarshell-gateway-${os}-${arch}${extension}" \
+		"quarshell-prover-${os}-${arch}${extension}"
+done
+( cd "$OUT" && shasum -a 256 quarshell-* quarshell_*.tar.gz > SHA256SUMS )
 python3 - "$OUT" <<'PY'
 import hashlib, json, sys
 from pathlib import Path

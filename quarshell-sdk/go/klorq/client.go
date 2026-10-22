@@ -38,6 +38,9 @@ type Client struct {
 	// Workspace selects the default workspace for resource-oriented methods.
 	Workspace   string
 	insecureTLS bool
+	tlsCertFile string
+	tlsKeyFile  string
+	tlsCAFile   string
 	tokenMu     sync.Mutex
 	rpcMu       sync.Mutex
 	gatewayConn *grpc.ClientConn
@@ -63,6 +66,25 @@ func (c *Client) SetInsecureSkipVerify(skip bool) {
 // SetGRPCEndpoint configures the native Gateway RPC authority independently
 // from the HTTP base URL. The endpoint may be an http(s) URL or host:port.
 // Configure it before the first RPC call.
+// SetTLSCertificate configures a client certificate and optional CA bundle.
+func (c *Client) SetTLSCertificate(certFile, keyFile, caFile string) error {
+	if c == nil {
+		return nil
+	}
+	c.rpcMu.Lock()
+	defer c.rpcMu.Unlock()
+	if c.gatewayConn != nil {
+		return nil
+	}
+	c.tlsCertFile, c.tlsKeyFile, c.tlsCAFile = certFile, keyFile, caFile
+	if c.http != nil {
+		if err := c.http.SetTLSCertificate(certFile, keyFile, caFile); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *Client) SetGRPCEndpoint(endpoint string) {
 	if c == nil {
 		return

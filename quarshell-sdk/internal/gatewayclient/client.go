@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +33,30 @@ func NewWithToken(base, token string) *Client {
 	client := New(base)
 	client.Token = strings.TrimSpace(token)
 	return client
+}
+
+// SetTLSCertificate configures a client certificate and optional CA bundle.
+func (c *Client) SetTLSCertificate(certFile, keyFile, caFile string) error {
+	certificate, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	config := &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}}
+	if caFile != "" {
+		pemBytes, err := os.ReadFile(caFile)
+		if err != nil {
+			return err
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pemBytes) {
+			return fmt.Errorf("no certificates in %s", caFile)
+		}
+		config.RootCAs = pool
+	}
+	transport.TLSClientConfig = config
+	c.HTTP.Transport = transport
+	return nil
 }
 
 func (c *Client) SetInsecureSkipVerify(skip bool) {

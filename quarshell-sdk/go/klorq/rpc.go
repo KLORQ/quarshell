@@ -3,9 +3,11 @@ package klorq
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
@@ -61,7 +63,26 @@ func (c *Client) gatewayConnection() (*grpc.ClientConn, error) {
 	var transport credentials.TransportCredentials
 	switch strings.ToLower(endpoint.Scheme) {
 	case "https":
-		transport = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: c.insecureTLS})
+		config := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: c.insecureTLS}
+		if c.tlsCertFile != "" && c.tlsKeyFile != "" {
+			certificate, err := tls.LoadX509KeyPair(c.tlsCertFile, c.tlsKeyFile)
+			if err != nil {
+				return nil, fmt.Errorf("gateway RPC: client certificate: %w", err)
+			}
+			config.Certificates = []tls.Certificate{certificate}
+		}
+		if c.tlsCAFile != "" {
+			pemBytes, err := os.ReadFile(c.tlsCAFile)
+			if err != nil {
+				return nil, fmt.Errorf("gateway RPC: CA bundle: %w", err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(pemBytes) {
+				return nil, fmt.Errorf("gateway RPC: empty CA bundle")
+			}
+			config.RootCAs = pool
+		}
+		transport = credentials.NewTLS(config)
 	case "http":
 		host := strings.ToLower(endpoint.Hostname())
 		if !isLoopbackHost(host) && host != "host.cautem.internal" {

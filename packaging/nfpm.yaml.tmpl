@@ -1,0 +1,16 @@
+name: quarshell
+arch: __ARCH__
+platform: linux
+version: __VERSION__
+section: utils
+priority: optional
+maintainer: KLORQ
+description: Quarshell gateway, CLI and policy prover
+license: Apache-2.0
+contents:
+  - src: __ROOT__/release-dry-run/quarshell-gateway-linux-__ARCH__
+    dst: /usr/bin/quarshell-gateway
+  - src: __ROOT__/release-dry-run/quarshell-cli-linux-__ARCH__
+    dst: /usr/bin/cautem
+  - src: __ROOT__/release-dry-run/quarshell-prover-linux-__ARCH__
+    dst: /usr/bin/quarshell-prover

@@ -1,0 +1,35 @@
+class Quarshell < Formula
+  desc "Policy-bound sandboxes for coding agents"
+  homepage "https://github.com/KLORQ/quarshell"
+  version "__VERSION__"
+  license "Apache-2.0"
+
+  on_macos do
+    if Hardware::CPU.arm?
+      url "https://github.com/KLORQ/quarshell/releases/download/v__VERSION__/quarshell___VERSION___darwin_arm64.tar.gz"
+      sha256 "__SHA_DARWIN_ARM64__"
+    else
+      url "https://github.com/KLORQ/quarshell/releases/download/v__VERSION__/quarshell___VERSION___darwin_amd64.tar.gz"
+      sha256 "__SHA_DARWIN_AMD64__"
+    end
+  end
+
+  def install
+    arch = Hardware::CPU.arm? ? "arm64" : "amd64"
+    bin.install "quarshell-cli-darwin-#{arch}" => "cautem"
+    bin.install "quarshell-gateway-darwin-#{arch}" => "quarshell-gateway"
+    bin.install "quarshell-prover-darwin-#{arch}" => "quarshell-prover"
+  end
+
+  def caveats
+    <<~EOS
+      Start and register the local gateway with:
+        cautem gateway ensure
+      The gateway listens on https://127.0.0.1:17670.
+    EOS
+  end
+
+  test do
+    assert_match "quarshell-prover", shell_output("#{bin}/quarshell-prover --version")
+  end
+end

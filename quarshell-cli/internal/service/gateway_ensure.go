@@ -70,12 +70,12 @@ func (a *App) GatewayEnsure() error {
 		return fmt.Errorf("gateway ensure: token: %w", err)
 	}
 	log.Info("starting local gateway", slog.String("bin", bin), slog.String("listen", "127.0.0.1:17670"))
-	certPath, keyPath, err := ensureGatewayTLS(dataDir)
+	tlsFiles, err := ensureGatewayTLS(dataDir)
 	if err != nil {
 		_ = logF.Close()
 		return fmt.Errorf("gateway ensure: TLS: %w", err)
 	}
-	gatewayArgs := []string{"--listen", "127.0.0.1:17670", "--grpc-listen", localGatewayGRPCEndpoint, "--data-dir", dataDir, "--tls-cert", certPath, "--tls-key", keyPath}
+	gatewayArgs := []string{"--listen", "127.0.0.1:17670", "--grpc-listen", localGatewayGRPCEndpoint, "--data-dir", dataDir, "--tls-cert", tlsFiles.ServerCert, "--tls-key", tlsFiles.ServerKey, "--tls-client-ca", tlsFiles.CA}
 	gatewayEnv := []string{"QUARSHELL_TOKEN=" + token}
 	serviceStarted := false
 	if os.Getenv("CAUTEM_GATEWAY_SERVICE") != "0" {
