@@ -365,7 +365,7 @@
       "id": "vm.lifecycle-extensions",
       "upstream": "crates/openshell-driver-vm/src/lifecycle.rs;crates/openshell-driver-vm/src/extensions/mod.rs",
       "cautem": "quarshell-driver/driver/backend.go;quarshell-driver-vm/vm/lifecycle_extensions.go;quarshell-driver-vm/vm/lifecycle.go;quarshell-driver-vm/vm/overlay.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/lifecycle_extensions_test.go::TestLifecycleExtensionRegistryActivationOrderingAndCleanup",
         "quarshell-driver-vm/vm/lifecycle_extensions_test.go::TestLifecycleExtensionRegistryRejectsBadRegistrationAndLaunchPlan",
