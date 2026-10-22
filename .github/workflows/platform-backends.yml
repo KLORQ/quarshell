@@ -116,6 +116,13 @@ jobs:
               echo "::warning::GitHub-hosted ubuntu-24.04 exposes /dev/kvm and libkrun, but no approved runtime digest lock is configured; live KVM acceptance remains unverified"
             fi
           fi
+      - name: Make hosted runner root mount private for VM worker isolation
+        if: steps.kvm.outputs.available == 'true'
+        run: |
+          sudo mount --make-rprivate /
+          propagation="$(findmnt -n -o PROPAGATION /)"
+          echo "runner root mount propagation: $propagation"
+          test "$propagation" = private
       - name: Run live KVM lifecycle acceptance
         if: steps.kvm.outputs.available == 'true'
         run: task vm:live-linux
