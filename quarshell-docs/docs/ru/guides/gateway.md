@@ -12,7 +12,7 @@ sandbox, observation log rings и workflow policy proposals.
 
 ```bash
 cautem gateway ensure
-cautem gateway add http://127.0.0.1:7443 --local --name local
+cautem gateway add https://127.0.0.1:17670 --local --name local
 cautem gateway select local
 cautem gateway info
 ```
@@ -34,7 +34,7 @@ backup `state.json` либо одновременно PostgreSQL и катало
 отклоняет store schema v3, поэтому для rollback нужно восстановить backup до
 обновления.
 
-Адрес по умолчанию: `127.0.0.1:7443`.
+Адрес по умолчанию: `127.0.0.1:17670`.
 Если установить `[openshell.gateway.auth] allow_unauthenticated_users = true`
 или передать `--allow-unauthenticated-users`, Gateway принимает
 неаутентифицированные запросы на указанном listener и пишет предупреждение.
@@ -94,7 +94,7 @@ Gateways пишутся в `~/.config/cautem/config.yaml`:
 current: local
 gateways:
   local:
-    url: http://127.0.0.1:7443
+    url: https://127.0.0.1:17670
 ```
 
 OIDC- и edge-учётные данные сохраняются после `cautem gateway login`. Для local

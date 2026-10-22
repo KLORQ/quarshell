@@ -17,7 +17,8 @@ import (
 )
 
 const localGatewayName = "local"
-const localGatewayURL = "http://" + defaults.GatewayListen
+const localGatewayURL = "https://127.0.0.1:17670"
+const localGatewayGRPCEndpoint = "127.0.0.1:17671"
 
 // GatewayEnsure makes sure a reachable gateway is selected (OpenShell install UX).
 // If the current gateway is healthy, it is a no-op. Otherwise it starts a local
@@ -35,7 +36,7 @@ func (a *App) GatewayEnsure() error {
 		}
 	}
 	// Prefer already-listening local port (user started gateway manually).
-	if portOpen("127.0.0.1", defaults.GatewayPort) {
+	if portOpen("127.0.0.1", 17670) {
 		_ = a.GatewayAdd(localGatewayName, localGatewayURL)
 		_ = a.GatewaySelect(localGatewayName)
 		ctx, cancel := a.withTimeout(TimeoutProbe)
@@ -68,8 +69,13 @@ func (a *App) GatewayEnsure() error {
 		_ = logF.Close()
 		return fmt.Errorf("gateway ensure: token: %w", err)
 	}
-	log.Info("starting local gateway", slog.String("bin", bin), slog.String("listen", defaults.GatewayListen))
-	cmd := exec.Command(bin, "--listen", defaults.GatewayListen, "--data-dir", dataDir)
+	log.Info("starting local gateway", slog.String("bin", bin), slog.String("listen", "127.0.0.1:17670"))
+	certPath, keyPath, err := ensureGatewayTLS(dataDir)
+	if err != nil {
+		_ = logF.Close()
+		return fmt.Errorf("gateway ensure: TLS: %w", err)
+	}
+	cmd := exec.Command(bin, "--listen", "127.0.0.1:17670", "--grpc-listen", localGatewayGRPCEndpoint, "--data-dir", dataDir, "--tls-cert", certPath, "--tls-key", keyPath)
 	cmd.Env = append(os.Environ(), "QUARSHELL_TOKEN="+token)
 	cmd.Stdout = logF
 	cmd.Stderr = logF

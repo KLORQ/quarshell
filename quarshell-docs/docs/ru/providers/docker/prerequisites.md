@@ -42,7 +42,7 @@ Proxy, секреты и `--provider` требуют доступный gateway:
 
 ```bash
 cautem gateway ensure
-cautem gateway add http://127.0.0.1:7443 --local --name local
+cautem gateway add https://127.0.0.1:17670 --local --name local
 cautem gateway select local
 ```
 

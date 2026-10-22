@@ -18,11 +18,11 @@ From the repository root, generate a local token and start the Gateway:
 ```sh
 export QUARSHELL_TOKEN="$(openssl rand -hex 32)"
 docker compose -f quarshell-gateway/compose/docker-compose.yml up --build -d
-curl --fail http://127.0.0.1:7443/v1/healthz
+curl --fail https://127.0.0.1:17670/v1/healthz
 ```
 
 Compose stores state in the `quarshell-gateway-data` volume. HTTP is available
-on `127.0.0.1:7443`; gRPC is available on `127.0.0.1:7445`.
+on `127.0.0.1:17670`; gRPC is available on `127.0.0.1:7445`.
 gRPC has no TLS listener. Keep port `7445` on loopback or a trusted private
 network; do not publish it to untrusted clients.
 
@@ -33,7 +33,7 @@ From the repository root:
 ```sh
 export QUARSHELL_TOKEN="$(openssl rand -hex 32)"
 go -C quarshell-gateway run ./cmd/quarshell-gateway \
-  --listen 127.0.0.1:7443 \
+  --listen 127.0.0.1:17670 \
   --grpc-listen 127.0.0.1:7444 \
   --runtime docker
 ```

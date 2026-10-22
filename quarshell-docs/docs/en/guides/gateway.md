@@ -12,7 +12,7 @@ registry, observation log rings, and policy proposal workflow.
 
 ```bash
 cautem gateway ensure
-cautem gateway add http://127.0.0.1:7443 --local --name local
+cautem gateway add https://127.0.0.1:17670 --local --name local
 cautem gateway select local
 cautem gateway info
 ```
@@ -33,7 +33,7 @@ the PostgreSQL database and `$XDG_STATE_HOME/openshell` (or
 `$HOME/.local/state/openshell`), before upgrading. A schema-v2 gateway
 rejects a schema-v3 store, so rollback requires restoring the pre-upgrade backup.
 
-Listen address defaults to `127.0.0.1:7443`.
+Listen address defaults to `127.0.0.1:17670`.
 If you set `[openshell.gateway.auth] allow_unauthenticated_users = true` or
 pass `--allow-unauthenticated-users`, the Gateway accepts unauthenticated
 requests on the configured listener and logs a warning. Use this only in a
@@ -93,7 +93,7 @@ Gateways are recorded in `~/.config/cautem/config.yaml`:
 current: local
 gateways:
   local:
-    url: http://127.0.0.1:7443
+    url: https://127.0.0.1:17670
 ```
 
 OIDC and edge credentials are stored after `cautem gateway login`. Local

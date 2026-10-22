@@ -361,7 +361,7 @@ Usage:
 Usage:
   cautem gateway ensure|add|remove|select|info|list|login|logout
 
-  ensure   start/select local gateway on 127.0.0.1:7443 if needed
+  ensure   start/select local gateway on 127.0.0.1:17670 if needed
 `,
 	"workspace": `cautem workspace — workspaces (gateway-backed)
 

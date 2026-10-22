@@ -190,7 +190,10 @@ const gatewayAuthTokenFile = "auth_token"
 
 func isLocalGatewayURL(u string) bool {
 	u = strings.TrimRight(u, "/")
-	return u == localGatewayURL || u == "http://localhost:"+strconv.Itoa(defaults.GatewayPort)
+	return u == localGatewayURL ||
+		u == "https://localhost:17670" ||
+		u == "http://127.0.0.1:"+strconv.Itoa(defaults.GatewayPort) ||
+		u == "http://localhost:"+strconv.Itoa(defaults.GatewayPort)
 }
 
 // defaultGatewayDataDir mirrors quarshell-gateway's default --data-dir.
@@ -209,6 +212,10 @@ func defaultGatewayDataDir() string {
 func (a *App) clientFor(u string) *klorq.Client {
 	client := a.clientWithToken(u, a.gatewayTokenForURL(u))
 	client.Workspace = a.GlobalWorkspace
+	if isLocalGatewayURL(u) {
+		client.SetInsecureSkipVerify(true)
+		client.SetGRPCEndpoint(localGatewayGRPCEndpoint)
+	}
 	return client
 }
 
@@ -221,6 +228,10 @@ func (a *App) clientWithToken(u, token string) *klorq.Client {
 	}
 	client := klorq.NewWithToken(u, token)
 	client.SetEdgeToken(edgeToken)
+	if isLocalGatewayURL(u) {
+		client.SetInsecureSkipVerify(true)
+		client.SetGRPCEndpoint(localGatewayGRPCEndpoint)
+	}
 	if a != nil && a.GatewayInsecure {
 		client.SetInsecureSkipVerify(true)
 	}

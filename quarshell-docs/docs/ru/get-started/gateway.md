@@ -18,11 +18,11 @@ SPDX-License-Identifier: Apache-2.0
 ```sh
 export QUARSHELL_TOKEN="$(openssl rand -hex 32)"
 docker compose -f quarshell-gateway/compose/docker-compose.yml up --build -d
-curl --fail http://127.0.0.1:7443/v1/healthz
+curl --fail https://127.0.0.1:17670/v1/healthz
 ```
 
 Compose хранит состояние в volume `quarshell-gateway-data`. HTTP доступен на
-`127.0.0.1:7443`, gRPC — на `127.0.0.1:7445`.
+`127.0.0.1:17670`, gRPC — на `127.0.0.1:7445`.
 Для gRPC не настроен TLS listener. Оставьте порт `7445` на loopback или в
 доверенной приватной сети; не публикуйте его для недоверенных клиентов.
 
@@ -33,7 +33,7 @@ Compose хранит состояние в volume `quarshell-gateway-data`. HTTP
 ```sh
 export QUARSHELL_TOKEN="$(openssl rand -hex 32)"
 go -C quarshell-gateway run ./cmd/quarshell-gateway \
-  --listen 127.0.0.1:7443 \
+  --listen 127.0.0.1:17670 \
   --grpc-listen 127.0.0.1:7444 \
   --runtime docker
 ```

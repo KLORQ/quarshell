@@ -40,6 +40,7 @@ import (
 	applicationhttp "github.com/KLORQ/quarshell-gateway/internal/transport/applicationhttp"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
+	grpcCredentials "google.golang.org/grpc/credentials"
 )
 
 var gatewayVersion = "0.0.0-dev"
@@ -71,6 +72,8 @@ func main() {
 	gatewayID := flag.String("gateway-id", envOrDefault("QUARSHELL_GATEWAY_ID", "openshell"), "stable OpenShell Gateway identity used in session JWTs")
 	grpcListen := flag.String("grpc-listen", "127.0.0.1:7444", "gRPC listen address; empty disables")
 	gatewayConfigPath := flag.String("config", "", "OpenShell Gateway TOML config path")
+	tlsCert := flag.String("tls-cert", "", "TLS certificate path")
+	tlsKey := flag.String("tls-key", "", "TLS private key path")
 	runtimeName := flag.String("runtime", "docker", "compute backend; empty disables")
 	runtimeConfig := flag.String("runtime-config", "{}", "backend config JSON (rootless/mounts/etc.)")
 	publicGatewayURL := flag.String("gateway-public-url", os.Getenv("QUARSHELL_GATEWAY_PUBLIC_URL"), "public Gateway URL reachable from runtime guests")
@@ -269,10 +272,18 @@ func main() {
 		if err != nil {
 			log.Fatalf("grpc listen: %v", err)
 		}
-		grpcServer = grpc.NewServer(
+		options := []grpc.ServerOption{
 			grpc.UnaryInterceptor(applicationgrpc.UnaryAuthInterceptorWithSandboxTokens(*tokenValue, "gateway-client", tokens)),
 			grpc.StreamInterceptor(applicationgrpc.StreamAuthInterceptorWithSandboxTokens(*tokenValue, "gateway-client", tokens)),
-		)
+		}
+		if *tlsCert != "" && *tlsKey != "" {
+			creds, err := grpcCredentials.NewServerTLSFromFile(*tlsCert, *tlsKey)
+			if err != nil {
+				log.Fatalf("grpc TLS: %v", err)
+			}
+			options = append(options, grpc.Creds(creds))
+		}
+		grpcServer = grpc.NewServer(options...)
 		grpcApplication := applicationgrpc.New(gatewayVersion, workspaces, sandboxes, chunks, templates, settingsService, providerDefs, services)
 		grpcApplication.SupervisorHub = supervisorHub
 		grpcApplication.SandboxLogs = sandboxLogStore
@@ -321,7 +332,14 @@ func main() {
 			grpcServer.GracefulStop()
 		}
 	}()
-	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	serve := server.Serve
+	if *tlsCert != "" || *tlsKey != "" {
+		if *tlsCert == "" || *tlsKey == "" {
+			log.Fatal("both --tls-cert and --tls-key are required")
+		}
+		serve = func(l net.Listener) error { return server.ServeTLS(l, *tlsCert, *tlsKey) }
+	}
+	if err := serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("serve: %v", err)
 	}
 }
