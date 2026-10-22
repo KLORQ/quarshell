@@ -1253,3 +1253,10 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - The live lifecycle starts a PTY command, reads its readiness marker, closes the first host-to-guest control stream, reconnects by stable session ID, sends input, and verifies the same process returns its output and exit status. A second process is detached, terminated by session ID without an attached PTY, then reattached to verify stable exit status 143.
 - `GOOS=linux GOARCH=arm64 go test -c ./vmguest` followed by the complete `vmguest` test binary in `alpine:3.22` on the local Linux ARM64 container: PASS. This includes retained-session reattach and detached-termination coverage.
 - The VM driver now exposes optional session-ID and attach contracts. The guest buffers at most 256 KiB of detached PTY output, retains completed sessions for 15 minutes, and caps retained terminal records at 256. Full OpenShell host-supervisor ownership and Gateway-facing reconnect integration remain partial.
+
+# Reattach through a fresh VM driver instance (2026-10-23 00:53 Europe/Samara)
+
+- `task vm:live-darwin`: PASS. `TestLiveMicroVMLifecycle` (24.91 s), `TestLiveLocalOCIEngineImport` (1.16 s), and Gateway `TestLiveVMWatchSandboxComposition` (11.94 s) passed.
+- Retained PTY acceptance now creates a new `Driver` object against the same state directory before reattaching and terminating the retained guest process. This verifies the host-side driver object is not the process owner.
+- Windows AMD64 cross-compile of the VM package test binary passed: `GOOS=windows GOARCH=amd64 go test -c ./vm`.
+- GitHub Actions for `bd1db9d`: macOS, platform-backends, and secret-scan pass; Linux workspace workflow is still running.

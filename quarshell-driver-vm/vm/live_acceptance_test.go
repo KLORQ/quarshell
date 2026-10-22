@@ -1584,9 +1584,10 @@ func assertLiveExecTerminalReattach(t *testing.T, ctx context.Context, d *Driver
 	if err := session.Close(); err != nil {
 		t.Fatalf("detach live retained terminal: %v", err)
 	}
+	reattacher := newLiveAcceptanceDriver(d.host)
 	var attached driver.ExecTerminalSession
 	for attempt := 0; attempt < 10; attempt++ {
-		attached, err = d.AttachExecTerminal(ctx, id, identity.SessionID())
+		attached, err = reattacher.AttachExecTerminal(ctx, id, identity.SessionID())
 		if err == nil {
 			break
 		}
@@ -1621,10 +1622,10 @@ func assertLiveExecTerminalReattach(t *testing.T, ctx context.Context, d *Driver
 	if err := retained.Close(); err != nil {
 		t.Fatalf("detach terminal before termination: %v", err)
 	}
-	if err := d.TerminateExecTerminal(ctx, id, retainedID.SessionID()); err != nil {
+	if err := reattacher.TerminateExecTerminal(ctx, id, retainedID.SessionID()); err != nil {
 		t.Fatalf("terminate detached live terminal: %v", err)
 	}
-	terminated, err := d.AttachExecTerminal(ctx, id, retainedID.SessionID())
+	terminated, err := reattacher.AttachExecTerminal(ctx, id, retainedID.SessionID())
 	if err != nil {
 		t.Fatalf("attach to terminated live terminal result: %v", err)
 	}
