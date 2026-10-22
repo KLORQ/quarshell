@@ -24,11 +24,12 @@ type captureSandboxWatchStream struct {
 }
 
 type watchPlatformRuntime struct {
-	events chan driver.PlatformEventResult
+	events    chan driver.PlatformEventResult
+	runtimeID string
 }
 
-func (*watchPlatformRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
-	return "", nil
+func (r *watchPlatformRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
+	return r.runtimeID, nil
 }
 func (*watchPlatformRuntime) Start(context.Context, sandboxruntime.Sandbox) error  { return nil }
 func (*watchPlatformRuntime) Stop(context.Context, sandboxruntime.Sandbox) error   { return nil }
@@ -196,13 +197,15 @@ func TestWatchSandboxStreamsVMPlatformEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	events := make(chan driver.PlatformEventResult, 2)
+	runtime := &watchPlatformRuntime{events: events, runtimeID: "vm-runtime-uuid"}
+	sandboxes.Runtime = runtime
 	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
 	if _, _, err := sandboxes.Create(context.Background(), sandboxapp.Request{Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "image"}); err != nil {
 		t.Fatal(err)
 	}
-	events := make(chan driver.PlatformEventResult, 1)
-	events <- driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: "sb", Time: time.Now(), Source: "vm", Type: "sandbox_state", Reason: "stopped", Message: "stopped", Metadata: map[string]string{"status": "stopped"}, Terminal: true}}
-	sandboxes.Runtime = &watchPlatformRuntime{events: events}
+	events <- driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: "another-runtime-uuid", Time: time.Now(), Source: "vm", Type: "sandbox_state", Reason: "spoofed", Terminal: true}}
+	events <- driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: "vm-runtime-uuid", Time: time.Now(), Source: "vm", Type: "sandbox_state", Reason: "stopped", Message: "stopped", Metadata: map[string]string{"status": "stopped"}, Terminal: true}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)

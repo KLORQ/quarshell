@@ -1163,3 +1163,20 @@ format check and diff check passed. `task vm:live-darwin` passed on Apple
 Silicon/HVF: `TestLiveMicroVMLifecycle` (24.37 s) and
 `TestLiveLocalOCIEngineImport` (1.13 s), including the archive round-trip and
 non-TTY output stream after broker recovery.
+
+## Live Gateway WatchSandbox over HVF VM
+
+A Gateway gRPC transport acceptance now composes the actual VM backend, the
+Gateway sandbox service and `WatchSandbox`. On Apple Silicon/HVF it creates a
+sandbox from the staged Alpine rootfs, starts it through the Gateway service,
+receives the VM `running` event over the Gateway watch stream, stops it through
+the Gateway service, and receives terminal `stopped` before the stream closes.
+`TestLiveVMWatchSandboxComposition` passed in 10.45s as part of the final live acceptance script (after an isolated 15.04s pass).
+
+The live path exposed a runtime identity mismatch: the VM backend publishes
+its generated runtime UUID, but Gateway compared events only with the public
+Sandbox ID. Gateway now accepts the logical ID or the runtime UUID retained on
+the loaded Sandbox record, and ignores events carrying another runtime's ID.
+A focused Gateway test verifies both cases. Existing Gateway tests cover
+cursor persistence, replay, trimming, deduplication and cross-instance polling.
+This closes `vm.logs-watch` for the pinned contract. Final local gates passed: full workspace `task test`, `task vm:parity-check` (30 pinned entries), `task fmt:check`, `git diff --check`, and `task vm:live-darwin` (live VM lifecycle 24.66s, local OCI import, plus Gateway WatchSandbox 10.45s). The parity inventory is now 21 implemented, 7 partial, and 2 hardware-specific unsupported entries.

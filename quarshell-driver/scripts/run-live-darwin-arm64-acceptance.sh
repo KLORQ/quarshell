@@ -118,3 +118,15 @@ python3 "$script_dir/run-required-go-test.py" \
   --test TestLiveMicroVMLifecycle \
   --test TestLiveLocalOCIEngineImport -- \
   go test -json ./vm -run '^(TestLiveMicroVMLifecycle|TestLiveLocalOCIEngineImport)$' -count=1 -v
+
+CAUTEM_VM_ACCEPTANCE=1 \
+CAUTEM_VM_TEST_ROOTFS_TAR=$rootfs_tar \
+CAUTEM_VM_TEST_GUEST_AGENT=$guest_agent \
+CAUTEM_VM_TEST_E2FS_FORMATTER=$formatter \
+CAUTEM_VM_WORKER=$worker \
+OPENSHELL_VM_RUNTIME_DIR=$runtime_dir \
+DYLD_LIBRARY_PATH=$runtime_dir \
+python3 "$script_dir/run-required-go-test.py" \
+  --test TestLiveVMWatchSandboxComposition -- \
+  go test -C "$workspace_dir/quarshell-gateway" -json ./internal/transport/applicationgrpc \
+    -run '^TestLiveVMWatchSandboxComposition$' -count=1 -v

@@ -1,0 +1,196 @@
+//go:build darwin && arm64
+
+package applicationgrpc
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	core "github.com/KLORQ/quarshell-core"
+	"github.com/KLORQ/quarshell-core/domain"
+	"github.com/KLORQ/quarshell-driver-vm/vm"
+	"github.com/KLORQ/quarshell-driver/driver"
+	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
+	sandboxapp "github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxlogs"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
+	dm "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
+	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+)
+
+type liveVMWatchRuntime struct {
+	backend   *vm.Driver
+	rootfsTar string
+}
+
+func (r *liveVMWatchRuntime) Create(ctx context.Context, sandbox sandboxruntime.Sandbox) (string, error) {
+	request := driver.BackendCreateRequest{
+		SandboxID: core.ID(string(sandbox.Sandbox)), Name: string(sandbox.Sandbox),
+		Workspace: driver.WorkspaceTarget{Kind: driver.WorkspaceGuestOverlay, ID: string(sandbox.Workspace), Persist: true},
+		Workload:  driver.WorkloadSpec{Image: sandbox.Image, Command: append([]string(nil), sandbox.Command...), TTY: sandbox.TTY},
+		Runtime:   driver.RuntimeAssets{},
+		Config:    vm.SandboxDriverConfig{RootfsTarPath: r.rootfsTar},
+	}
+	handle, err := r.backend.Create(ctx, request)
+	return string(handle.ID), err
+}
+
+func (r *liveVMWatchRuntime) Start(ctx context.Context, sandbox sandboxruntime.Sandbox) error {
+	return r.backend.Start(ctx, core.ID(sandbox.RuntimeID))
+}
+func (r *liveVMWatchRuntime) Stop(ctx context.Context, sandbox sandboxruntime.Sandbox) error {
+	return r.backend.Stop(ctx, core.ID(sandbox.RuntimeID))
+}
+func (r *liveVMWatchRuntime) Delete(ctx context.Context, sandbox sandboxruntime.Sandbox) error {
+	return r.backend.Delete(ctx, core.ID(sandbox.RuntimeID))
+}
+func (r *liveVMWatchRuntime) Inspect(ctx context.Context, sandbox sandboxruntime.Sandbox) (driver.Info, error) {
+	return r.backend.Inspect(ctx, sandbox.RuntimeID)
+}
+func (r *liveVMWatchRuntime) WatchPlatformEvents(ctx context.Context, sandbox sandboxruntime.Sandbox) (<-chan driver.PlatformEventResult, error) {
+	return r.backend.WatchPlatformEvents(ctx, driver.PlatformEventWatchRequest{SandboxID: core.ID(sandbox.RuntimeID), SandboxName: string(sandbox.Sandbox)})
+}
+
+func TestLiveVMWatchSandboxComposition(t *testing.T) {
+	if os.Getenv("CAUTEM_VM_ACCEPTANCE") != "1" {
+		t.Skip("set CAUTEM_VM_ACCEPTANCE=1 to run live HVF Gateway watch acceptance")
+	}
+	rootfsTar := strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_ROOTFS_TAR"))
+	if rootfsTar == "" {
+		t.Fatal("CAUTEM_VM_TEST_ROOTFS_TAR is required")
+	}
+	host := vm.DefaultHostConfig()
+	host.StateDir = t.TempDir()
+	host.RootfsTarDir = filepath.Join(host.StateDir, "rootfs-tar-staging")
+	requestDir := filepath.Join(host.RootfsTarDir, "live-watch-request")
+	if err := os.MkdirAll(requestDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stagedRootfsTar := filepath.Join(requestDir, "rootfs.tar")
+	sourceRootfs, err := os.Open(rootfsTar)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stagedRootfs, err := os.OpenFile(stagedRootfsTar, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		_ = sourceRootfs.Close()
+		t.Fatal(err)
+	}
+	_, copyErr := io.Copy(stagedRootfs, sourceRootfs)
+	if err := errors.Join(copyErr, stagedRootfs.Close(), sourceRootfs.Close()); err != nil {
+		t.Fatalf("stage live VM rootfs tar: %v", err)
+	}
+	host.GuestAgentPath = strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_GUEST_AGENT"))
+	host.WorkerPath = strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER"))
+	host.FormatterPath = strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_E2FS_FORMATTER"))
+	host.AllowDriverConfig = true
+	// The driver needs a root-capable bootstrap environment to prepare the
+	// workload rootfs disk; the acceptance script pre-pulls this local image.
+	host.BootstrapImage = "docker.io/library/alpine:3.22"
+	host.DefaultImage = "docker.io/library/alpine:3.22"
+	backend := vm.NewWithHostConfig(host)
+	runtime := &liveVMWatchRuntime{backend: backend, rootfsTar: stagedRootfsTar}
+	store := lifecycle.NewMemoryStore()
+	sandboxes, err := sandboxapp.NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sandboxes.Runtime = runtime
+	server := New("live-vm-watch", nil, sandboxes, nil, nil, nil, nil, nil)
+	logs, err := sandboxlogs.New(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server.SandboxLogs = logs
+	ref := domain.SandboxRef{Workspace: "live-vm-watch", Sandbox: "live-vm-watch"}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	created, _, err := sandboxes.Create(ctx, sandboxapp.Request{
+		Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "alpine:3.22",
+		Command:          []string{"/bin/sh", "-c", "while :; do sleep 3600; done"},
+		DriverConfigJSON: fmt.Sprintf(`{"vm":{"rootfs_tar_path":%q}}`, stagedRootfsTar),
+		IdempotencyKey:   "live-vm-watch-create",
+	})
+	if err != nil {
+		t.Fatalf("create live VM through Gateway sandbox service: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cleanupCancel()
+		if current, getErr := sandboxes.Get(cleanupCtx, ref); getErr == nil && current.State == "running" {
+			_, _, _ = sandboxes.Stop(cleanupCtx, ref, current.Generation, "live-vm-watch-cleanup-stop")
+		}
+		current, getErr := sandboxes.Get(cleanupCtx, ref)
+		if getErr == nil {
+			_ = runtime.Delete(cleanupCtx, sandboxruntime.Sandbox{Sandbox: current.Sandbox, RuntimeID: current.RuntimeID})
+		}
+	})
+	if created.RuntimeID == "" {
+		t.Fatal("Gateway sandbox service did not retain the VM runtime ID")
+	}
+	watchCtx, stopWatch := context.WithCancel(ctx)
+	stream := &captureSandboxWatchStream{ctx: watchCtx, events: make(chan *gatewayv1.SandboxStreamEvent, 16)}
+	watchDone := make(chan error, 1)
+	go func() {
+		watchDone <- server.WatchSandbox(&gatewayv1.WatchSandboxRequest{
+			WorkspaceScope: &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: string(ref.Workspace)}},
+			Sandbox:        string(ref.Sandbox), FollowEvents: true, StopOnTerminal: true,
+		}, stream)
+	}()
+	select {
+	case event := <-stream.events:
+		if event.GetSandbox() == nil {
+			t.Fatalf("Gateway watch initial snapshot=%v", event)
+		}
+	case <-ctx.Done():
+		t.Fatalf("waiting for Gateway watch snapshot: %v", ctx.Err())
+	}
+	started, _, err := sandboxes.Start(ctx, ref, created.Generation, "live-vm-watch-start")
+	if err != nil {
+		t.Fatalf("start VM through Gateway sandbox service: %v", err)
+	}
+	seenRunning := false
+	for !seenRunning {
+		select {
+		case event := <-stream.events:
+			platform := event.GetEvent()
+			if platform != nil && platform.GetSource() == "vm" && platform.GetReason() == "running" {
+				seenRunning = true
+			}
+		case <-ctx.Done():
+			t.Fatalf("waiting for live VM running event through Gateway WatchSandbox (runtime=%s, state=%s): %v", started.RuntimeID, started.State, ctx.Err())
+		}
+	}
+	stopped, _, err := sandboxes.Stop(ctx, ref, started.Generation, "live-vm-watch-stop")
+	if err != nil {
+		t.Fatalf("stop VM through Gateway sandbox service: %v", err)
+	}
+	seenStopped := false
+	for !seenStopped {
+		select {
+		case event := <-stream.events:
+			platform := event.GetEvent()
+			if platform != nil && platform.GetSource() == "vm" && platform.GetReason() == "stopped" {
+				seenStopped = true
+			}
+		case <-ctx.Done():
+			t.Fatalf("waiting for live VM stopped event through Gateway WatchSandbox (state=%s): %v", stopped.State, ctx.Err())
+		}
+	}
+	stopWatch()
+	if err := <-watchDone; err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatalf("Gateway WatchSandbox returned %v", err)
+	}
+}
+
+var _ sandboxruntime.Runtime = (*liveVMWatchRuntime)(nil)
+var _ interface {
+	WatchPlatformEvents(context.Context, sandboxruntime.Sandbox) (<-chan driver.PlatformEventResult, error)
+} = (*liveVMWatchRuntime)(nil)

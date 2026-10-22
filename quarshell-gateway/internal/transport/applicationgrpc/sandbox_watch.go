@@ -247,7 +247,13 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 			if result.Err != nil {
 				return status.Error(codes.Unavailable, "platform event stream failed")
 			}
-			if string(result.Event.SandboxID) != request.GetSandbox() {
+			// Backends often identify platform events by their own runtime ID
+			// (for example a VM UUID or container ID), while WatchSandbox is
+			// addressed by the Gateway's logical Sandbox ID. Accept either ID
+			// only for the runtime bound to the record loaded above.
+			eventSandboxID := string(result.Event.SandboxID)
+			runtimeSandboxID := strings.TrimSpace(current.RuntimeID)
+			if eventSandboxID != request.GetSandbox() && (runtimeSandboxID == "" || eventSandboxID != runtimeSandboxID) {
 				continue
 			}
 			eventTime := result.Event.Time
