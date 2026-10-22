@@ -17,7 +17,7 @@ tests verify config parsing, operator precedence, and fail-closed behavior when
 the policy broker is missing. The configuration handoff itself is unit-tested;
 the live proxy run still supplies its proxy fixture explicitly.
 
-The VM inventory is now 9 implemented, 19 partial, and 2 unsupported for
+The VM inventory is now 14 implemented, 14 partial, and 2 unsupported for
 physical GPU/VFIO hardware. This remains partial OpenShell VM parity.
 
 ## SPIFFE Workload API config handoff
@@ -32,8 +32,11 @@ proxy's consumer path. A second `task vm:live-darwin` run after this change
 passed (23.98s) with live HVF, proxy allow/revoke, and Gateway credential/event
 flow. That live run does not configure a real SPIFFE Workload API endpoint;
 the endpoint handoff is unit-tested. Full workspace tests, 30-row parity,
-format and diff checks also passed after the change. Inventory: 9 implemented,
-19 partial, 2 GPU/VFIO unsupported.
+format and diff checks also passed after the change. Inventory: 14 implemented,
+14 partial, 2 GPU/VFIO unsupported. The parity review also promoted lifecycle
+create/start/stop/delete, overlay persistence, Gateway create/readiness,
+bootstrap image preparation, and policy revision acknowledgement based on the
+existing live HVF lifecycle and recorded full Gateway composition smoke.
 
 - Verified: 2026-10-22 (Europe/Samara)
 - VM source snapshot: `7d26991760bc9932067dc77db9e00005c934b30a`

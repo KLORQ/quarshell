@@ -10,11 +10,12 @@
       "id": "vm.lifecycle.create-start-stop-delete",
       "upstream": "crates/openshell-driver-vm/src/driver.rs::create_sandbox/start_sandbox/stop_sandbox/delete_sandbox",
       "cautem": "quarshell-driver-vm/vm/lifecycle.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/lifecycle_test.go",
         "quarshell-driver-vm/vm/vm_test.go::TestCreateWithBootstrapImagePersistsSeparatePinnedDisks",
         "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::registerLiveSandboxCleanup",
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestNaturalWorkloadExitPowersOffGuest",
         "quarshell-gateway/internal/application/sandbox/service_test.go::TestStartAndStopCallRuntimeAfterPersistingIntent"
       ]
@@ -33,9 +34,10 @@
       "id": "vm.overlay.persistence",
       "upstream": "e2e/rust/tests/vm_overlay.rs::vm_overlay",
       "cautem": "quarshell-driver-vm/vm/overlay.go;quarshell-driver/driver/backend.go;quarshell-gateway/internal/application/sandbox/service.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/overlay_test.go",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveRestartWorkloadIdentity",
         "quarshell-gateway/internal/application/sandbox/service_test.go"
       ]
     },
@@ -54,18 +56,19 @@
       "id": "vm.gateway-create-ready",
       "upstream": "e2e/rust/e2e-vm.sh",
       "cautem": "quarshell-driver-vm/vm/spec.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayRuntimePassesCompleteHostPreflight",
         "quarshell-driver-vm/vm/live_gateway_acceptance_test.go::assertLiveGatewayCredentialLaunch",
-        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "plans/evidence/runs/vm-hvf-local-2026-10-22.md"
       ]
     },
     {
       "id": "vm.bootstrap-image",
       "upstream": "crates/openshell-driver-vm/src/driver.rs::validate_sandbox",
       "cautem": "quarshell-driver-vm/vm/prep_vm.go;quarshell-driver-vm/vm/oci_image.go;quarshell-driver-vm/vm/rootfs_image.go;quarshell-driver-vm/vm/vm.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/vm_test.go::TestCreateWithBootstrapImagePersistsSeparatePinnedDisks",
         "quarshell-driver-vm/vm/vm_test.go::TestCreateUsesTrustedDefaultImageAsBootstrapWhenUnset",
@@ -332,9 +335,10 @@
       "id": "vm.policy-revision-ack",
       "upstream": "crates/openshell-supervisor-network",
       "cautem": "quarshell-gateway/internal/transport/applicationgrpc/policy_revisions.go;quarshell-driver-vm/vm/live_acceptance_test.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
-        "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLivePolicyRevisionUpdate",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveGatewayCredentialLaunch",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestSandboxTokensAreRestrictedToSandboxMethods"
       ]
     },
