@@ -174,7 +174,7 @@ jobs:
               chown "$RUNNER_UID:$RUNNER_GID" /tmp/runner-home
               setpriv --reuid "$RUNNER_UID" --regid "$runner_group" --init-groups -- \
                 env HOME=/tmp/runner-home GOROOT=/opt/go GOPATH=/go \
-                PATH=/opt/go/bin:/usr/local/bin:/usr/bin:/bin \
+                PATH=/opt/go/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
                 bash -euc "go test -C quarshell-driver-vm ./vm -run \"^TestWorkerIsolationNamespaceSubprocess\$\" -count=1 && task vm:live-linux"
             '
 

@@ -1318,3 +1318,8 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - After the active-owner monitor landed, `task vm:live-darwin` passed on the committed tree: `TestLiveMicroVMLifecycle` 24.23 s, local OCI import 1.09 s, and Gateway `TestLiveVMWatchSandboxComposition` 8.55 s. The lifecycle included supervisor-authenticated `AwaitMainProcessAttachment`, retained output/exit and delayed shutdown until the late TTY closed.
 - On the same tree, full workspace `task test`, Gateway relay tests under `-race`, parity inventory (30/30), docs strict build, formatting and `git diff --check` passed. Gitleaks hosted scan for commit `605ed6a` passed.
 - GitHub platform run `39867430432` has macOS and Windows package/build lanes passing; Linux is building the pinned runtime before the hosted KVM live lane. The previous `74c632a` run was cancelled after this newer run started to avoid duplicate libkrun builds.
+
+# Hosted Linux KVM acceptance environment follow-up (2026-10-23 03:03 Europe/Samara)
+
+- Platform run `39867430432`: hosted Linux successfully built the pinned libkrun runtime, verified readable/writable `/dev/kvm`, entered the isolated acceptance container, downloaded the rootfs and built the VM worker/guest agent. Live acceptance stopped before VM launch because the container's deliberately restricted `PATH` omitted Ubuntu's `/usr/sbin/mke2fs`, despite `e2fsprogs` being installed.
+- The workflow now includes `/usr/sbin:/sbin` in the unprivileged acceptance process `PATH`, which makes the installed formatter and `debugfs` visible. Retry triggered from the updated workflow; macOS and Windows build lanes from run `39867430432` passed. `curl` is now confirmed installed in the KVM container.
