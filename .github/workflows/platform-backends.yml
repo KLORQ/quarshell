@@ -31,6 +31,46 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Build and test VM packages
         run: go test -C quarshell-driver-vm ./... -count=1
+      - name: Install pinned Rust toolchain for libkrun
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.95.0
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Build OpenShell-pinned libkrun runtime
+        run: bash tools/upstream/openshell-v0.1.4/tasks/scripts/vm/build-libkrun.sh
+      - name: Stage source-pinned runtime digest lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_dir="$RUNNER_TEMP/quarshell-vm-runtime"
+          lock_path="$RUNNER_TEMP/quarshell-vm-runtime-trust.json"
+          mkdir -p "$runtime_dir"
+          cp tools/upstream/openshell-v0.1.4/target/libkrun-build/libkrun.so "$runtime_dir/libkrun.so"
+          libkrunfw_path=$(find tools/upstream/openshell-v0.1.4/target/libkrun-build -maxdepth 1 -type f -name 'libkrunfw.so.5*' -print -quit)
+          test -n "$libkrunfw_path"
+          cp "$libkrunfw_path" "$runtime_dir/libkrunfw.so.5"
+          chmod 0600 "$runtime_dir/libkrun.so" "$runtime_dir/libkrunfw.so.5"
+          python3 - "$runtime_dir" "$lock_path" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          runtime = Path(sys.argv[1])
+          lock = Path(sys.argv[2])
+          names = ("libkrun.so", "libkrunfw.so.5")
+          payload = {
+              "schema_version": 1,
+              "host": "linux/amd64",
+              "artifacts": {
+                  name: hashlib.sha256((runtime / name).read_bytes()).hexdigest()
+                  for name in names
+              },
+          }
+          lock.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+          lock.chmod(0o600)
+          PY
+          echo "OPENSHELL_VM_RUNTIME_DIR=$runtime_dir" >> "$GITHUB_ENV"
+          echo "CAUTEM_VM_RUNTIME_TRUST_LOCK=$lock_path" >> "$GITHUB_ENV"
       - name: Check hosted KVM access
         id: kvm
         shell: bash
