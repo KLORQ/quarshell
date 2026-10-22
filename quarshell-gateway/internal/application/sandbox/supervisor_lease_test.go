@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
@@ -32,6 +33,8 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	now := time.Now().UTC()
+	service.now = func() time.Time { return now }
 	claim := func(svc *Service, instance string, epoch uint64) error {
 		return svc.ClaimSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), fmt.Sprintf("session-%s-%d", instance, epoch), instance, epoch)
 	}
@@ -81,6 +84,14 @@ func TestSupervisorSessionLeaseSurvivesGatewayReopenAndFencesReplay(t *testing.T
 	}
 	if err := restarted.RenewSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "instance-1", 7); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("stale owner heartbeat was accepted: %v", err)
+	}
+	now = now.Add(SupervisorLeaseTTL + time.Second)
+	restarted.now = func() time.Time { return now }
+	if err := claim(restarted, "instance-2", 1); err != nil {
+		t.Fatalf("expired owner lease could not be claimed: %v", err)
+	}
+	if err := restarted.RenewSupervisorSession(ctx, ref, started.RuntimeGenerationOrInitial(), started.CredentialEpochOrInitial(), "instance-1", 8); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("expired owner heartbeat was accepted: %v", err)
 	}
 	if _, _, err := restarted.Stop(ctx, ref, 1, "stop-1"); err != nil {
 		t.Fatal(err)
