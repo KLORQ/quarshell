@@ -840,3 +840,10 @@ claim cross-process replay. `TestVMWatchSandboxesSnapshotsUpdatesAndDeletion`
 covers initial snapshots, state change, deletion, and cancellation. The
 `vm.logs-watch` parity row remains partial because Gateway composition and
 process-independent replay are still missing.
+
+After this addition, the full workspace `task test`, `task vm:parity-check`,
+`task fmt:check`, and `git diff --check` passed. Focused VM watch tests passed
+under `-race`; VM test binaries cross-compiled for Linux ARM64 and Windows
+AMD64 with CGO disabled. The newest `task vm:live-darwin` rerun passed on
+Apple Silicon/HVF at 18:42 (22.55s), again observing lifecycle events and
+completing the credential/session acceptance.
