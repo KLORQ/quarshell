@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
@@ -59,7 +60,10 @@ func (s *Server) PeerRelay(stream gatewayv1.OpenShell_PeerRelayServer) error {
 	if err != nil {
 		return status.Error(codes.Unavailable, err.Error())
 	}
-	defer connection.Close()
+	var closeOnce sync.Once
+	closeConnection := func() { closeOnce.Do(func() { _ = connection.Close() }) }
+	stopOwnerMonitor, ownerLost := s.monitorSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial(), closeConnection)
+	defer func() { stopOwnerMonitor(); closeConnection() }()
 	if err := s.validateSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
 		return err
 	}
@@ -103,6 +107,8 @@ func (s *Server) PeerRelay(stream gatewayv1.OpenShell_PeerRelayServer) error {
 		}
 	}()
 	select {
+	case <-ownerLost:
+		return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
 	case err := <-readErr:
 		if err == nil || errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
 			return nil

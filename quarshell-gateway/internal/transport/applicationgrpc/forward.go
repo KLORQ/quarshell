@@ -74,10 +74,13 @@ func (s *Server) ForwardTcp(stream gatewayv1.OpenShell_ForwardTcpServer) error {
 	if err != nil {
 		return status.Error(codes.Unavailable, err.Error())
 	}
-	defer connection.Close()
 	if err := s.validateSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial()); err != nil {
 		return err
 	}
+	var closeOnce sync.Once
+	closeConnection := func() { closeOnce.Do(func() { _ = connection.Close() }) }
+	stopOwnerMonitor, ownerLost := s.monitorSupervisorRelayOwner(stream.Context(), ref, current.RuntimeGenerationOrInitial(), current.CredentialEpochOrInitial(), closeConnection)
+	defer func() { stopOwnerMonitor(); closeConnection() }()
 
 	ctx := stream.Context()
 	writeErr := make(chan error, 1)
@@ -132,7 +135,7 @@ func (s *Server) ForwardTcp(stream gatewayv1.OpenShell_ForwardTcpServer) error {
 
 	var once sync.Once
 	finish := func(err error) error {
-		once.Do(func() { _ = connection.Close() })
+		once.Do(closeConnection)
 		if err == nil || errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
 			return nil
 		}
@@ -145,9 +148,13 @@ func (s *Server) ForwardTcp(stream gatewayv1.OpenShell_ForwardTcpServer) error {
 		select {
 		case read := <-readErr:
 			return finish(read)
+		case <-ownerLost:
+			return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
 		case <-ctx.Done():
 			return finish(ctx.Err())
 		}
+	case <-ownerLost:
+		return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
 	}
 }
 

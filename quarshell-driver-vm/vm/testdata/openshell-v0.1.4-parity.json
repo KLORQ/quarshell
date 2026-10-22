@@ -186,6 +186,7 @@
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestRelayStreamReturnsWhenGuestTargetCloses",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestConnectSupervisorOwnerLeaseSurvivesGatewayReopen",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestRelayStreamRejectsPendingChannelFromStaleGatewayOwner",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_relay_test.go::TestActiveSupervisorRelayIsClosedAfterDurableOwnerHandoff",
         "quarshell-gateway/internal/transport/applicationgrpc/forward.go::ForwardTcp",
         "quarshell-gateway/internal/transport/applicationgrpc/peer_relay.go::PeerRelay"
       ]

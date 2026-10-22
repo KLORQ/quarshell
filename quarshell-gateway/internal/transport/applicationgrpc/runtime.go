@@ -57,6 +57,39 @@ func (s *Server) validatePendingSupervisorRelayOwner(ctx context.Context, ref do
 	return nil
 }
 
+// monitorSupervisorRelayOwner closes an established data-plane connection if
+// another Gateway claims the shared lease. A one-time open check would leave
+// an already-active SSH/TCP stream usable until its transport or lease TTL ends.
+func (s *Server) monitorSupervisorRelayOwner(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, epoch uint64, closeConnection func()) (func(), <-chan struct{}) {
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	lost := make(chan struct{}, 1)
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(250 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := s.validateSupervisorRelayOwner(ctx, ref, generation, epoch); err != nil {
+					closeConnection()
+					lost <- struct{}{}
+					return
+				}
+			}
+		}
+	}()
+	var stopOnce sync.Once
+	return func() {
+		stopOnce.Do(func() { close(stop) })
+		<-done
+	}, lost
+}
+
 // ReportMainProcessExit persists the terminal result from the active sandbox
 // supervisor. The token, running generation, epoch and connected instance must
 // all agree before the durable sandbox state is changed.
@@ -304,7 +337,10 @@ func (s *Server) RelayStream(stream gatewayv1.OpenShell_RelayStreamServer) error
 	if err != nil {
 		return status.Error(codes.NotFound, "relay channel is not pending for this sandbox")
 	}
-	defer conn.Close()
+	var closeOnce sync.Once
+	closeConnection := func() { closeOnce.Do(func() { _ = conn.Close() }) }
+	stopOwnerMonitor, ownerLost := s.monitorSupervisorRelayOwner(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch, closeConnection)
+	defer func() { stopOwnerMonitor(); closeConnection() }()
 	if err := s.validateSupervisorRelayOwner(stream.Context(), domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, principal.generation, principal.credentialEpoch); err != nil {
 		return err
 	}
@@ -362,6 +398,8 @@ func (s *Server) RelayStream(stream gatewayv1.OpenShell_RelayStreamServer) error
 				return err
 			}
 			select {
+			case <-ownerLost:
+				return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
 			case err := <-copyDone:
 				return err
 			case <-stream.Context().Done():
@@ -369,6 +407,8 @@ func (s *Server) RelayStream(stream gatewayv1.OpenShell_RelayStreamServer) error
 			}
 		case err := <-copyDone:
 			return err
+		case <-ownerLost:
+			return status.Error(codes.Aborted, "sandbox supervisor relay ownership changed")
 		case <-stream.Context().Done():
 			return stream.Context().Err()
 		}

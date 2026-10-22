@@ -201,6 +201,52 @@ func TestRelayStreamRejectsPendingChannelFromStaleGatewayOwner(t *testing.T) {
 	}
 }
 
+func TestActiveSupervisorRelayIsClosedAfterDurableOwnerHandoff(t *testing.T) {
+	ctx := context.Background()
+	sandboxes, err := sandboxapp.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	if _, _, err := sandboxes.Create(ctx, sandboxapp.Request{Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "image"}); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := sandboxes.Start(ctx, ref, 1, "start")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation := started.RuntimeGenerationOrInitial()
+	epoch := started.CredentialEpochOrInitial()
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, generation, epoch, "session-1", "instance-1", 1); err != nil {
+		t.Fatal(err)
+	}
+	hub := sshrelay.NewHub()
+	done := make(chan struct{})
+	defer close(done)
+	unregister, err := hub.RegisterSupervisor("sb", "instance-1", 1, func(string, string) error { return nil }, done, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unregister()
+	server := &Server{Sandboxes: sandboxes, SupervisorHub: hub}
+	closed := make(chan struct{})
+	stopMonitor, ownerLost := server.monitorSupervisorRelayOwner(ctx, ref, generation, epoch, func() { close(closed) })
+	defer stopMonitor()
+	if err := sandboxes.ClaimSupervisorSession(ctx, ref, generation, epoch, "session-2", "instance-1", 2); err != nil {
+		t.Fatalf("claim replacement owner epoch: %v", err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("active relay was not closed after durable owner handoff")
+	}
+	select {
+	case <-ownerLost:
+	case <-time.After(time.Second):
+		t.Fatal("owner monitor did not report the durable handoff")
+	}
+}
+
 type supervisorConnectStream struct {
 	grpc.ServerStream
 	ctx  context.Context
