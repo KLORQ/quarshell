@@ -12,7 +12,7 @@
 
 | Строка | Уже проверено | Что ещё нужно для полного parity |
 |---|---|---|
-| `vm.exec-pty-signals` | PTY resize/interrupt; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup; SSH process wait returns one stable exit code to concurrent/repeated callers | Перенести полный upstream `BoundaryProcess` retained handle/attach/terminate contract и проверить его через Gateway; current signal acceptance is VM PTY level |
+| `vm.exec-pty-signals` | Gateway-level live PTY Ctrl+C trap/exit acceptance; explicit allowlisted TERM/KILL/INT/HUP process-group signaling over authenticated guest control; non-TTY stdin/EOF и split stdout/stderr; durable request-ID fence; transport-loss process-group cleanup; SSH process wait returns one stable exit code to concurrent/repeated callers | Перенести полный upstream `BoundaryProcess` retained handle/attach/terminate contract |
 | `vm.ssh-connect` | Живые SSH relay и direct TCP forward на HVF; authenticated Gateway relay tests | Совместить с upstream host-supervisor spawn/ownership lifecycle и переживающим reconnect процессным attachment |
 | `vm.host-supervisor-isolation` | Production descriptor-bound attach/confirm/start gate и HVF identity/mTLS acceptance | Upstream running-boundary retained handles for the agent process and exec sessions, with stable signal/exit semantics |
 | `vm.host-supervisor-bootstrap` | Generation-bound credential bundle, JWT validation, reconnect/refresh plumbing and Gateway create/start/stop/restart smoke | Host-side supervisor process bootstrap, exact lifecycle replay and durable session-rotation/replay lineage |

@@ -1227,3 +1227,9 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - `go test ./internal/sshrelay -count=1` in `quarshell-gateway`: PASS.
 - `TestReleaseSupervisorClosesActiveLoopbackForward` opens a real in-memory duplex relay to a loopback TCP target, verifies bytes cross the host/guest relay, releases the supervisor as sandbox Stop does, then verifies the active channel is closed and new forwards fail with `ErrNotConnected`.
 - Alongside the existing live HVF direct/relay TCP probes and Gateway loopback target validation, this verifies the end-to-end forwarding lifecycle. `vm.service-forward` is now implemented; inventory: 24 implemented, 4 partial, 2 hardware-specific unsupported.
+
+# Gateway interactive PTY signal on HVF (2026-10-23 00:19 Europe/Samara)
+
+- `task vm:live-darwin`: PASS. `TestLiveVMWatchSandboxComposition` now also opens a TTY through the Gateway sandbox service, sends Ctrl+C as streamed PTY input, and checks that the guest trap ran and returned exit code 42.
+- The exact acceptance run passed `TestLiveMicroVMLifecycle` (22.28 s), `TestLiveLocalOCIEngineImport` (1.17 s), and Gateway composition (`TestLiveVMWatchSandboxComposition`, 14.68 s).
+- This closes the Gateway-level signal acceptance gap in `vm.exec-pty-signals`; the upstream retained `BoundaryProcess` attach/terminate handle remains partial. Inventory: 24 implemented, 4 partial, 2 hardware-specific unsupported.

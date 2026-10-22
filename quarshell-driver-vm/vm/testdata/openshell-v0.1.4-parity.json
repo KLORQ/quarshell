@@ -152,6 +152,7 @@
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect",
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveGuestExec",
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLivePTYSignal",
+        "quarshell-gateway/internal/transport/applicationgrpc/live_vm_watch_acceptance_test.go::assertLiveVMGatewayPTYInterrupt",
         "quarshell-runtime/sshserver/process_linux_test.go::TestProcessWaitReturnsStableExitStatusConcurrently",
         "quarshell-gateway/internal/transport/applicationgrpc/exec_test.go::TestExecSandboxInteractiveStreamsNonTTYAndFencesDuplicate"
       ]

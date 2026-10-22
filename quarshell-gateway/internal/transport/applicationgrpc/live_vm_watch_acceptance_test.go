@@ -65,6 +65,10 @@ func (r *liveVMWatchRuntime) OpenExecStream(ctx context.Context, sandbox sandbox
 	return r.backend.OpenExecStream(ctx, core.ID(sandbox.RuntimeID), request)
 }
 
+func (r *liveVMWatchRuntime) OpenExecTerminal(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecTerminalRequest) (driver.ExecTerminalSession, error) {
+	return r.backend.OpenExecTerminal(ctx, core.ID(sandbox.RuntimeID), request)
+}
+
 func (r *liveVMWatchRuntime) Exec(ctx context.Context, sandbox sandboxruntime.Sandbox, request driver.ExecRequest) (driver.ExecResult, error) {
 	return r.backend.Exec(ctx, core.ID(sandbox.RuntimeID), request)
 }
@@ -179,6 +183,7 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 			t.Fatalf("waiting for live VM running event through Gateway WatchSandbox (runtime=%s, state=%s): %v", started.RuntimeID, started.State, ctx.Err())
 		}
 	}
+	assertLiveVMGatewayPTYInterrupt(t, server, ref, ctx)
 	assertLiveVMArchiveTransferThroughGateway(t, server, ref, ctx)
 	stopped, _, err := sandboxes.Stop(ctx, ref, started.Generation, "live-vm-watch-stop")
 	if err != nil {
@@ -199,6 +204,41 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 	stopWatch()
 	if err := <-watchDone; err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatalf("Gateway WatchSandbox returned %v", err)
+	}
+}
+
+func assertLiveVMGatewayPTYInterrupt(t *testing.T, server *Server, ref domain.SandboxRef, ctx context.Context) {
+	t.Helper()
+	stream := &interactiveExecTestStream{ctx: ctx, inputs: make(chan *gatewayv1.ExecSandboxInput, 2)}
+	stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Start{Start: &gatewayv1.ExecSandboxRequest{
+		WorkspaceScope: &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: string(ref.Workspace)}},
+		Sandbox:        string(ref.Sandbox), Command: []string{"sh", "-c", "trap 'echo interrupted; exit 42' INT; while :; do sleep 1; done"},
+		Tty: true, Cols: 80, Rows: 24,
+	}}}
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		stream.inputs <- &gatewayv1.ExecSandboxInput{Payload: &gatewayv1.ExecSandboxInput_Stdin{Stdin: []byte{3}}}
+		close(stream.inputs)
+	}()
+	if err := server.ExecSandboxInteractive(stream); err != nil {
+		t.Fatalf("Gateway interactive VM PTY exec: %v", err)
+	}
+	stream.mu.Lock()
+	events := append([]*gatewayv1.ExecSandboxEvent(nil), stream.events...)
+	stream.mu.Unlock()
+	var output strings.Builder
+	var exitCode *int32
+	for _, event := range events {
+		if data := event.GetStdout(); data != nil {
+			output.Write(data.GetData())
+		}
+		if exit := event.GetExit(); exit != nil {
+			code := exit.GetExitCode()
+			exitCode = &code
+		}
+	}
+	if !strings.Contains(output.String(), "interrupted") || exitCode == nil || *exitCode != 42 {
+		t.Fatalf("Gateway PTY interrupt output=%q exit=%v events=%+v", output.String(), exitCode, events)
 	}
 }
 
