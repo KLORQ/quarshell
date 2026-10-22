@@ -42,7 +42,7 @@ jobs:
             sudo chgrp "$(id -gn)" /dev/kvm
             sudo chmod 0660 /dev/kvm
           fi
-          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && [ "$(id -u)" -ne 0 ]; then
+          if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && [ "$(id -u)" -ne 0 ] && { [ -n "${OPENSHELL_VM_RUNTIME_DIR:-}" ] || ldconfig -p 2>/dev/null | grep -q 'libkrun\.so'; }; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             ls -l /dev/kvm
           else
