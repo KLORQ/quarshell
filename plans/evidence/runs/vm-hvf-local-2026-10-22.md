@@ -765,7 +765,7 @@ authenticated sandbox generation and epoch by its handler.
   [run 39791817531](https://github.com/KLORQ/quarshell/actions/runs/39791817531).
   Linux workflow [39791817542](https://github.com/KLORQ/quarshell/actions/runs/39791817542)
   passed workspace tests, Docker/Podman E2E, docs and Gateway image/Compose;
-  the overall run is completing its remaining hosted checks.
+  the overall run completed successfully.
 
 ## VM lifecycle events in WatchSandbox
 
@@ -778,12 +778,11 @@ authenticated sandbox generation and epoch by its handler.
   `WatchSandbox(FollowEvents)` now accepts event-only watches and forwards
   events after its initial sandbox snapshot; sandbox ID and `since_time` are
   checked. Focused VM watch and Gateway WatchSandbox event tests passed.
-- This closes the missing VM lifecycle event source and its basic Gateway
-  delivery path, but it is not durable event replay: process restart, channel
-  overflow, and other Gateway/driver processes can lose events; `event_tail` is unsupported, and logs and
-  events do not share a resumable cursor or cross-replica fanout. The Gateway
-  rejects combined event resume rather than silently ignoring its cursor. The
-  `vm.logs-watch` inventory row correctly remains partial.
+- This closes the missing VM lifecycle event source and its Gateway delivery
+  path. At this stage the initial event path did not yet retain a shared cursor;
+  the merged log/event replay implementation and current limitations are
+  recorded in the following section. The `vm.logs-watch` inventory row
+  correctly remains partial.
 - After this change, `task vm:live-darwin` passed again on local Apple
   Silicon/HVF (`TestLiveMicroVMLifecycle`, 22.09s test time). The test now
   subscribes before VM start and observes real `created`, `running`, and
@@ -811,3 +810,8 @@ authenticated sandbox generation and epoch by its handler.
   process-local/best-effort; cursor epochs reset when Gateway restarts; and
   multi-replica live event delivery is not shared. The Gateway composition
   watch bridge still lacks a live HVF composition test.
+- On the current tree, full workspace `task test`, focused race tests for
+  sandbox log persistence and Gateway watches, `task vm:parity-check`,
+  `task fmt:check`, and `git diff --check` passed. VM package test binaries
+  cross-compiled for Linux ARM64 and Windows AMD64; Gateway WatchSandbox tests
+  cross-compiled for both targets with CGO disabled.

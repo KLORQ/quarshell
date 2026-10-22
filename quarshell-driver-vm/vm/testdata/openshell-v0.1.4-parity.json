@@ -185,8 +185,12 @@
         "quarshell-driver-vm/vm/live_acceptance_test.go",
         "quarshell-driver-vm/vm/platform_events.go::WatchPlatformEvents",
         "quarshell-driver-vm/vm/platform_events_test.go::TestVMPlatformWatchSnapshotsLifecycleAndDeletion",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
         "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch.go::WatchSandbox",
-        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxStreamsVMPlatformEvents"
+        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxStreamsVMPlatformEvents",
+        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxReplaysAndResumesPlatformEvents",
+        "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestPlatformEventDeduplicationSharesPerSandboxCursor",
+        "quarshell-gateway/internal/application/sandboxlogs/service_test.go::TestPlatformEventWindowTracksTrimmedCursorRange"
       ]
     },
     {
