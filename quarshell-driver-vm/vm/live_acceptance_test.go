@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,6 +88,54 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	defer cancel()
 	forwardEchoHelper := buildLiveForwardEchoHelper(t, ctx)
 	proxyHTTPProbe := buildLiveProxyHTTPProbe(t, ctx)
+	upstreamRequests := make(chan string, 8)
+	upstreamProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodConnect {
+			select {
+			case upstreamRequests <- request.URL.String():
+			default:
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, "local-upstream-ok")
+			return
+		}
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			t.Errorf("local upstream proxy does not support CONNECT hijacking")
+			return
+		}
+		connection, buffered, err := hijacker.Hijack()
+		if err != nil {
+			t.Errorf("hijack local upstream proxy CONNECT: %v", err)
+			return
+		}
+		defer connection.Close()
+		if _, err := buffered.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n"); err != nil {
+			t.Errorf("accept local upstream CONNECT: %v", err)
+			return
+		}
+		if err := buffered.Flush(); err != nil {
+			t.Errorf("flush local upstream CONNECT: %v", err)
+			return
+		}
+		select {
+		case upstreamRequests <- request.Host:
+		default:
+		}
+		for {
+			line, readErr := buffered.ReadString('\n')
+			if readErr != nil {
+				t.Errorf("read tunneled guest request: %v", readErr)
+				return
+			}
+			if line == "\r\n" {
+				break
+			}
+		}
+		_, _ = buffered.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 17\r\nConnection: close\r\n\r\nlocal-upstream-ok")
+		_ = buffered.Flush()
+	}))
+	defer upstreamProxy.Close()
 	proxyBinary, err := os.Executable()
 	if err != nil {
 		t.Fatalf("resolve live policy proxy fixture: %v", err)
@@ -109,7 +159,8 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	brokerSpec := vmCreateSpec{
 		ProxyBin: proxyBinary, PolicyPath: policyPath,
 		ProxyEnv: []string{
-			"HTTPS_PROXY=http://127.0.0.1:1",
+			"HTTP_PROXY=" + upstreamProxy.URL,
+			"HTTPS_PROXY=" + upstreamProxy.URL,
 			"CAUTEM_PROXY_CA_BUNDLE=" + proxyCAPath,
 			"CAUTEM_VM_TEST_POLICY_PROXY_HELPER=1",
 			"CAUTEM_VM_TEST_BROKER_PID_FILE=" + brokerPIDPath,
@@ -167,7 +218,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	assertLiveHostLoopbackIsolation(t, ctx, first, handle.ID, "tcp6", "::1")
 	assertLiveGuestNetworkBoundaries(t, ctx, first, handle.ID, securityProbe)
 	assertLiveNetworkBroker(t, ctx, first, handle.ID, "policy-probe.invalid", proxyHTTPProbe)
-	assertLivePolicyRevisionUpdate(t, ctx, first, handle.ID, policyPath, policyAckPath, proxyHTTPProbe)
+	assertLivePolicyRevisionUpdate(t, ctx, first, handle.ID, policyPath, policyAckPath, proxyHTTPProbe, upstreamProxy.URL, upstreamRequests)
 	assertLiveGuestExec(t, ctx, first, handle.ID)
 	assertLiveGuestCopy(t, ctx, first, handle.ID)
 	assertLiveSupervisorReady(t, ctx, controlEventsPath)
@@ -961,9 +1012,13 @@ func main() {
 	return output
 }
 
-func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *Driver, id core.ID, policyPath, ackPath, probePath string) {
+func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *Driver, id core.ID, policyPath, ackPath, probePath, upstreamProxyURL string, upstreamRequests <-chan string) {
 	t.Helper()
-	policyDocument := []byte("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: policy-probe.invalid\n        port: 80\n")
+	if !strings.HasPrefix(upstreamProxyURL, "http://") {
+		t.Fatalf("local upstream proxy URL must use HTTP, got %q", upstreamProxyURL)
+	}
+	probeHost := "policy-probe.invalid"
+	policyDocument := []byte(fmt.Sprintf("# cautem-policy-revision: 2\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies:\n  live-acceptance:\n    endpoints:\n      - host: %s\n        port: 80\n", probeHost))
 	updatedPath := policyPath + ".next"
 	if err := os.WriteFile(updatedPath, policyDocument, 0o600); err != nil {
 		t.Fatalf("write next live policy revision: %v", err)
@@ -974,15 +1029,24 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 	waitForLivePolicyAck(t, ctx, ackPath, 2)
 	t.Log("live policy broker acknowledged revision 2")
 
-	allowed, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", "policy-probe.invalid"}})
+	allowed, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", probeHost}})
 	if err != nil {
 		t.Fatalf("request through newly allowed live policy endpoint: %v", err)
 	}
 	allowedOutput := string(allowed.Stdout) + string(allowed.Stderr)
-	if allowed.ExitCode != 0 || strings.Contains(allowedOutput, "HTTP 403") {
-		t.Fatalf("revision 2 did not allow policy-probe.invalid past policy evaluation: exit=%d stdout=%q stderr=%q", allowed.ExitCode, allowed.Stdout, allowed.Stderr)
+	if allowed.ExitCode != 0 || !strings.Contains(allowedOutput, "HTTP 200") {
+		t.Fatalf("revision 2 did not complete an allowed egress request: exit=%d stdout=%q stderr=%q", allowed.ExitCode, allowed.Stdout, allowed.Stderr)
 	}
-	t.Logf("revision 2 allow decision passed policy evaluation: %s", strings.TrimSpace(allowedOutput))
+	select {
+	case requestURL := <-upstreamRequests:
+		upstreamHost, upstreamPort, splitErr := net.SplitHostPort(requestURL)
+		if splitErr != nil || upstreamPort != "80" || (upstreamHost != probeHost && net.ParseIP(upstreamHost) == nil) {
+			t.Fatalf("allowed egress reached unexpected upstream CONNECT target %q", requestURL)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("allowed guest request never reached the working local upstream proxy")
+	}
+	t.Logf("revision 2 allowed a live guest request through the local upstream proxy: %s", strings.TrimSpace(allowedOutput))
 	policyDocument = []byte("# cautem-policy-revision: 3\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies: {}\n")
 	if err := os.WriteFile(updatedPath, policyDocument, 0o600); err != nil {
 		t.Fatalf("write policy revocation revision: %v", err)
@@ -991,13 +1055,13 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 		t.Fatalf("atomically publish policy revocation revision: %v", err)
 	}
 	waitForLivePolicyAck(t, ctx, ackPath, 3)
-	revoked, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", "policy-probe.invalid"}})
+	revoked, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", probeHost}})
 	if err != nil {
 		t.Fatalf("request through revoked live policy endpoint: %v", err)
 	}
 	revokedOutput := string(revoked.Stdout) + string(revoked.Stderr)
 	if revoked.ExitCode != 0 || !strings.Contains(revokedOutput, "HTTP 403") {
-		t.Fatalf("revision 3 did not revoke policy-probe.invalid: exit=%d stdout=%q stderr=%q", revoked.ExitCode, revoked.Stdout, revoked.Stderr)
+		t.Fatalf("revision 3 did not revoke the working upstream endpoint: exit=%d stdout=%q stderr=%q", revoked.ExitCode, revoked.Stdout, revoked.Stderr)
 	}
 	t.Log("live policy revision 3 revoked the previously allowed endpoint")
 	assertLiveNetworkBroker(t, ctx, sandbox, id, "blocked-probe.invalid", probePath)

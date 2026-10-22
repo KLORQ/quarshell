@@ -855,3 +855,23 @@ response. `TestBackendCapabilitiesAdvertiseRuntimeExtensions` now asserts all
 three resource capability fields and the disabled GPU selection flags. The
 GPU/VFIO inventory and crash-recovery entries remain unsupported without GPU
 implementation and hardware.
+
+## Durable WatchSandbox cursor and shared-store catch-up
+
+The Gateway stores its opaque cursor epoch in the lifecycle store and loads it
+before processing a `WatchSandbox` request. Reopening SQLite preserves that
+epoch, so a cursor issued before restart remains valid when the same retained
+window is available. Watchers poll the durable log/event window every second
+and merge records newer than their per-source watermarks; this delivered a log
+written through a second Gateway server in the regression test. The platform
+event producer is still process-local: a new VM transition must first reach a
+local `WatchPlatformEvents` subscriber to be appended. The cross-instance test
+also seeds a terminal platform event and a later log from the shared store and
+checks ordered delivery plus `stop_on_terminal` behavior.
+
+Validation on the current tree at 2026-10-22 19:55 Europe/Samara: full
+workspace `task test`, `task vm:parity-check`, `task fmt:check`, and
+`git diff --check` passed. Focused cursor, Gateway watch and sandboxlogs tests
+also passed under `-race`; Gateway WatchSandbox test binaries cross-compiled
+for Linux ARM64 and Windows AMD64 with CGO disabled. The inventory remains 5
+implemented, 23 partial, and 2 hardware-specific unsupported.
