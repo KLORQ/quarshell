@@ -74,6 +74,7 @@ if [ ! -s "$rootfs_tar" ]; then
   docker rm "$container_id" >/dev/null
   container_id=
 fi
+docker pull --platform "linux/$guest_arch" docker.io/library/alpine:3.22 >/dev/null
 if [ ! -s "$rootfs_tar" ]; then
   echo "live MicroVM rootfs tar is missing or empty: $rootfs_tar" >&2
   exit 2
@@ -99,6 +100,8 @@ fi
 
 cd "$vm_module_dir"
 CAUTEM_VM_ACCEPTANCE=1 \
+CAUTEM_VM_LOCAL_IMAGE_ACCEPTANCE=1 \
+CAUTEM_VM_TEST_LOCAL_IMAGE="docker.io/library/alpine:3.22" \
 CAUTEM_VM_TEST_ROOTFS_TAR=$rootfs_tar \
 CAUTEM_VM_TEST_GUEST_AGENT=$guest_agent \
 CAUTEM_VM_TEST_INIT_BIN=$init_bin \
@@ -111,5 +114,7 @@ CAUTEM_VM_WORKER=$worker \
 OPENSHELL_VM_RUNTIME_DIR=$runtime_dir \
 CAUTEM_VM_CODESIGN_IDENTITY=${CAUTEM_VM_CODESIGN_IDENTITY:--} \
 DYLD_LIBRARY_PATH=$runtime_dir \
-python3 "$script_dir/run-required-go-test.py" --test TestLiveMicroVMLifecycle -- \
-  go test -json ./vm -run '^TestLiveMicroVMLifecycle$' -count=1 -v
+python3 "$script_dir/run-required-go-test.py" \
+  --test TestLiveMicroVMLifecycle \
+  --test TestLiveLocalOCIEngineImport -- \
+  go test -json ./vm -run '^(TestLiveMicroVMLifecycle|TestLiveLocalOCIEngineImport)$' -count=1 -v

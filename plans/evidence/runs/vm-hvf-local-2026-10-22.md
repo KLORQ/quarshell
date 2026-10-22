@@ -1,5 +1,20 @@
 # VM Hypervisor.framework local acceptance
 
+## Docker local OCI image export acceptance
+
+- Reverified: 2026-10-22 21:37 Europe/Samara
+- Command: `task vm:live-darwin`
+- Result: `TestLiveMicroVMLifecycle` PASS (22.93s) and
+  `TestLiveLocalOCIEngineImport` PASS (1.18s)
+
+Docker Engine 29 exports multi-platform images as OCI layouts. The VM importer
+now requests only the target guest platform by immutable Engine image ID,
+reads legacy Docker archives and OCI layout archives, selects the matching
+platform manifest, and rejects unsafe archive paths and entry types. The live
+test imported `docker.io/library/alpine:3.22` for `linux/arm64`, prepared the
+VM rootfs image, and recovered its config by the same immutable image ID.
+Inventory: 17 implemented, 11 partial, and 2 unsupported for physical GPU/VFIO.
+
 ## Workload identity parity and full workspace retest
 
 - Reverified: 2026-10-22 21:16 Europe/Samara
@@ -16,7 +31,7 @@ gate. Gateway persists the observed runtime UID/GID and exposes a
 conflicting policy selectors, durable identity persistence, and the gRPC
 condition. Live HVF acceptance verified identity `1000:1000` and that the
 persistent `/sandbox` owner remains `1000:1000` across stop/start. Inventory:
-16 implemented, 12 partial, and 2 unsupported for physical GPU/VFIO. Lifecycle
+17 implemented, 11 partial, and 2 unsupported for physical GPU/VFIO. Lifecycle
 extension parity is implemented across registration, activation labels,
 capability validation, launch configuration/hooks, restore hooks, failure
 cleanup and deletion; unit tests cover ordering, invalid requests, and cleanup,

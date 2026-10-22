@@ -33,9 +33,45 @@ func (engine *fakeLocalImageEngine) InspectImage(context.Context, string) (local
 	return engine.metadata, nil
 }
 
-func (engine *fakeLocalImageEngine) SaveImage(_ context.Context, _ string, writer io.Writer) error {
+func (engine *fakeLocalImageEngine) SaveImage(_ context.Context, _ string, _ v1.Platform, writer io.Writer) error {
 	_, err := io.Copy(writer, bytes.NewReader(engine.archive))
 	return err
+}
+
+func TestExtractLocalOCILayoutArchiveRejectsUnsafeEntries(t *testing.T) {
+	for _, entry := range []struct {
+		name     string
+		typeflag byte
+	}{
+		{name: "../escape", typeflag: tar.TypeReg},
+		{name: "blobs/link", typeflag: tar.TypeSymlink},
+	} {
+		t.Run(entry.name, func(t *testing.T) {
+			archivePath := filepath.Join(t.TempDir(), "layout.tar")
+			file, err := os.Create(archivePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writer := tar.NewWriter(file)
+			if err := writer.WriteHeader(&tar.Header{Name: entry.name, Typeflag: entry.typeflag, Linkname: "../../outside", Mode: 0o600, Size: 1}); err != nil {
+				t.Fatal(err)
+			}
+			if entry.typeflag == tar.TypeReg {
+				if _, err := writer.Write([]byte("x")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := file.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := extractLocalOCILayoutArchive(archivePath); err == nil {
+				t.Fatalf("accepted unsafe OCI archive entry %q", entry.name)
+			}
+		})
+	}
 }
 
 func TestPrepareLocalOCIImageImportsPinnedDockerArchiveAndRestoresConfig(t *testing.T) {

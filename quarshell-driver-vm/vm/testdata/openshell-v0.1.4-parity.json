@@ -113,9 +113,10 @@
       "id": "vm.local-container-image",
       "upstream": "crates/openshell-driver-vm/src/driver.rs::resolve_local_container_image",
       "cautem": "quarshell-driver-vm/vm/local_image.go;quarshell-driver-vm/vm/oci_image.go;quarshell-driver-vm/vm/state.go",
-      "status": "partial",
+      "status": "implemented",
       "evidence": [
         "quarshell-driver-vm/vm/local_image_test.go",
+        "quarshell-driver-vm/vm/local_image_live_test.go::TestLiveLocalOCIEngineImport",
         "quarshell-driver-vm/vm/state_test.go",
         "quarshell-driver-vm/vm/oci_image_linux_test.go::TestApplyOCILayerPreservesUnixSpecialPermissionBits",
         "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
