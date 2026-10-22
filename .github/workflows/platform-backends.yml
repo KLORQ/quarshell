@@ -35,6 +35,13 @@ jobs:
         id: kvm
         shell: bash
         run: |
+          if [ -c /dev/kvm ] && [ "$(id -u)" -ne 0 ]; then
+            # GitHub-hosted runners expose /dev/kvm as root:kvm, but the
+            # ephemeral runner account is not consistently in the kvm group.
+            # Grant this job's primary group access on its disposable runner.
+            sudo chgrp "$(id -gn)" /dev/kvm
+            sudo chmod 0660 /dev/kvm
+          fi
           if [ -c /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ] && [ "$(id -u)" -ne 0 ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             ls -l /dev/kvm
