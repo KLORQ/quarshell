@@ -297,7 +297,7 @@ func (s *controlServer) dispatch(ctx context.Context, request Request) Response 
 		if err := s.startWorkload(ctx, request); err != nil {
 			return Response{Error: err.Error()}
 		}
-		return Response{WorkloadUID: s.workloadUID, WorkloadGID: s.workloadGID}
+		return Response{WorkloadUID: s.workloadUID, WorkloadGID: s.workloadGID, SessionID: request.SessionID}
 	case "confirm-workload":
 		if err := s.confirmWorkloadStart(); err != nil {
 			return Response{Error: err.Error()}
@@ -389,6 +389,9 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 	if len(request.Argv) == 0 {
 		return fmt.Errorf("workload argv is empty")
 	}
+	if request.TTY && strings.TrimSpace(request.SessionID) == "" {
+		return fmt.Errorf("TTY workload requires a retained session ID")
+	}
 	restartPolicy, err := normalizeGuestRestartPolicy(request.RestartPolicy)
 	if err != nil {
 		return err
@@ -444,14 +447,19 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 		command.Env = mergeGuestEnvironment(command.Env, "CAUTEM_SUPERVISOR_START_GATE_FD=3")
 	}
 	command.Dir = guestWorkdir(request.WorkDir)
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if !request.TTY {
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 	var workloadUID, workloadGID uint32
 	if !s.supervisorEnabled {
 		credential, err := guestWorkloadCredential(request.User, s.uid, s.gid)
 		if err != nil {
 			return fmt.Errorf("resolve guest workload identity: %w", err)
+		}
+		if command.SysProcAttr == nil {
+			command.SysProcAttr = &syscall.SysProcAttr{}
 		}
 		command.SysProcAttr.Credential = credential
 		if credential == nil {
@@ -460,7 +468,29 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 			workloadUID, workloadGID = credential.Uid, credential.Gid
 		}
 	}
-	if err := command.Start(); err != nil {
+	var terminal *os.File
+	if request.TTY {
+		columns, rows := request.Columns, request.Rows
+		if columns == 0 {
+			columns = 80
+		}
+		if rows == 0 {
+			rows = 24
+		}
+		if columns > 65535 || rows > 65535 {
+			if startGateReader != nil {
+				_ = startGateReader.Close()
+			}
+			if startGateWriter != nil {
+				_ = startGateWriter.Close()
+			}
+			return fmt.Errorf("TTY workload dimensions must not exceed 65535")
+		}
+		terminal, err = pty.StartWithSize(command, &pty.Winsize{Cols: uint16(columns), Rows: uint16(rows)})
+	} else {
+		err = command.Start()
+	}
+	if err != nil {
 		if startGateReader != nil {
 			_ = startGateReader.Close()
 		}
@@ -476,8 +506,7 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 	s.workloadStartGate = startGateWriter
 	done := make(chan struct{})
 	s.jobDone = done
-	go func() {
-		_ = command.Wait()
+	onExit := func() {
 		s.mu.Lock()
 		naturalExit := false
 		if s.job == command {
@@ -495,7 +524,35 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 				fmt.Fprintf(os.Stderr, "cautem-vm-guest-agent: power off after workload exit: %v\n", err)
 			}
 		}
-	}()
+	}
+	if request.TTY {
+		s.terminalMu.Lock()
+		_, exists := s.terminals[request.SessionID]
+		if exists {
+			s.terminalMu.Unlock()
+			_ = terminal.Close()
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+			_ = command.Wait()
+			s.job = nil
+			s.jobDone = nil
+			return fmt.Errorf("terminal session ID already exists")
+		}
+		_, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal, onExit)
+		s.terminalMu.Unlock()
+		if retainErr != nil {
+			_ = terminal.Close()
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+			_ = command.Wait()
+			s.job = nil
+			s.jobDone = nil
+			return retainErr
+		}
+	} else {
+		go func() {
+			_ = command.Wait()
+			onExit()
+		}()
+	}
 	if s.supervisorEnabled {
 		var err error
 		workloadUID, workloadGID, err = waitForSupervisorReadiness(ctx, readyPath, done)
@@ -923,7 +980,7 @@ func (s *controlServer) execTerminal(connection net.Conn, request Request) {
 			_ = writeResponse(connection, Response{Error: "terminal session ID already exists"})
 			return
 		}
-		process, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal)
+		process, retainErr := s.retainTerminalLocked(request.SessionID, command, terminal, nil)
 		s.terminalMu.Unlock()
 		if retainErr != nil {
 			_ = terminal.Close()

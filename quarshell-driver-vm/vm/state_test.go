@@ -79,6 +79,22 @@ func TestStoredWorkloadDiskRequiresCompletePinnedProvenance(t *testing.T) {
 	}
 }
 
+func TestStoredMainProcessTTYSessionIDIsValidated(t *testing.T) {
+	now := time.Now().UTC()
+	state := sandboxState{
+		Version: sandboxStateVersion, ID: "3a967f5c-4ad7-4e36-8cd5-8b9b1b2db00c", Name: "sandbox", Status: "running",
+		CreatedAt: now, UpdatedAt: now,
+	}
+	state.MainProcessTTYSessionID = "not-a-session"
+	if err := validateStoredState(state); err == nil || !strings.Contains(err.Error(), "main-process TTY session ID") {
+		t.Fatalf("invalid main-process TTY session ID error = %v", err)
+	}
+	state.MainProcessTTYSessionID = strings.Repeat("a", 32)
+	if err := validateStoredState(state); err != nil {
+		t.Fatalf("valid main-process TTY session ID rejected: %v", err)
+	}
+}
+
 func TestWorkloadImageSourceSelectsIndependentDiskAndLegacyRootfs(t *testing.T) {
 	state := sandboxState{
 		RootfsSourceType: "oci", RootfsSourceRef: "registry.example/bootstrap:v1",

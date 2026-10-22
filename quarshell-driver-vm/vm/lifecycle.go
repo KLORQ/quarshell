@@ -613,16 +613,27 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 			return fmt.Errorf("start guest SSH relay: %w", err)
 		}
 	}
+	mainProcessTTYSessionID := ""
+	if spec.TTY {
+		mainProcessTTYSessionID, err = newTerminalSessionID()
+		if err != nil {
+			return err
+		}
+	}
 	startResponse, err := d.exchangeControl(startupCtx, state.ID, guestSocket, controlRequest{
 		Operation: "start-workload", Argv: launchSpec.Command,
 		Env: launchSpec.Env, RestartPolicy: launchSpec.MainProcessRestartPolicy,
-		WorkDir: launchSpec.WorkDir, User: launchSpec.User,
+		WorkDir: launchSpec.WorkDir, User: launchSpec.User, TTY: spec.TTY,
+		SessionID: mainProcessTTYSessionID, Columns: defaultTerminalColumns, Rows: defaultTerminalRows,
 	})
 	if err != nil {
 		return fmt.Errorf("start guest workload: %w", err)
 	}
 	if startResponse.WorkloadUID == 0 || startResponse.WorkloadGID == 0 {
 		return fmt.Errorf("start guest workload: guest did not report a non-root workload identity")
+	}
+	if spec.TTY && startResponse.SessionID != mainProcessTTYSessionID {
+		return fmt.Errorf("start guest workload: guest did not retain the requested main-process TTY session")
 	}
 	if spec.PolicyPath != "" {
 		if err := validateVMPolicyWorkloadIdentity(spec.PolicyPath, startResponse.WorkloadUID, startResponse.WorkloadGID); err != nil {
@@ -667,6 +678,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		return fmt.Errorf("rotate guest control token after startup: %w", err)
 	}
 	state.Status = "running"
+	state.MainProcessTTYSessionID = mainProcessTTYSessionID
 	state.WorkloadUID = startResponse.WorkloadUID
 	state.WorkloadGID = startResponse.WorkloadGID
 	state.MainProcessExitCode = nil

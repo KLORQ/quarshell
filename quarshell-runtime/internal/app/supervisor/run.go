@@ -158,7 +158,7 @@ func runWorkload(args []string) (int, error) {
 		command := exec.Command(args[0], args[1:]...)
 		command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
 		command.Env = workloadEnvironment(privateCredentialDir)
-		command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		command.SysProcAttr = mainProcessSysProcAttr(os.Stdin)
 		var readyReader, readyWriter *os.File
 		var hostStartGate *os.File
 		var initStartGateReader, initStartGateWriter *os.File

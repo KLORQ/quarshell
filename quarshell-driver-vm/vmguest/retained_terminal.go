@@ -38,6 +38,7 @@ type retainedTerminal struct {
 	exitCode   int
 	finishedAt time.Time
 	outputDone chan struct{}
+	onExit     func()
 }
 
 func (s *controlServer) pruneTerminalsLocked(now time.Time) {
@@ -51,7 +52,7 @@ func (s *controlServer) pruneTerminalsLocked(now time.Time) {
 	}
 }
 
-func (s *controlServer) retainTerminalLocked(id string, command *exec.Cmd, terminal *os.File) (*retainedTerminal, error) {
+func (s *controlServer) retainTerminalLocked(id string, command *exec.Cmd, terminal *os.File, onExit func()) (*retainedTerminal, error) {
 	if s.terminals == nil {
 		s.terminals = make(map[string]*retainedTerminal)
 	}
@@ -61,7 +62,7 @@ func (s *controlServer) retainTerminalLocked(id string, command *exec.Cmd, termi
 	}
 	process := &retainedTerminal{
 		owner: s, id: id, pid: command.Process.Pid, command: command, pty: terminal,
-		outputDone: make(chan struct{}),
+		outputDone: make(chan struct{}), onExit: onExit,
 	}
 	s.terminals[id] = process
 	go process.readOutput()
@@ -153,6 +154,9 @@ func (process *retainedTerminal) wait() {
 	}
 	process.mu.Unlock()
 	_ = process.pty.Close()
+	if process.onExit != nil {
+		process.onExit()
+	}
 	time.AfterFunc(retainedTerminalFinishedTTL, func() {
 		process.owner.terminalMu.Lock()
 		if process.owner.terminals[process.id] == process {

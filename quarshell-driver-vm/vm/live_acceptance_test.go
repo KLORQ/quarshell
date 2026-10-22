@@ -206,11 +206,13 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		return
 	}
 	first := newLiveAcceptanceDriver(host)
+	mainTTYCommand := []string{"/bin/sh", "-c", "if [ ! -e /sandbox/.restart-once ]; then touch /sandbox/.restart-once; exit 7; fi; if [ ! -e /sandbox/canonical-identity ]; then printf '%s:%s\\n' \"$(id -u)\" \"$(id -g)\" > /sandbox/canonical-identity; sync; fi; printf 'main-ready\\n'; printf '%s\\n' \"$$\" > /sandbox/main-tty-pid; while IFS= read -r line; do printf 'main-tty:%s:%s\\n' \"$line\" \"$(stty size)\"; done"}
 	handle, err := first.createSandbox(ctx, vmCreateSpec{
 		Name: "live-microvm-acceptance", Image: "alpine:3.22",
 		Labels:                   liveGuestInitExtensionLabels(),
 		DriverConfigJSON:         string(driverConfig),
-		Command:                  []string{"/bin/sh", "-c", "if [ ! -e /sandbox/.restart-once ]; then touch /sandbox/.restart-once; exit 7; fi; if [ ! -e /sandbox/canonical-identity ]; then printf '%s:%s\\n' \"$(id -u)\" \"$(id -g)\" > /sandbox/canonical-identity; sync; fi; while :; do sleep 1; done"},
+		Command:                  mainTTYCommand,
+		TTY:                      true,
 		MainProcessRestartPolicy: "on-failure",
 		ProxyBin:                 brokerSpec.ProxyBin, PolicyPath: brokerSpec.PolicyPath, ProxyEnv: brokerSpec.ProxyEnv,
 		InitBin: brokerSpec.InitBin, SupervisorBin: brokerSpec.SupervisorBin,
@@ -236,6 +238,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatalf("start live MicroVM: %v; console: %s; worker: %s", err, logs.String(), workerLog)
 	}
 	assertLiveVMPlatformState(t, vmEvents, "running")
+	firstMainPID := assertLiveMainProcessTTY(t, ctx, first, handle.ID, "first")
 	initialRuntimeGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID)
 	initialControlCert, initialControlIdentity := liveVMControlClientIdentity(t, host.StateDir, handle.ID)
 	if !strings.HasSuffix(initialControlIdentity, "/generation/"+initialRuntimeGeneration) {
@@ -276,8 +279,8 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	// after a Gateway/compute process restart.
 	recovered := newLiveAcceptanceDriver(host)
 	if err := recovered.restoreLaunchSpec(ctx, handle.ID, vmCreateSpec{
-		Name: handle.Name, Labels: liveGuestInitExtensionLabels(), Command: []string{"/bin/sh", "-c", "while :; do sleep 1; done"},
-		MainProcessRestartPolicy: "on-failure", ProxyBin: brokerSpec.ProxyBin, PolicyPath: brokerSpec.PolicyPath,
+		Name: handle.Name, Labels: liveGuestInitExtensionLabels(), Command: mainTTYCommand,
+		TTY: true, MainProcessRestartPolicy: "on-failure", ProxyBin: brokerSpec.ProxyBin, PolicyPath: brokerSpec.PolicyPath,
 		ProxyEnv: brokerSpec.ProxyEnv, InitBin: brokerSpec.InitBin, SupervisorBin: brokerSpec.SupervisorBin,
 		EnableSSH: brokerSpec.EnableSSH, SSHBin: brokerSpec.SSHBin,
 	}); err != nil {
@@ -285,6 +288,10 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	if err := recovered.Start(ctx, handle.ID); err != nil {
 		t.Fatalf("recover live MicroVM worker: %v", err)
+	}
+	reattachedMainPID := assertLiveMainProcessTTY(t, ctx, recovered, handle.ID, "second")
+	if firstMainPID != reattachedMainPID {
+		t.Fatalf("reattached canonical VM main process changed PID from %s to %s", firstMainPID, reattachedMainPID)
 	}
 	if recoveredGeneration := assertLiveIsolationDescriptor(t, host.StateDir, handle.ID); recoveredGeneration != initialRuntimeGeneration {
 		t.Fatalf("adopting the running VM changed runtime generation from %q to %q", initialRuntimeGeneration, recoveredGeneration)
@@ -306,7 +313,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatalf("reset supervisor acceptance events before restart: %v", err)
 	}
 	if err := recovered.restoreLaunchSpec(ctx, handle.ID, vmCreateSpec{
-		Name: handle.Name, Labels: liveGuestInitExtensionLabels(), Command: []string{"/bin/sh", "-c", "printf '%s:%s\\n' \"$(id -u)\" \"$(id -g)\" >> /sandbox/restart-identity; sync; while :; do sleep 1; done"}, MainProcessRestartPolicy: "on-failure",
+		Name: handle.Name, Labels: liveGuestInitExtensionLabels(), Command: []string{"/bin/sh", "-c", "printf '%s:%s\\n' \"$(id -u)\" \"$(id -g)\" >> /sandbox/restart-identity; sync; printf 'main-ready\\n'; printf '%s\\n' \"$$\" > /sandbox/main-tty-pid; while IFS= read -r line; do printf 'main-tty:%s\\n' \"$line\"; done"}, TTY: true, MainProcessRestartPolicy: "on-failure",
 		ProxyBin: brokerSpec.ProxyBin, PolicyPath: brokerSpec.PolicyPath, ProxyEnv: brokerSpec.ProxyEnv,
 		InitBin: brokerSpec.InitBin, SupervisorBin: brokerSpec.SupervisorBin,
 		EnableSSH: brokerSpec.EnableSSH, SSHBin: brokerSpec.SSHBin,
@@ -1235,6 +1242,56 @@ func assertLiveGuestProxyCAInstalled(t *testing.T, ctx context.Context, d *Drive
 		}
 	}
 	t.Log("live guest installed corporate proxy CA as root-owned 0644 and included it in system trust bundle")
+}
+
+func assertLiveMainProcessTTY(t *testing.T, ctx context.Context, d *Driver, id core.ID, payload string) string {
+	t.Helper()
+	terminal, err := d.OpenMainProcessTTY(ctx, id, 101, 41)
+	if err != nil {
+		t.Fatalf("open canonical VM main-process TTY: %v", err)
+	}
+	defer terminal.Close()
+	lines := make(chan string, 16)
+	readErr := make(chan error, 1)
+	go func() {
+		scanner := bufio.NewScanner(terminal)
+		for scanner.Scan() {
+			select {
+			case lines <- scanner.Text():
+			case <-ctx.Done():
+				return
+			}
+		}
+		readErr <- scanner.Err()
+	}()
+	if _, err := io.WriteString(terminal, payload+"\n"); err != nil {
+		t.Fatalf("write canonical VM main-process TTY: %v", err)
+	}
+	want := "main-tty:" + payload + ":41 101"
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+	for {
+		select {
+		case line := <-lines:
+			if line == want {
+				result, execErr := d.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/bin/cat", "/sandbox/main-tty-pid"}, NoLoginShell: true})
+				if execErr != nil || result.ExitCode != 0 {
+					t.Fatalf("read canonical VM main-process PID: result=%+v err=%v", result, execErr)
+				}
+				pid := strings.TrimSpace(string(result.Stdout))
+				if pid == "" {
+					t.Fatal("canonical VM main-process PID marker is empty")
+				}
+				return pid
+			}
+		case err := <-readErr:
+			t.Fatalf("read canonical VM main-process TTY before %q: %v", want, err)
+		case <-deadline.C:
+			t.Fatalf("canonical VM main-process TTY did not return %q", want)
+		case <-ctx.Done():
+			t.Fatalf("context ended while waiting for canonical VM main-process TTY: %v", ctx.Err())
+		}
+	}
 }
 
 func assertLiveGuestExec(t *testing.T, ctx context.Context, d *Driver, id core.ID) {

@@ -178,6 +178,77 @@ func newTerminalSessionID() (string, error) {
 	return hex.EncodeToString(raw[:]), nil
 }
 
+func validTerminalSessionID(id string) bool {
+	if len(id) != 32 {
+		return false
+	}
+	_, err := hex.DecodeString(id)
+	return err == nil
+}
+
+// OpenMainProcessTTY attaches to the PTY owned by the canonical guest workload
+// process. The session ID is durable, so a Gateway transport reconnect can
+// reattach without creating a second main process.
+func (d *Driver) OpenMainProcessTTY(ctx context.Context, id core.ID, columns, rows uint32) (io.ReadWriteCloser, error) {
+	if d == nil || ctx == nil {
+		return nil, fmt.Errorf("vm driver: OpenMainProcessTTY requires a driver and context")
+	}
+	if columns > 65535 || rows > 65535 {
+		return nil, fmt.Errorf("vm main-process TTY dimensions must not exceed 65535")
+	}
+	sessionID, err := d.mainProcessTTYSessionID(id)
+	if err != nil {
+		return nil, err
+	}
+	session, err := d.AttachExecTerminal(ctx, id, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("attach VM main-process TTY: %w", err)
+	}
+	if columns > 0 && rows > 0 {
+		if err := session.Resize(ctx, columns, rows); err != nil {
+			_ = session.Close()
+			return nil, fmt.Errorf("resize VM main-process TTY: %w", err)
+		}
+	}
+	return session, nil
+}
+
+// ResizeMainProcessTTY attaches briefly to send a resize update to the retained
+// PTY. Closing the stream detaches while leaving the canonical process running.
+func (d *Driver) ResizeMainProcessTTY(ctx context.Context, id core.ID, columns, rows uint32) error {
+	if columns == 0 || rows == 0 {
+		return nil
+	}
+	session, err := d.OpenMainProcessTTY(ctx, id, columns, rows)
+	if err != nil {
+		return err
+	}
+	return session.Close()
+}
+
+func (d *Driver) mainProcessTTYSessionID(id core.ID) (string, error) {
+	if d == nil {
+		return "", fmt.Errorf("vm driver: main-process TTY requires a driver")
+	}
+	store, err := openStateStore(d.host.StateDir)
+	if err != nil {
+		return "", err
+	}
+	state, err := store.load(string(id))
+	if err != nil {
+		return "", err
+	}
+	if state.Status != "running" {
+		return "", fmt.Errorf("vm main-process TTY: sandbox %q is %s", state.Name, state.Status)
+	}
+	if !validTerminalSessionID(state.MainProcessTTYSessionID) {
+		return "", fmt.Errorf("vm main-process TTY: sandbox %q was not started with a TTY", state.Name)
+	}
+	return state.MainProcessTTYSessionID, nil
+}
+
+var _ driver.MainProcessTTY = (*Driver)(nil)
+
 func (d *Driver) execWithTerminal(ctx context.Context, id core.ID, request driver.ExecRequest) (driver.ExecResult, error) {
 	columns, rows := request.Columns, request.Rows
 	if columns == 0 {

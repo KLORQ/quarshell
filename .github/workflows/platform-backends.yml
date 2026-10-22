@@ -169,10 +169,11 @@ jobs:
                 groupadd --gid "$RUNNER_GID" runner
               fi
               runner_group=$(getent group "$RUNNER_GID" | cut -d: -f1)
-              useradd --uid "$RUNNER_UID" --gid "$runner_group" --create-home --shell /bin/bash runner
-              chown -R "$RUNNER_UID:$RUNNER_GID" /home/runner
+              useradd --uid "$RUNNER_UID" --gid "$runner_group" --home-dir /tmp/runner-home \
+                --create-home --shell /bin/bash runner
+              chown "$RUNNER_UID:$RUNNER_GID" /tmp/runner-home
               setpriv --reuid "$RUNNER_UID" --regid "$runner_group" --init-groups -- \
-                env HOME=/home/runner GOROOT=/opt/go GOPATH=/go \
+                env HOME=/tmp/runner-home GOROOT=/opt/go GOPATH=/go \
                 PATH=/opt/go/bin:/usr/local/bin:/usr/bin:/bin \
                 bash -euc "go test -C quarshell-driver-vm ./vm -run \"^TestWorkerIsolationNamespaceSubprocess\$\" -count=1 && task vm:live-linux"
             '

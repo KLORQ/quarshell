@@ -50,18 +50,19 @@ type sandboxState struct {
 	LifecycleDropinsDigest     string   `json:"lifecycle_dropins_digest,omitempty"`
 	// RuntimeGeneration binds boot-scoped host control credentials and future
 	// isolation evidence to the durable sandbox lifecycle record.
-	RuntimeGeneration     string    `json:"runtime_generation,omitempty"`
-	RuntimeSessionID      string    `json:"runtime_session_id,omitempty"`
-	RuntimeDigest         string    `json:"runtime_digest,omitempty"`
-	VCPUs                 uint8     `json:"vcpus,omitempty"`
-	MemoryMiB             uint32    `json:"memory_mib,omitempty"`
-	Status                string    `json:"status"`
-	MainProcessExitCode   *int32    `json:"main_process_exit_code,omitempty"`
-	MainProcessInstanceID string    `json:"main_process_instance_id,omitempty"`
-	WorkloadUID           uint32    `json:"workload_uid,omitempty"`
-	WorkloadGID           uint32    `json:"workload_gid,omitempty"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	RuntimeGeneration       string    `json:"runtime_generation,omitempty"`
+	RuntimeSessionID        string    `json:"runtime_session_id,omitempty"`
+	RuntimeDigest           string    `json:"runtime_digest,omitempty"`
+	MainProcessTTYSessionID string    `json:"main_process_tty_session_id,omitempty"`
+	VCPUs                   uint8     `json:"vcpus,omitempty"`
+	MemoryMiB               uint32    `json:"memory_mib,omitempty"`
+	Status                  string    `json:"status"`
+	MainProcessExitCode     *int32    `json:"main_process_exit_code,omitempty"`
+	MainProcessInstanceID   string    `json:"main_process_instance_id,omitempty"`
+	WorkloadUID             uint32    `json:"workload_uid,omitempty"`
+	WorkloadGID             uint32    `json:"workload_gid,omitempty"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 type imageSourceProvenance struct {
@@ -592,6 +593,9 @@ func validateStoredState(state sandboxState) error {
 	}
 	if (state.RuntimeGeneration != "") != (state.RuntimeSessionID != "") || (state.RuntimeGeneration != "") != (state.RuntimeDigest != "") {
 		return fmt.Errorf("incomplete stored VM runtime descriptor identity")
+	}
+	if state.MainProcessTTYSessionID != "" && !validTerminalSessionID(state.MainProcessTTYSessionID) {
+		return fmt.Errorf("invalid stored VM main-process TTY session ID")
 	}
 	if (state.WorkloadUID == 0) != (state.WorkloadGID == 0) {
 		return fmt.Errorf("sandbox workload identity must contain both UID and GID")
