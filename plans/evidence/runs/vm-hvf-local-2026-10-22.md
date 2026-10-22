@@ -743,3 +743,46 @@ authenticated sandbox generation and epoch by its handler.
   and `git diff --check` passed after this correction. The subject-token
   exchange fixture now carries the active sandbox principal and generation,
   matching the enforced runtime scope.
+
+## GitHub-hosted recheck for the migration commit
+
+- Commit `de12743b97832bb5d89f780a7ce141711bc1de79` secret scan passed in
+  [run 39791083670](https://github.com/KLORQ/quarshell/actions/runs/39791083670).
+- The [platform matrix 39791077231](https://github.com/KLORQ/quarshell/actions/runs/39791077231)
+  completed successfully: macOS/HVF and Linux/KVM VM packages built and
+  tested; Windows VM/driver build and Windows-compatible package tests passed.
+  Its live VM checks were skipped because hosted macOS 14 lacks
+  Hypervisor.framework and hosted Ubuntu has no usable non-root `/dev/kvm`.
+  Windows runner build 26100 also lacks MXC runtime files and is below the
+  required build 26300, so native MXC remains unverified.
+- The [macOS workflow 39791070695](https://github.com/KLORQ/quarshell/actions/runs/39791070695)
+  passed. The [Linux workflow 39791064035](https://github.com/KLORQ/quarshell/actions/runs/39791064035)
+  passed workspace tests/policy conformance, Docker and rootful/rootless
+  Podman acceptance, Gateway image/Compose install and docs.
+- Security follow-up commit `f9438a1` is pushed; its secret scan passed in
+  [run 39791817481](https://github.com/KLORQ/quarshell/actions/runs/39791817481).
+  Its macOS workflow passed in
+  [run 39791817531](https://github.com/KLORQ/quarshell/actions/runs/39791817531).
+  Linux workflow [39791817542](https://github.com/KLORQ/quarshell/actions/runs/39791817542)
+  passed workspace tests, Docker/Podman E2E, docs and Gateway image/Compose;
+  the overall run is completing its remaining hosted checks.
+
+## VM lifecycle events in WatchSandbox
+
+- VM `WatchPlatformEvents` sends an initial persisted-state event, polls the
+  VM state file every 100 ms, emits status changes, and emits a terminal
+  deletion event. The stream is context-cancelable and reports state read
+  failures without exposing filesystem paths in event text.
+- The Gateway runtime adapter exposes the optional driver event stream.
+  `WatchSandbox(FollowEvents)` now accepts event-only watches and forwards
+  events after its initial sandbox snapshot; sandbox ID and `since_time` are
+  checked. Focused VM watch and Gateway WatchSandbox event tests passed.
+- This closes the missing VM lifecycle event source and its basic Gateway
+  delivery path, but it is not durable event replay: polling may miss state
+  transitions shorter than 100 ms, `event_tail` is unsupported, and logs and
+  events do not share a resumable cursor or cross-replica fanout. The
+  `vm.logs-watch` inventory row correctly remains partial.
+- After this change, `task vm:live-darwin` passed again on local Apple
+  Silicon/HVF (`TestLiveMicroVMLifecycle`, 21.95s test time). Full workspace
+  tests, focused Gateway watch tests, formatting, and parity inventory checks
+  passed on the same tree.

@@ -182,7 +182,11 @@
       "status": "partial",
       "evidence": [
         "quarshell-driver-vm/vm/lifecycle_test.go::TestVMStartExecCopyLogsStopDeleteLifecycle",
-        "quarshell-driver-vm/vm/live_acceptance_test.go"
+        "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-driver-vm/vm/platform_events.go::WatchPlatformEvents",
+        "quarshell-driver-vm/vm/platform_events_test.go::TestVMPlatformWatchSnapshotsLifecycleAndDeletion",
+        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch.go::WatchSandbox",
+        "quarshell-gateway/internal/transport/applicationgrpc/sandbox_watch_test.go::TestWatchSandboxStreamsVMPlatformEvents"
       ]
     },
     {

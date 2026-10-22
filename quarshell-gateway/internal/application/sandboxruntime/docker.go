@@ -123,6 +123,16 @@ func (d *Docker) Logs(ctx context.Context, sandbox Sandbox) (io.ReadCloser, erro
 	return attacher.OpenMainProcessLogs(ctx, id(sandbox))
 }
 
+// WatchPlatformEvents exposes backend-native lifecycle observations when the
+// configured compute driver supports them.
+func (d *Docker) WatchPlatformEvents(ctx context.Context, sandbox Sandbox) (<-chan driver.PlatformEventResult, error) {
+	watcher, ok := d.Backend.(driver.PlatformEventStream)
+	if !ok {
+		return nil, domain.New(domain.CodeUnavailable, "sandboxruntime.events", "backend does not expose platform events")
+	}
+	return watcher.WatchPlatformEvents(ctx, driver.PlatformEventWatchRequest{SandboxID: id(sandbox), SandboxName: string(sandbox.Sandbox)})
+}
+
 // Exec runs one command through the optional backend exec contract.
 func (d *Docker) Exec(ctx context.Context, sandbox Sandbox, request driver.ExecRequest) (driver.ExecResult, error) {
 	executor, ok := d.Backend.(driver.InteractiveExec)

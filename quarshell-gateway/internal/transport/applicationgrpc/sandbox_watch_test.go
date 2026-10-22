@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
+	"github.com/KLORQ/quarshell-driver/driver"
 	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
 	sandboxapp "github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxlogs"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
 	dm "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
@@ -19,6 +21,23 @@ type captureSandboxWatchStream struct {
 	grpc.ServerStream
 	ctx    context.Context
 	events chan *gatewayv1.SandboxStreamEvent
+}
+
+type watchPlatformRuntime struct {
+	events chan driver.PlatformEventResult
+}
+
+func (*watchPlatformRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
+	return "", nil
+}
+func (*watchPlatformRuntime) Start(context.Context, sandboxruntime.Sandbox) error  { return nil }
+func (*watchPlatformRuntime) Stop(context.Context, sandboxruntime.Sandbox) error   { return nil }
+func (*watchPlatformRuntime) Delete(context.Context, sandboxruntime.Sandbox) error { return nil }
+func (*watchPlatformRuntime) Inspect(context.Context, sandboxruntime.Sandbox) (driver.Info, error) {
+	return driver.Info{}, nil
+}
+func (r *watchPlatformRuntime) WatchPlatformEvents(context.Context, sandboxruntime.Sandbox) (<-chan driver.PlatformEventResult, error) {
+	return r.events, nil
 }
 
 func (s *captureSandboxWatchStream) Context() context.Context { return s.ctx }
@@ -160,5 +179,47 @@ func TestWatchSandboxStopsAtInitialTerminalPhase(t *testing.T) {
 	event := <-stream.events
 	if got := event.GetSandbox().GetStatus().GetPhase(); got != gatewayv1.SandboxPhase_SANDBOX_PHASE_COMPLETED {
 		t.Fatalf("terminal watch phase=%s", got)
+	}
+}
+
+func TestWatchSandboxStreamsVMPlatformEvents(t *testing.T) {
+	store := lifecycle.NewMemoryStore()
+	sandboxes, err := sandboxapp.NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	if _, _, err := sandboxes.Create(context.Background(), sandboxapp.Request{Workspace: ref.Workspace, Sandbox: ref.Sandbox, Generation: 1, Image: "image"}); err != nil {
+		t.Fatal(err)
+	}
+	events := make(chan driver.PlatformEventResult, 1)
+	events <- driver.PlatformEventResult{Event: driver.PlatformEvent{SandboxID: "sb", Time: time.Now(), Source: "vm", Type: "sandbox_state", Reason: "running", Message: "running", Metadata: map[string]string{"status": "running"}}}
+	sandboxes.Runtime = &watchPlatformRuntime{events: events}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
+	stream := &captureSandboxWatchStream{ctx: ctx, events: make(chan *gatewayv1.SandboxStreamEvent, 2)}
+	done := make(chan error, 1)
+	go func() {
+		done <- server.WatchSandbox(&gatewayv1.WatchSandboxRequest{
+			WorkspaceScope: &dm.WorkspaceSelector{Selection: &dm.WorkspaceSelector_Workspace{Workspace: "ws"}},
+			Sandbox:        "sb", FollowEvents: true,
+		}, stream)
+	}()
+	if event := <-stream.events; event.GetSandbox() == nil {
+		t.Fatalf("initial event=%v", event)
+	}
+	select {
+	case event := <-stream.events:
+		platform := event.GetEvent()
+		if platform == nil || platform.GetSource() != "vm" || platform.GetReason() != "running" || platform.GetMetadata()["status"] != "running" {
+			t.Fatalf("platform event=%v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for platform event")
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("watch stop error=%v", err)
 	}
 }

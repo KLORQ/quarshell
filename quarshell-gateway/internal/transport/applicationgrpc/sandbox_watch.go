@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
+	"github.com/KLORQ/quarshell-driver/driver"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,16 +22,16 @@ import (
 const sandboxWatchBuffer = 128
 
 // WatchSandbox streams an initial sandbox snapshot, bounded log replay and live
-// status/log updates. Platform events remain unsupported.
+// status/log/platform-event updates.
 func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gatewayv1.OpenShell_WatchSandboxServer) error {
 	if request == nil || strings.TrimSpace(request.GetSandbox()) == "" {
 		return status.Error(codes.InvalidArgument, "sandbox is required")
 	}
-	if request.GetFollowEvents() || request.GetEventTail() > 0 {
-		return status.Error(codes.Unimplemented, "platform event watch is not configured")
+	if request.GetEventTail() > 0 {
+		return status.Error(codes.Unimplemented, "platform event replay is not configured")
 	}
-	if !request.GetFollowLogs() && !request.GetFollowStatus() {
-		return status.Error(codes.InvalidArgument, "follow_logs or follow_status is required")
+	if !request.GetFollowLogs() && !request.GetFollowStatus() && !request.GetFollowEvents() {
+		return status.Error(codes.InvalidArgument, "follow_logs, follow_status, or follow_events is required")
 	}
 	if s.Sandboxes == nil {
 		return status.Error(codes.Unavailable, "sandbox service is not configured")
@@ -41,6 +43,19 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 	current, err := s.Sandboxes.Get(stream.Context(), ref)
 	if err != nil {
 		return grpcError(err)
+	}
+	var platformEvents <-chan driver.PlatformEventResult
+	if request.GetFollowEvents() {
+		watcher, ok := s.Sandboxes.Runtime.(interface {
+			WatchPlatformEvents(context.Context, sandboxruntime.Sandbox) (<-chan driver.PlatformEventResult, error)
+		})
+		if !ok {
+			return status.Error(codes.Unimplemented, "platform event watch is not configured for this backend")
+		}
+		platformEvents, err = watcher.WatchPlatformEvents(stream.Context(), sandboxruntime.Sandbox{Sandbox: current.Sandbox, RuntimeID: current.RuntimeID})
+		if err != nil {
+			return grpcError(err)
+		}
 	}
 
 	resumeCursor := strings.TrimSpace(request.GetResumeAfterCursor())
@@ -145,6 +160,31 @@ func (s *Server) WatchSandbox(request *gatewayv1.WatchSandboxRequest, stream gat
 				lastLogSequence = sequence
 			}
 			if err := stream.Send(proto.Clone(event).(*gatewayv1.SandboxStreamEvent)); err != nil {
+				return err
+			}
+		case result, open := <-platformEvents:
+			if !open {
+				platformEvents = nil
+				continue
+			}
+			if result.Err != nil {
+				return status.Error(codes.Unavailable, "platform event stream failed")
+			}
+			if string(result.Event.SandboxID) != request.GetSandbox() {
+				continue
+			}
+			eventTime := result.Event.Time
+			if eventTime.IsZero() {
+				eventTime = time.Now()
+			}
+			if request.GetSinceTime() != nil && eventTime.Before(request.GetSinceTime().AsTime()) {
+				continue
+			}
+			platformEvent := &gatewayv1.PlatformEvent{
+				EventTime: timestamppb.New(eventTime), Source: result.Event.Source, Type: result.Event.Type,
+				Reason: result.Event.Reason, Message: result.Event.Message, Metadata: result.Event.Metadata,
+			}
+			if err := stream.Send(&gatewayv1.SandboxStreamEvent{Payload: &gatewayv1.SandboxStreamEvent_Event{Event: platformEvent}}); err != nil {
 				return err
 			}
 		case <-ticker.C:
