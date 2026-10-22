@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
+	"github.com/KLORQ/quarshell-credentials"
 	_ "github.com/KLORQ/quarshell-driver-vm/vm"
 	"github.com/KLORQ/quarshell-driver/driver"
 	_ "github.com/KLORQ/quarshell-driver/driver/all"
@@ -24,14 +25,17 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
 	policyapp "github.com/KLORQ/quarshell-gateway/internal/application/policy"
 	"github.com/KLORQ/quarshell-gateway/internal/application/provider"
+	"github.com/KLORQ/quarshell-gateway/internal/application/providercred"
 	"github.com/KLORQ/quarshell-gateway/internal/application/quota"
 	"github.com/KLORQ/quarshell-gateway/internal/application/reconcile"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxlogs"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxruntime"
 	"github.com/KLORQ/quarshell-gateway/internal/application/settings"
 	"github.com/KLORQ/quarshell-gateway/internal/application/template"
 	"github.com/KLORQ/quarshell-gateway/internal/application/token"
 	"github.com/KLORQ/quarshell-gateway/internal/application/workspace"
+	"github.com/KLORQ/quarshell-gateway/internal/sshrelay"
 	applicationgrpc "github.com/KLORQ/quarshell-gateway/internal/transport/applicationgrpc"
 	applicationhttp "github.com/KLORQ/quarshell-gateway/internal/transport/applicationhttp"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
@@ -74,6 +78,14 @@ func main() {
 	runtimeSSHD := flag.String("runtime-sshd-binary", os.Getenv("QUARSHELL_RUNTIME_SSHD_BINARY"), "guest cautem-sshd binary")
 	runtimeProxy := flag.String("runtime-proxy-binary", os.Getenv("QUARSHELL_RUNTIME_PROXY_BINARY"), "host cautem proxy binary for VM guest egress and relay")
 	runtimePolicy := flag.String("runtime-policy-path", os.Getenv("QUARSHELL_RUNTIME_POLICY_PATH"), "host policy YAML used by VM proxy and guest supervisor")
+	sshHost := flag.String("gateway-ssh-host", "127.0.0.1", "gateway host returned by CreateSshSession")
+	sshPort := flag.Int("gateway-ssh-port", 7443, "gateway port returned by CreateSshSession")
+	sshScheme := flag.String("gateway-ssh-scheme", "http", "gateway scheme returned by CreateSshSession")
+	credentialKey := flag.String("credential-key", os.Getenv("QUARSHELL_CREDENTIAL_KEY"), "provider credential encryption key; defaults to --token")
+	oauthEndpoint := flag.String("oauth-exchange-endpoint", os.Getenv("QUARSHELL_OAUTH_EXCHANGE_ENDPOINT"), "RFC 8693 token exchange endpoint")
+	oauthAudience := flag.String("oauth-exchange-audience", os.Getenv("QUARSHELL_OAUTH_EXCHANGE_AUDIENCE"), "RFC 8693 token exchange audience")
+	oauthClientID := flag.String("oauth-exchange-client-id", os.Getenv("QUARSHELL_OAUTH_CLIENT_ID"), "OAuth client ID")
+	oauthClientSecret := flag.String("oauth-exchange-client-secret", os.Getenv("QUARSHELL_OAUTH_CLIENT_SECRET"), "OAuth client secret")
 	flag.Parse()
 
 	if strings.TrimSpace(*tokenValue) == "" {
@@ -108,8 +120,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("sandbox service: %v", err)
 	}
+	supervisorHub := sshrelay.NewHub()
+	sandboxes.SupervisorSessions = supervisorHub
 	var sandboxRuntime sandboxruntime.Runtime
 	var dockerRuntime *sandboxruntime.Docker
+	var runtimeBackendID string
 	if strings.TrimSpace(*runtimeName) != "" {
 		config := map[string]any{}
 		if err := json.Unmarshal([]byte(*runtimeConfig), &config); err != nil {
@@ -134,6 +149,7 @@ func main() {
 			sandboxes.Runtime = runtime
 			sandboxRuntime = runtime
 			dockerRuntime = runtime
+			runtimeBackendID = string(backend.ID())
 			log.Printf("sandbox runtime: %s", *runtimeName)
 		}
 	}
@@ -168,6 +184,10 @@ func main() {
 	services, err := endpoint.NewServiceRegistry(store)
 	if err != nil {
 		log.Fatalf("service registry: %v", err)
+	}
+	sandboxLogStore, err := sandboxlogs.New(store)
+	if err != nil {
+		log.Fatalf("sandbox logs: %v", err)
 	}
 	forwards, err := endpoint.NewForwardRegistry(store)
 	if err != nil {
@@ -238,9 +258,36 @@ func main() {
 			grpc.StreamInterceptor(applicationgrpc.StreamAuthInterceptorWithSandboxTokens(*tokenValue, "gateway-client", tokens)),
 		)
 		grpcApplication := applicationgrpc.New(gatewayVersion, workspaces, sandboxes, chunks, templates, settingsService, providerDefs, services)
+		grpcApplication.SupervisorHub = supervisorHub
+		grpcApplication.SandboxLogs = sandboxLogStore
 		grpcApplication.Tokens = tokens
 		grpcApplication.ProviderBindings = providers
 		grpcApplication.PolicyRevisions = policies
+		grpcApplication.GatewayHost = *sshHost
+		grpcApplication.GatewayPort = *sshPort
+		grpcApplication.GatewayScheme = *sshScheme
+		grpcApplication.RuntimeBackendID = runtimeBackendID
+		key := *credentialKey
+		if key == "" {
+			key = *tokenValue
+		}
+		if credentialStore, err := providercred.NewStore(store, []byte(key)); err != nil {
+			log.Fatalf("provider credential store: %v", err)
+		} else {
+			grpcApplication.Credentials = credentialStore
+		}
+		if *oauthEndpoint != "" || *oauthAudience != "" {
+			exchange, err := credentials.NewOAuthExchange(credentials.OAuthConfig{
+				Endpoint: *oauthEndpoint, Audience: *oauthAudience, ClientID: *oauthClientID, ClientSecret: *oauthClientSecret,
+			})
+			if err != nil {
+				log.Fatalf("oauth exchange: %v", err)
+			}
+			grpcApplication.OAuthExchange = exchange
+		}
+		if dockerRuntime != nil {
+			grpcApplication.RootfsStaging = dockerRuntime.RootfsStaging
+		}
 		gatewayv1.RegisterOpenShellServer(grpcServer, grpcApplication)
 		go func() {
 			if err := grpcServer.Serve(grpcListener); err != nil {

@@ -103,7 +103,7 @@ func verifyGatewaySandboxToken(token, gatewayID, sandboxID, generation, epochVal
 		return fmt.Errorf("sandbox session token expiry claim is not an integer")
 	}
 	if claims.Issuer != "openshell-gateway:"+gatewayID || claims.Subject != "spiffe://openshell/sandbox/"+sandboxID || claims.Audience != sandboxSessionAudience || claims.Component != "openshell-supervisor" || claims.SandboxID != sandboxID || claims.RuntimeGeneration != generation || claims.AuthEpoch != epoch || !validSessionTokenID(claims.TokenID) {
-		return fmt.Errorf("sandbox session token claims do not match the active VM session")
+		return fmt.Errorf("sandbox session token claims do not match the active VM session (issuer=%t subject=%t audience=%t component=%t sandbox=%t generation=%t epoch=%t token_id=%t)", claims.Issuer == "openshell-gateway:"+gatewayID, claims.Subject == "spiffe://openshell/sandbox/"+sandboxID, claims.Audience == sandboxSessionAudience, claims.Component == "openshell-supervisor", claims.SandboxID == sandboxID, claims.RuntimeGeneration == generation, claims.AuthEpoch == epoch, validSessionTokenID(claims.TokenID))
 	}
 	if claims.IssuedAt > now.Unix()+int64(sessionTokenClockLeeway.Seconds()) {
 		return fmt.Errorf("sandbox session token was issued in the future")

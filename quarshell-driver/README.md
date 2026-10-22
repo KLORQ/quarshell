@@ -32,7 +32,7 @@ Backend setup and runtime limits are maintained in the [Docker](https://klorq.gi
 | **Hosts** | `HostGatewayExtraHosts()` → `host.cautem.internal` / `host.docker.internal` |
 | **Mounts** | Workdir + reserved system paths validation |
 | **Experimental** | Kubernetes requires Agent Sandbox, digest-pinned Cautem images, persistent storage, and a CNI that enforces NetworkPolicy |
-| **Experimental** | MicroVM has per-VM policy networking, supervisor/readiness control, SSH relay, one-shot and interactive PTY exec, logs, authenticated file copy and macOS ARM64/HVF live acceptance; Gateway remains fail-closed pending the OpenShell-style host supervisor/isolation contract, GPU and Linux KVM acceptance |
+| **Experimental** | MicroVM has per-VM policy networking, authenticated host/guest supervisor isolation, Gateway paired credentials, SSH relay, one-shot and interactive PTY exec, bounded Gateway logs and authenticated file copy; macOS ARM64/HVF Gateway lifecycle is live-tested, while Linux KVM, durable log/watch and remaining OpenShell VM parity are pending |
 
 ---
 
@@ -99,8 +99,10 @@ Gateway create requests enter through the domain `BackendCreateRequest` for all
 built-in drivers. Kubernetes, Docker, Podman, and VM register native Backend
 factories; remote compute plugins use the same native Backend contract. The
 driver package exposes only the modular Backend API. VM Gateway provisioning
-remains fail-closed until its managed host supervisor and isolation
-orchestration are implemented.
+now launches and recovers on the local macOS ARM64/HVF host through the Gateway
+composition, including paired credentials, supervisor relay, logs, and
+stop/restart. Linux KVM, managed release installation, durable watch/log
+semantics, and the remaining OpenShell VM parity rows are still incomplete.
 Policy changes replace immutable Secret generations; an active sandbox is
 restarted so the workload and proxy load the same policy. The Gateway waits for
 the supervisor to report the new revision.
@@ -242,8 +244,13 @@ unrelated device cannot satisfy the check. macOS support targets Apple
 Silicon with Hypervisor.framework. The macOS build signs the worker with the
 Hypervisor and library-loading entitlements; set `CAUTEM_VM_CODESIGN_IDENTITY`
 to the signing identity for a distributable build (local builds use ad-hoc
-signing). The worker sets its dynamic loader search path from the configured
-runtime bundle and strips inherited loader overrides.
+signing). Gateway-launched macOS workers must be trusted either by configured
+`CAUTEM_VM_WORKER_TEAM_ID` or by `CAUTEM_VM_WORKER_SHA256`, which pins the
+ad-hoc-signed worker's exact binary digest. The build manifest records that
+digest. The hash-pinned path verifies the ad-hoc code signature and rejects a
+changed worker; use Team ID signing for distributed installs. The worker sets
+its dynamic loader search path from the configured runtime bundle and strips
+inherited loader overrides.
 
 The opt-in live acceptance test exercises guest boot, broker health and an
 actual default-deny HTTP 403 from the Cautem policy engine over guest vsock,

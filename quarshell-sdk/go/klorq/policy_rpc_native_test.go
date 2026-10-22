@@ -130,6 +130,12 @@ func TestPolicyMethodsUseNativeOpenShellRPCs(t *testing.T) {
 	if len(backend.pushedLogs) != 1 || backend.pushedLogs[0].GetSandboxId() != "sandbox-id" || backend.pushedLogs[0].GetMessage() != "observed" {
 		t.Fatalf("native sandbox logs: %+v", backend.pushedLogs)
 	}
+	if err := client.PostSandboxLogs(context.Background(), "sandbox-id", []LogLine{{Text: "supervisor event", Source: "sandbox", Level: "INFO"}}); err != nil {
+		t.Fatalf("sandbox-token log push with known identity: %v", err)
+	}
+	if len(backend.pushedLogs) != 2 || backend.pushedLogs[1].GetSandboxId() != "sandbox-id" || backend.pushedLogs[1].GetMessage() != "supervisor event" {
+		t.Fatalf("direct sandbox log push: %+v", backend.pushedLogs)
+	}
 
 	info, err := client.Info(context.Background())
 	if err != nil || info["gateway_version"] != "0.1.4" {

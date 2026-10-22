@@ -1,6 +1,7 @@
 package sandboxruntime
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/KLORQ/quarshell-driver/driver"
@@ -14,7 +15,10 @@ func TestCreateRequestRestoresVMRuntimeAssetsAndProxy(t *testing.T) {
 		Runtime:       driver.RuntimeAssets{InitBinary: "/opt/cautem/init", SupervisorBinary: "/opt/cautem/supervisor", SSHBinary: "/opt/cautem/sshd", EnableSSH: true},
 		Proxy:         &driver.ProxySpec{Binary: "/opt/cautem/cautem", PolicyPath: "/var/lib/cautem/policy.yaml", Port: 3128, Environment: proxyEnv},
 	}
-	request := runtime.createRequest(Sandbox{Workspace: "ws", Sandbox: "sb", Image: "image"})
+	request, err := runtime.createRequest(Sandbox{Workspace: "ws", Sandbox: "sb", Image: "image"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if request.Workspace.Kind != driver.WorkspaceGuestOverlay || request.Network.GatewayURL != runtime.GatewayURL {
 		t.Fatalf("workspace/network = %+v / %+v", request.Workspace, request.Network)
 	}
@@ -27,5 +31,26 @@ func TestCreateRequestRestoresVMRuntimeAssetsAndProxy(t *testing.T) {
 	request.Network.Proxy.Environment[0] = "mutated"
 	if proxyEnv[0] != "CAUTEM_VM_TEST=value" {
 		t.Fatalf("proxy environment aliases gateway config: %q", proxyEnv)
+	}
+}
+
+func TestSelectedDriverConfigForBackend(t *testing.T) {
+	config, err := selectedDriverConfig(`{"vm":{"grpc_endpoint":"http://127.0.0.1:7444"},"docker":{"network":"isolated"}}`, driver.BackendID("vm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(encoded) != `{"grpc_endpoint":"http://127.0.0.1:7444"}` {
+		t.Fatalf("selected VM config = %s", encoded)
+	}
+	missing, err := selectedDriverConfig(`{"docker":{"network":"isolated"}}`, driver.BackendID("vm"))
+	if err != nil || missing != nil {
+		t.Fatalf("missing backend config = %#v, %v", missing, err)
+	}
+	if _, err := selectedDriverConfig(`{"vm":[]}`, driver.BackendID("vm")); err == nil {
+		t.Fatal("selected non-object driver config was accepted")
 	}
 }

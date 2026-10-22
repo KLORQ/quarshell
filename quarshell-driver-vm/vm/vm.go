@@ -352,21 +352,14 @@ func digestOpenFile(file *os.File) (string, error) {
 }
 
 func cloneVMLaunchSpec(spec vmCreateSpec) vmLaunchSpec {
-	cloned := vmCreateSpec{
-		Labels:                   maps.Clone(spec.Labels),
-		Command:                  append([]string(nil), spec.Command...),
-		MainProcessRestartPolicy: spec.MainProcessRestartPolicy,
-		Env:                      append([]string(nil), spec.Env...),
-		ProxyBin:                 spec.ProxyBin,
-		PolicyPath:               spec.PolicyPath,
-		ProxyPort:                spec.ProxyPort,
-		ProxyEnv:                 append([]string(nil), spec.ProxyEnv...),
-		DriverConfigJSON:         spec.DriverConfigJSON,
-		InitBin:                  spec.InitBin,
-		SupervisorBin:            spec.SupervisorBin,
-		EnableSSH:                spec.EnableSSH,
-		SSHBin:                   spec.SSHBin,
-	}
+	cloned := spec
+	cloned.Labels = maps.Clone(spec.Labels)
+	cloned.Command = append([]string(nil), spec.Command...)
+	cloned.Env = append([]string(nil), spec.Env...)
+	cloned.ProxyEnv = append([]string(nil), spec.ProxyEnv...)
+	cloned.ExtraHosts = append([]string(nil), spec.ExtraHosts...)
+	cloned.CDIDevices = append([]string(nil), spec.CDIDevices...)
+	cloned.PublishPorts = append([]driver.PortPublish(nil), spec.PublishPorts...)
 	return vmLaunchSpec{vmCreateSpec: cloned, WorkDir: "/sandbox"}
 }
 

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/KLORQ/quarshell-core/domain"
 	policyapp "github.com/KLORQ/quarshell-gateway/internal/application/policy"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
@@ -18,6 +19,61 @@ const (
 	defaultPolicyPageSize = 100
 	maxPolicyPageSize     = 1000
 )
+
+// ReportPolicyStatus records the policy revision result from its authenticated
+// running sandbox supervisor.
+func (s *Server) ReportPolicyStatus(ctx context.Context, request *gatewayv1.ReportPolicyStatusRequest) (*gatewayv1.ReportPolicyStatusResponse, error) {
+	principal, ok := sandboxPrincipalFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "sandbox principal required")
+	}
+	if request == nil || request.GetSandboxId() == "" || request.GetVersion() == 0 {
+		return nil, status.Error(codes.InvalidArgument, "sandbox_id and version are required")
+	}
+	if domain.SandboxID(request.GetSandboxId()) != principal.sandbox {
+		return nil, status.Error(codes.PermissionDenied, "policy report sandbox does not match authenticated sandbox")
+	}
+	if s.Sandboxes == nil || s.PolicyRevisions == nil {
+		return nil, status.Error(codes.Unavailable, "policy report runtime is not configured")
+	}
+	current, err := s.Sandboxes.GetBySandboxID(ctx, principal.sandbox)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	if current.State != "running" || current.RuntimeGenerationOrInitial() != principal.generation || current.CredentialEpochOrInitial() != principal.credentialEpoch {
+		return nil, status.Error(codes.Unauthenticated, "policy report credential is stale")
+	}
+	loadError := ""
+	switch request.GetStatus() {
+	case gatewayv1.PolicyStatus_POLICY_STATUS_LOADED:
+	case gatewayv1.PolicyStatus_POLICY_STATUS_FAILED:
+		loadError = strings.TrimSpace(request.GetLoadError())
+		if loadError == "" {
+			return nil, status.Error(codes.InvalidArgument, "load_error is required for failed status")
+		}
+	default:
+		return nil, status.Error(codes.InvalidArgument, "status must be LOADED or FAILED")
+	}
+	scope := policyapp.Scope{Workspace: current.Workspace, Sandbox: current.Sandbox}
+	revisions, err := s.PolicyRevisions.List(ctx, scope)
+	if err != nil {
+		return nil, grpcError(err)
+	}
+	var revisionID string
+	for _, revision := range revisions {
+		if revision.Number == uint64(request.GetVersion()) {
+			revisionID = revision.ID
+			break
+		}
+	}
+	if revisionID == "" {
+		return nil, status.Error(codes.NotFound, "policy revision not found")
+	}
+	if _, err := s.PolicyRevisions.ObserveStatus(ctx, scope, revisionID, principal.generation, loadError); err != nil {
+		return nil, grpcError(err)
+	}
+	return &gatewayv1.ReportPolicyStatusResponse{}, nil
+}
 
 // ListSandboxPolicies returns revision metadata without exposing policy source.
 func (s *Server) ListSandboxPolicies(ctx context.Context, request *gatewayv1.ListSandboxPoliciesRequest) (*gatewayv1.ListSandboxPoliciesResponse, error) {
@@ -122,6 +178,9 @@ func sandboxPolicyRevisionProto(revision policyapp.Revision) *gatewayv1.SandboxP
 	case policyapp.StatusActive:
 		if revision.ObservedAt != nil {
 			statusValue = gatewayv1.PolicyStatus_POLICY_STATUS_LOADED
+			if revision.LoadError != "" {
+				statusValue = gatewayv1.PolicyStatus_POLICY_STATUS_FAILED
+			}
 		}
 	case policyapp.StatusSuperseded:
 		statusValue = gatewayv1.PolicyStatus_POLICY_STATUS_SUPERSEDED

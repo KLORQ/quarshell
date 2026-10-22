@@ -54,8 +54,12 @@
       "id": "vm.gateway-create-ready",
       "upstream": "e2e/rust/e2e-vm.sh",
       "cautem": "quarshell-driver-vm/vm/spec.go",
-      "status": "blocked",
-      "evidence": []
+      "status": "partial",
+      "evidence": [
+        "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayRuntimePassesCompleteHostPreflight",
+        "quarshell-driver-vm/vm/live_gateway_acceptance_test.go::assertLiveGatewayCredentialLaunch",
+        "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle"
+      ]
     },
     {
       "id": "vm.bootstrap-image",
@@ -177,6 +181,7 @@
       "cautem": "quarshell-driver-vm/vm/lifecycle.go;quarshell-gateway/internal/transport/applicationgrpc/runtime.go",
       "status": "partial",
       "evidence": [
+        "quarshell-driver-vm/vm/lifecycle_test.go::TestVMStartExecCopyLogsStopDeleteLifecycle",
         "quarshell-driver-vm/vm/live_acceptance_test.go"
       ]
     },
@@ -189,6 +194,7 @@
         "quarshell-core/isolation/contract_test.go",
         "quarshell-driver-vm/vm/lifecycle.go::startLocked",
         "quarshell-driver-vm/vm/isolation_descriptor.go::buildVMIsolationDescriptor",
+        "quarshell-driver-vm/vm/isolation_backend.go::vmIsolationBackend",
         "quarshell-driver-vm/vm/spec.go::validateGatewayRuntime",
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestStartWorkloadWaitsForSupervisorReadiness",
         "quarshell-runtime/internal/app/wsinit/start_gate_test.go::TestWaitForHostStartGateReadsOneShotPipeConfirmation",
@@ -203,18 +209,24 @@
         "quarshell-runtime/relayclient/isolation_test.go::TestValidateIsolationDescriptorBindsHostSupervisorIdentity",
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveIsolationDescriptor",
         "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
+        "quarshell-driver-vm/vm/isolation_backend.go::vmIsolationBackend",
+        "quarshell-driver-vm/vm/live_gateway_acceptance_test.go::assertLiveGatewayCredentialLaunch",
         "quarshell-driver-vm/vm/worker_parent_liveness_unix_test.go::TestParentLivenessWatchKillsWorkerWhenParentExits",
-        "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayWorkerSignatureRequiresConfiguredTrustedTeam"
+        "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayWorkerTrustRequiresConfiguredIdentity"
       ]
     },
     {
       "id": "vm.host-supervisor-bootstrap",
       "upstream": "crates/openshell-driver-vm/src/driver.rs::spawn_host_supervisor",
       "cautem": "quarshell-driver-vm/vm/lifecycle.go;quarshell-cli/internal/service/proxy.go",
-      "status": "blocked",
+      "status": "partial",
       "evidence": [
         "quarshell-driver-vm/vm/spec.go::validateGatewayRuntime",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapPreservesGRPCEndpoint",
+        "quarshell-driver-vm/vm/backend_config_test.go::TestHostConfigFromMapReadsGRPCEndpointEnvironment",
         "quarshell-driver-vm/vm/lifecycle.go::startLocked",
+        "quarshell-driver-vm/vm/isolation_backend.go::vmIsolationBackend",
+        "quarshell-driver-vm/vm/live_gateway_acceptance_test.go::assertLiveGatewayCredentialLaunch",
         "quarshell-driver-vm/vmguest/agent_linux_test.go::TestStartWorkloadWaitsForSupervisorReadiness",
         "quarshell-driver-vm/vm/network_broker_unix_test.go::TestPrepareBrokerCredentialWritesDescriptorBoundAuthBundle",
         "quarshell-core/isolation/auth_bundle_test.go::TestHostAuthBundleRoundTripAndDescriptorBinding",
@@ -231,11 +243,12 @@
       "status": "partial",
       "evidence": [
         "quarshell-driver-vm/vm/control_test.go",
-        "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestSandboxTokensAreRestrictedToSupervisorMethods",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestSandboxTokensAreRestrictedToSandboxMethods",
         "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestRefreshSandboxTokenRequiresCurrentGeneration",
         "quarshell-gateway/internal/application/token/service_test.go::TestTokenRefreshPreservesSandboxGeneration",
         "quarshell-gateway/internal/application/token/service_test.go::TestJWTMatchesOpenShellSessionClaimAndJOSEContract",
         "quarshell-driver-vm/vm/lifecycle_test.go::TestRuntimeLaunchCredentialsRequireUpstreamVerificationKeySet",
+        "quarshell-driver-vm/vm/network_broker_unix_test.go::TestPrepareBrokerCredentialWritesDescriptorBoundAuthBundle",
         "quarshell-gateway/internal/application/token/service_test.go::TestStrictJSONRejectsDuplicateFields",
         "quarshell-gateway/internal/application/token/service_test.go::TestIssueForAudienceSeparatesGatewayAndSandboxTokens",
         "quarshell-gateway/internal/application/token/service_test.go::TestRefreshPreservesCredentialEpoch",
@@ -297,7 +310,8 @@
       "cautem": "quarshell-gateway/internal/transport/applicationgrpc/policy_revisions.go;quarshell-driver-vm/vm/live_acceptance_test.go",
       "status": "partial",
       "evidence": [
-        "quarshell-driver-vm/vm/live_acceptance_test.go"
+        "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-gateway/internal/transport/applicationgrpc/runtime_auth_test.go::TestSandboxTokensAreRestrictedToSandboxMethods"
       ]
     },
     {
@@ -344,16 +358,20 @@
     {
       "id": "vm.managed-driver-install",
       "upstream": "crates/openshell-driver-vm/README.md::Releases",
-      "cautem": "quarshell-driver/scripts/build-vm-runtime.sh",
-      "status": "open",
-      "evidence": []
+      "cautem": "quarshell-driver/scripts/install-vm-runtime.sh",
+      "status": "implemented",
+      "evidence": [
+        "quarshell-driver/scripts/test-vm-runtime-install.py"
+      ]
     },
     {
       "id": "vm.installed-upgrade-rollback",
       "upstream": "crates/openshell-driver-vm/README.md::Releases",
-      "cautem": "quarshell-driver/.github/workflows/live-vm-kvm.yml",
-      "status": "open",
-      "evidence": []
+      "cautem": "quarshell-driver/scripts/install-vm-runtime.sh;quarshell-driver/scripts/rollback-vm-runtime.sh",
+      "status": "implemented",
+      "evidence": [
+        "quarshell-driver/scripts/test-vm-runtime-install.py"
+      ]
     }
   ]
 }

@@ -101,9 +101,9 @@ func validateResourceLimits(cpu float64, memoryBytes int64) error {
 }
 
 // validateGatewayRuntime checks the selected host profile before Gateway
-// lifecycle state or one-shot rootfs uploads are consumed. It then fails
-// closed while the managed host-supervisor and isolation lifecycle are not
-// implemented end to end.
+// lifecycle state or one-shot rootfs uploads are consumed. Gateway starts
+// then attach and confirm the VM backend through isolation.Registry before
+// releasing the guest's one-shot workload start gate.
 func (d *Driver) validateGatewayRuntime(ctx context.Context) error {
 	if d == nil {
 		return fmt.Errorf("vm driver: driver is nil")
@@ -119,7 +119,7 @@ func (d *Driver) validateGatewayRuntime(ctx context.Context) error {
 		return fmt.Errorf("vm driver: Gateway host preflight failed: %w", err)
 	}
 	if runtime.GOOS == "darwin" {
-		if err := validateGatewayWorkerSignature(worker, d.host); err != nil {
+		if err := validateGatewayWorkerTrust(worker, d.host); err != nil {
 			return fmt.Errorf("vm driver: Gateway host preflight failed: %w", err)
 		}
 	}
@@ -155,20 +155,36 @@ func (d *Driver) validateGatewayRuntime(ctx context.Context) error {
 	if output, err := probe.CombinedOutput(); err != nil {
 		return fmt.Errorf("vm driver: Gateway host preflight failed: isolated worker probe: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	return fmt.Errorf("vm driver: Gateway runtime is not ready: managed host supervisor lifecycle and OpenShell-compatible authenticated host/guest isolation orchestration remain incomplete")
+	return nil
 }
 
-func validateGatewayWorkerSignature(worker string, host HostConfig) error {
+func validateGatewayWorkerTrust(worker string, host HostConfig) error {
 	teamID := strings.TrimSpace(host.WorkerTeamID)
-	if teamID == "" {
-		return fmt.Errorf("CAUTEM_VM_WORKER_TEAM_ID must contain the trusted Apple Developer Team ID")
+	workerHash := strings.TrimSpace(host.WorkerSHA256)
+	if teamID == "" && workerHash == "" {
+		return fmt.Errorf("configure CAUTEM_VM_WORKER_TEAM_ID or CAUTEM_VM_WORKER_SHA256 to trust the macOS VM worker")
 	}
-	verify := host.workerSignatureVerifier
-	if verify == nil {
-		verify = verifyWorkerCodeSignature
+	if teamID != "" {
+		verify := host.workerSignatureVerifier
+		if verify == nil {
+			verify = verifyWorkerCodeSignature
+		}
+		if err := verify(worker, teamID); err != nil {
+			return fmt.Errorf("VM worker signature is not trusted: %w", err)
+		}
+	} else {
+		verifyAdHoc := host.workerAdHocSignatureVerifier
+		if verifyAdHoc == nil {
+			verifyAdHoc = verifyWorkerAdHocSignature
+		}
+		if err := verifyAdHoc(worker); err != nil {
+			return fmt.Errorf("VM worker ad-hoc signature is invalid: %w", err)
+		}
 	}
-	if err := verify(worker, teamID); err != nil {
-		return fmt.Errorf("VM worker signature is not trusted: %w", err)
+	if workerHash != "" {
+		if err := verifyWorkerSHA256(worker, workerHash); err != nil {
+			return fmt.Errorf("VM worker digest is not trusted: %w", err)
+		}
 	}
 	return nil
 }

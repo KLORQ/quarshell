@@ -4,6 +4,7 @@ package vm
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"math"
 	"os"
@@ -254,7 +255,7 @@ func TestValidateSpecAllowsRootfsTarWithImageSelector(t *testing.T) {
 	}
 }
 
-func TestValidateGatewayRuntimeListsMissingIntegrations(t *testing.T) {
+func TestValidateGatewayRuntimePassesCompleteHostPreflight(t *testing.T) {
 	root := t.TempDir()
 	runtimeDir := filepath.Join(root, "runtime")
 	if err := os.Mkdir(runtimeDir, 0o700); err != nil {
@@ -287,16 +288,12 @@ func TestValidateGatewayRuntimeListsMissingIntegrations(t *testing.T) {
 		kvmDeviceCheck:  func(string) error { return nil },
 		workerIsolation: func() (workerIsolationConfig, error) { return workerIsolationConfig{NoHostMounts: true}, nil },
 	})
-	err = d.ValidateRuntimeContract(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "managed host supervisor lifecycle") {
-		t.Fatalf("ValidateRuntimeContract() error = %v; want remaining integration blocker", err)
-	}
-	if strings.Contains(err.Error(), "host preflight failed") {
-		t.Fatalf("valid host profile failed preflight: %v", err)
+	if err := d.ValidateRuntimeContract(context.Background()); err != nil {
+		t.Fatalf("ValidateRuntimeContract() error = %v; want successful host preflight", err)
 	}
 }
 
-func TestValidateGatewayWorkerSignatureRequiresConfiguredTrustedTeam(t *testing.T) {
+func TestValidateGatewayWorkerTrustRequiresConfiguredIdentity(t *testing.T) {
 	worker := filepath.Join(t.TempDir(), "worker")
 	called := false
 	verify := func(path, teamID string) error {
@@ -306,17 +303,52 @@ func TestValidateGatewayWorkerSignatureRequiresConfiguredTrustedTeam(t *testing.
 		}
 		return nil
 	}
-	if err := validateGatewayWorkerSignature(worker, HostConfig{workerSignatureVerifier: verify}); err == nil || !strings.Contains(err.Error(), "CAUTEM_VM_WORKER_TEAM_ID") {
-		t.Fatalf("missing trusted worker Team ID error = %v", err)
+	if err := validateGatewayWorkerTrust(worker, HostConfig{workerSignatureVerifier: verify}); err == nil || !strings.Contains(err.Error(), "CAUTEM_VM_WORKER_SHA256") {
+		t.Fatalf("missing trusted worker identity error = %v", err)
 	}
 	if called {
 		t.Fatal("signature verifier ran without a configured trusted Team ID")
 	}
-	if err := validateGatewayWorkerSignature(worker, HostConfig{WorkerTeamID: " TEAM123 ", workerSignatureVerifier: verify}); err != nil {
+	if err := validateGatewayWorkerTrust(worker, HostConfig{WorkerTeamID: " TEAM123 ", workerSignatureVerifier: verify}); err != nil {
 		t.Fatalf("valid worker signature was rejected: %v", err)
 	}
 	if !called {
 		t.Fatal("configured worker signature verifier was not called")
+	}
+}
+
+func TestValidateGatewayWorkerSHA256TrustRequiresAdHocSignatureAndExactDigest(t *testing.T) {
+	worker := filepath.Join(t.TempDir(), "worker")
+	content := []byte("ad-hoc signed VM worker fixture")
+	if err := os.WriteFile(worker, content, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(content))
+	verified := false
+	host := HostConfig{
+		WorkerSHA256: digest,
+		workerAdHocSignatureVerifier: func(path string) error {
+			verified = path == worker
+			if !verified {
+				return fmt.Errorf("unexpected worker path %q", path)
+			}
+			return nil
+		},
+	}
+	if err := validateGatewayWorkerTrust(worker, host); err != nil {
+		t.Fatalf("pinned ad-hoc worker rejected: %v", err)
+	}
+	if !verified {
+		t.Fatal("ad-hoc worker signature was not verified")
+	}
+	if err := os.WriteFile(worker, []byte("replaced worker"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateGatewayWorkerTrust(worker, host); err == nil || !strings.Contains(err.Error(), "SHA-256") {
+		t.Fatalf("replacement worker digest error = %v, want hash pin rejection", err)
+	}
+	if err := validateGatewayWorkerTrust(worker, HostConfig{WorkerSHA256: "ABC", workerAdHocSignatureVerifier: func(string) error { return nil }}); err == nil || !strings.Contains(err.Error(), "lowercase hexadecimal") {
+		t.Fatalf("malformed worker hash error = %v", err)
 	}
 }
 

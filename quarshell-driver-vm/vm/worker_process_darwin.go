@@ -67,3 +67,22 @@ func verifyWorkerCodeSignature(path, expectedTeamID string) error {
 	}
 	return nil
 }
+
+func verifyWorkerAdHocSignature(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("worker path is required")
+	}
+	if output, err := exec.Command("/usr/bin/codesign", "--verify", "--strict", "--verbose=2", path).CombinedOutput(); err != nil {
+		return fmt.Errorf("codesign verification failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	output, err := exec.Command("/usr/bin/codesign", "-dv", "--verbose=4", path).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("read worker code-signing metadata: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.TrimSpace(line) == "Signature=adhoc" {
+			return nil
+		}
+	}
+	return fmt.Errorf("worker does not carry an ad-hoc code signature")
+}

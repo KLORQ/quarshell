@@ -54,6 +54,12 @@ type credentialRecordingRuntime struct {
 	credentials driver.RuntimeLaunchCredentials
 }
 
+type recordingSupervisorSessions struct{ released []string }
+
+func (r *recordingSupervisorSessions) ReleaseSupervisor(sandbox string) {
+	r.released = append(r.released, sandbox)
+}
+
 func (r *credentialRecordingRuntime) StartWithCredentials(_ context.Context, _ sandboxruntime.Sandbox, credentials driver.RuntimeLaunchCredentials) error {
 	r.starts++
 	r.credentials = credentials
@@ -122,6 +128,7 @@ func TestCreatePassesNetworkConfigurationToRuntime(t *testing.T) {
 		GatewayURL: "https://gateway.example:443", ExtraHosts: []string{"host.internal:192.0.2.10"},
 		PortPublish: []PortPublish{{Host: 8080, Guest: 80}},
 	}
+	request.DriverConfigJSON = `{"vm":{"grpc_endpoint":"http://127.0.0.1:7444"}}`
 	created, _, err := service.Create(context.Background(), request)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -130,6 +137,9 @@ func TestCreatePassesNetworkConfigurationToRuntime(t *testing.T) {
 		len(runtime.created.Network.ExtraHosts) != 1 || runtime.created.Network.ExtraHosts[0] != request.Network.ExtraHosts[0] ||
 		len(runtime.created.Network.PortPublish) != 1 || runtime.created.Network.PortPublish[0] != (sandboxruntime.PortPublish{Host: 8080, Guest: 80}) {
 		t.Fatalf("runtime create input = %+v, stored sandbox = %+v", runtime.created, created)
+	}
+	if runtime.created.DriverConfigJSON != request.DriverConfigJSON || created.DriverConfigJSON != request.DriverConfigJSON {
+		t.Fatalf("driver config was not persisted and forwarded: created=%q runtime=%q", created.DriverConfigJSON, runtime.created.DriverConfigJSON)
 	}
 }
 
@@ -382,6 +392,8 @@ func TestSandboxObserveGenerationFence(t *testing.T) {
 func TestStartStopLifecycle(t *testing.T) {
 	store := lifecycle.NewMemoryStore()
 	service, _ := NewService(store)
+	sessions := &recordingSupervisorSessions{}
+	service.SupervisorSessions = sessions
 	if _, _, err := service.Create(context.Background(), testRequest()); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -398,10 +410,63 @@ func TestStartStopLifecycle(t *testing.T) {
 	if err != nil || replayed || stopped.State != "stopped" {
 		t.Fatalf("Stop = %+v replayed=%v err=%v", stopped, replayed, err)
 	}
+	if len(sessions.released) != 1 || sessions.released[0] != "sb" {
+		t.Fatalf("Stop released supervisor sessions %v, want [sb]", sessions.released)
+	}
 	if _, _, err := service.Start(context.Background(), ref, 0, "start-bad"); err == nil {
 		t.Fatalf("zero generation accepted")
 	}
 	if _, _, err := service.Start(context.Background(), domain.SandboxRef{Workspace: "ws", Sandbox: "missing"}, 1, "start-missing"); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("missing start = %v", err)
+	}
+}
+
+func TestMainProcessExitIsDurableIdempotentAndGenerationBound(t *testing.T) {
+	ctx := context.Background()
+	service, err := NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}
+	if _, _, err := service.Create(ctx, testRequest()); err != nil {
+		t.Fatal(err)
+	}
+	started, _, err := service.Start(ctx, ref, 1, "start-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generation := started.RuntimeGenerationOrInitial()
+	if err := service.RecordMainProcessExit(ctx, ref, generation, "supervisor-1", 17); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RecordMainProcessExit(ctx, ref, generation, "supervisor-1", 17); err != nil {
+		t.Fatalf("idempotent report: %v", err)
+	}
+	if err := service.RecordMainProcessExit(ctx, ref, generation, "supervisor-2", 0); err != nil {
+		t.Fatalf("duplicate report did not preserve first result: %v", err)
+	}
+	current, err := service.Get(ctx, ref)
+	if err != nil || current.State != "error" || current.MainProcessExitCode == nil || *current.MainProcessExitCode != 17 || current.MainProcessFinalized {
+		t.Fatalf("recorded terminal state=%+v err=%v", current, err)
+	}
+	if err := service.FinalizeMainProcessExit(ctx, ref, generation, "wrong-instance"); err == nil {
+		t.Fatal("finalized result from a different supervisor")
+	}
+	if err := service.FinalizeMainProcessExit(ctx, ref, generation, "supervisor-1"); err != nil {
+		t.Fatalf("finalize: %v", err)
+	}
+	current, err = service.Get(ctx, ref)
+	if err != nil || !current.MainProcessFinalized {
+		t.Fatalf("finalized state=%+v err=%v", current, err)
+	}
+	if _, _, err := service.Start(ctx, ref, 1, "start-2"); err != nil {
+		t.Fatal(err)
+	}
+	current, err = service.Get(ctx, ref)
+	if err != nil || current.MainProcessExitCode != nil || current.MainProcessInstanceID != "" || current.MainProcessFinalized {
+		t.Fatalf("restart retained old terminal result: state=%+v err=%v", current, err)
+	}
+	if err := service.RecordMainProcessExit(ctx, ref, generation, "supervisor-1", 17); err == nil {
+		t.Fatal("accepted result from a stale runtime generation")
 	}
 }

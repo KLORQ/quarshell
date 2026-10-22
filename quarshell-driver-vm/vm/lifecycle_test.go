@@ -11,9 +11,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -36,6 +38,7 @@ func TestRuntimeLaunchCredentialsRequireUpstreamVerificationKeySet(t *testing.T)
 	}
 	publicPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der})
 	credentials := driver.RuntimeLaunchCredentials{
+		SandboxID:         "sandbox-a",
 		RuntimeGeneration: "g0000000000000001", SessionID: "11111111-1111-4111-8111-111111111111",
 		GatewayID: "openshell", VerificationKeys: []driver.RuntimeVerificationKey{{KeyID: "key-1", PublicKeyPEM: publicPEM}},
 		GatewayToken: "gateway.jwt", GatewayExpiresAt: time.Now().Add(time.Minute),
@@ -45,8 +48,24 @@ func TestRuntimeLaunchCredentialsRequireUpstreamVerificationKeySet(t *testing.T)
 	if !validRuntimeLaunchCredentials(credentials) {
 		t.Fatal("valid OpenShell launch authentication was rejected")
 	}
+	noExpiry := credentials
+	noExpiry.GatewayExpiresAt = time.Time{}
+	noExpiry.SandboxExpiresAt = time.Time{}
+	if !validRuntimeLaunchCredentials(noExpiry) {
+		t.Fatal("OpenShell zero-expiry credentials were rejected")
+	}
+	tooLate := credentials
+	tooLate.GatewayExpiresAt = time.Now().Add(-time.Minute)
+	if validRuntimeLaunchCredentials(tooLate) {
+		t.Fatal("expired Gateway credential was accepted")
+	}
+	projected := withSupervisorCredentials(nil, noExpiry)
+	if !containsEnv(projected, "CAUTEM_GATEWAY_TOKEN_EXPIRES_AT=0") || !containsEnv(projected, "CAUTEM_SANDBOX_TOKEN_EXPIRES_AT=0") {
+		t.Fatalf("zero credential expiry was not preserved: %q", projected)
+	}
 	for _, mutate := range []func(*driver.RuntimeLaunchCredentials){
 		func(value *driver.RuntimeLaunchCredentials) { value.GatewayID = "" },
+		func(value *driver.RuntimeLaunchCredentials) { value.SandboxID = "" },
 		func(value *driver.RuntimeLaunchCredentials) { value.VerificationKeys = nil },
 		func(value *driver.RuntimeLaunchCredentials) {
 			value.VerificationKeys[0].PublicKeyPEM = []byte("not PEM")
@@ -64,12 +83,49 @@ func TestRuntimeLaunchCredentialsRequireUpstreamVerificationKeySet(t *testing.T)
 	}
 }
 
+func TestWithProxySandboxIDReplacesCallerValue(t *testing.T) {
+	got := withGatewaySandboxID([]string{"KEEP=value", "CAUTEM_SANDBOX=runtime", "CAUTEM_GATEWAY_SANDBOX_ID=untrusted", "CAUTEM_GATEWAY_SANDBOX_ID=duplicate"}, "gateway-sandbox")
+	if want := []string{"KEEP=value", "CAUTEM_SANDBOX=runtime", "CAUTEM_GATEWAY_SANDBOX_ID=gateway-sandbox"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("withGatewaySandboxID() = %#v, want %#v", got, want)
+	}
+	if got := withGatewaySandboxID([]string{"KEEP=value", "CAUTEM_SANDBOX=runtime", "CAUTEM_GATEWAY_SANDBOX_ID=untrusted"}, ""); !reflect.DeepEqual(got, []string{"KEEP=value", "CAUTEM_SANDBOX=runtime"}) {
+		t.Fatalf("withGatewaySandboxID(empty) = %#v, want caller Gateway sandbox removal", got)
+	}
+}
+
+func TestCloneVMLaunchSpecPreservesGatewayNetworkAndDeepCopiesInputs(t *testing.T) {
+	original := vmCreateSpec{
+		Name: "sandbox", Image: "alpine:3.22", Workspace: "workspace",
+		GatewayURL: "https://gateway.example:7443", Command: []string{"/bin/sh"},
+		Env: []string{"A=B"}, ProxyEnv: []string{"CAUTEM_GATEWAY_URL=https://gateway.example:7443"},
+		ExtraHosts:   []string{"host.cautem.internal:192.0.2.1"},
+		PublishPorts: []driver.PortPublish{{Host: 8080, Guest: 80}},
+		Labels:       map[string]string{"team": "vm"},
+	}
+	cloned := cloneVMLaunchSpec(original)
+	if cloned.GatewayURL != original.GatewayURL || cloned.Image != original.Image || cloned.Workspace != original.Workspace {
+		t.Fatalf("launch spec lost create fields: %+v", cloned.vmCreateSpec)
+	}
+	if len(cloned.PublishPorts) != 1 || cloned.PublishPorts[0] != original.PublishPorts[0] || cloned.Labels["team"] != "vm" {
+		t.Fatalf("launch spec lost network or labels: %+v", cloned.vmCreateSpec)
+	}
+	cloned.Command[0] = "mutated"
+	cloned.Env[0] = "mutated"
+	cloned.ProxyEnv[0] = "mutated"
+	cloned.ExtraHosts[0] = "mutated"
+	cloned.PublishPorts[0].Host = 1
+	cloned.Labels["team"] = "mutated"
+	if original.Command[0] != "/bin/sh" || original.Env[0] != "A=B" || original.ProxyEnv[0] != "CAUTEM_GATEWAY_URL=https://gateway.example:7443" || original.ExtraHosts[0] != "host.cautem.internal:192.0.2.1" || original.PublishPorts[0].Host != 8080 || original.Labels["team"] != "vm" {
+		t.Fatal("launch spec clone aliases mutable create inputs")
+	}
+}
+
 func TestSupervisorEnvironmentCarriesOnlySandboxJWTToGuestBoundary(t *testing.T) {
 	credentials := driver.RuntimeLaunchCredentials{
-		GatewayID: "gw-a", GatewayToken: "gateway-secret", SandboxToken: "sandbox-secret",
+		SandboxID: "sandbox-a", GatewayID: "gw-a", GatewayToken: "gateway-secret", SandboxToken: "sandbox-secret",
 		RuntimeGeneration: "g0000000000000001", CredentialEpoch: 2,
 	}
-	env := withSupervisorBoundaryKeys([]string{"CAUTEM_GATEWAY_ID=wrong"}, credentials.GatewayID, "sandbox-a")
+	env := withSupervisorBoundaryKeys([]string{"CAUTEM_GATEWAY_ID=wrong"}, credentials.GatewayID, credentials.SandboxID)
 	env = withSandboxSessionCredentials(env, credentials)
 	joined := strings.Join(env, "\n")
 	for _, expected := range []string{"CAUTEM_GATEWAY_ID=gw-a", "CAUTEM_GATEWAY_SANDBOX_ID=sandbox-a", "CAUTEM_SANDBOX_PROTOCOL_TOKEN=sandbox-secret", "CAUTEM_RUNTIME_GENERATION=g0000000000000001", "CAUTEM_AUTH_EPOCH=2"} {
@@ -79,6 +135,13 @@ func TestSupervisorEnvironmentCarriesOnlySandboxJWTToGuestBoundary(t *testing.T)
 	}
 	if strings.Contains(joined, "gateway-secret") || strings.Contains(joined, "CAUTEM_GATEWAY_ID=wrong") {
 		t.Fatal("Gateway bearer or stale Gateway identity leaked into guest environment")
+	}
+}
+
+func TestProxyUsesControlPlaneSandboxIDInsteadOfRuntimeUUID(t *testing.T) {
+	env := withGatewaySandboxID([]string{"CAUTEM_SANDBOX=runtime-uuid"}, "sandbox-name")
+	if !containsEnv(env, "CAUTEM_GATEWAY_SANDBOX_ID=sandbox-name") || !containsEnv(env, "CAUTEM_SANDBOX=runtime-uuid") {
+		t.Fatalf("proxy sandbox identity = %q; want control-plane sandbox identity", env)
 	}
 }
 
@@ -305,6 +368,48 @@ func TestVMStartExecCopyLogsStopDeleteLifecycle(t *testing.T) {
 	var logs strings.Builder
 	if err := d.Logs(ctx, core.ID(state.ID), false, &logs); err != nil || !strings.Contains(logs.String(), "console-output") {
 		t.Fatalf("Logs() = (%q, %v)", logs.String(), err)
+	}
+	if err := os.WriteFile(consolePath+".worker", []byte("worker-initial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	followCtx, cancelFollow := context.WithCancel(ctx)
+	var followedLogs strings.Builder
+	followDone := make(chan error, 1)
+	go func() { followDone <- d.Logs(followCtx, core.ID(state.ID), true, &followedLogs) }()
+	time.Sleep(150 * time.Millisecond)
+	workerLog, err := os.OpenFile(consolePath+".worker", os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		cancelFollow()
+		t.Fatal(err)
+	}
+	if _, err := workerLog.WriteString("worker-follow-update"); err != nil {
+		_ = workerLog.Close()
+		cancelFollow()
+		t.Fatal(err)
+	}
+	_ = workerLog.Close()
+	time.Sleep(250 * time.Millisecond)
+	cancelFollow()
+	if err := <-followDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("follow Logs() error = %v, want context cancellation", err)
+	}
+	if !strings.Contains(followedLogs.String(), "worker-follow-update") {
+		t.Fatalf("follow Logs() missed appended worker log: %q", followedLogs.String())
+	}
+	if err := os.Remove(consolePath); err != nil {
+		t.Fatal(err)
+	}
+	var workerOnlyLogs strings.Builder
+	if err := d.Logs(ctx, core.ID(state.ID), false, &workerOnlyLogs); err != nil || !strings.Contains(workerOnlyLogs.String(), "worker-initial") {
+		t.Fatalf("Logs() with only worker log = (%q, %v)", workerOnlyLogs.String(), err)
+	}
+	singleFollowCtx, cancelSingleFollow := context.WithCancel(ctx)
+	singleFollowDone := make(chan error, 1)
+	go func() { singleFollowDone <- d.Logs(singleFollowCtx, core.ID(state.ID), true, io.Discard) }()
+	time.Sleep(100 * time.Millisecond)
+	cancelSingleFollow()
+	if err := <-singleFollowDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("single-source follow Logs() error = %v, want context cancellation", err)
 	}
 	if err := d.Stop(ctx, core.ID(state.ID)); err != nil {
 		t.Fatalf("Stop() error = %v", err)

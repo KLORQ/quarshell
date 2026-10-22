@@ -385,8 +385,342 @@ initializer to report readiness/non-root identity, then sends
 `confirm-workload` to release the inherited start gate. These are useful native
 facts for a backend attach/confirm implementation.
 
-The gap remains real: `validateGatewayRuntime` always returns a not-ready
-error, and production call sites do not instantiate `isolation.Registry` or
-attach a backend. The existing gate release is driver-local and is not tied to
-the `VerifiedDescriptor`/`EnforcementEvidence` contract. Therefore Gateway
-VM creation remains fail-closed; direct HVF lifecycle results do not close G04.
+This audit was superseded by the M6c registry implementation below. The
+production credential-aware VM start path now attaches the verified descriptor
+to `vmIsolationBackend`, checks worker/broker health, guest control and mTLS
+identity, validates non-root readiness evidence, and releases the guest gate
+through `ConfirmedBoundary.Start`. The full Gateway composition and broader
+upstream running-boundary operations remain outside this local HVF probe.
+
+## Gateway credential and registry attach HVF probe
+
+- Reverified: 2026-10-22 15:15 Europe/Samara
+- `task vm:live-darwin`: PASS; `TestLiveMicroVMLifecycle` passed in 22.20s and the required Go test gate passed
+- `CAUTEM_VM_TEST_GATEWAY_CREDENTIALS_ONLY=1 task vm:live-darwin`: PASS; paired credential/registry acceptance passed in 5.31s and required Go test gate passed
+- Live mock Gateway checked Sandbox bearer on `ConnectSupervisor`, Gateway bearer on policy revision status, instance rotation, and fresh mTLS control identity. The VM driver attached its private descriptor through `isolation.Registry`, performed confirmation, released the one-shot guest start gate, and executed a guest command afterward.
+- This uses a mock Gateway and local unsigned test identity path. It does not exercise the complete Gateway composition, trusted macOS Team ID signing, credential refresh/replay, KVM, or upstream process/exec/loopback operations on a running boundary. G04 remains open.
+
+## Paired Gateway credential and registry retest
+
+- Reverified: 2026-10-22 15:16 Europe/Samara
+- Host: local Apple Silicon Mac, `darwin/arm64`, Hypervisor.framework
+- Commands: `task vm:live-darwin`; credentials-only run with
+  `CAUTEM_VM_TEST_GATEWAY_CREDENTIALS_ONLY=1 task vm:live-darwin`
+- Results: full `TestLiveMicroVMLifecycle` PASS (23.24s test / 23.61s Go
+  package); latest paired-credential `TestLiveMicroVMLifecycle` PASS
+  (4.82s test / 5.23s Go package). Both runs passed after the broker PID
+  accessor refactor.
+
+The paired-credential scenario launches the actual `cautem proxy` binary and a
+live HVF VM with EdDSA Gateway/Sandbox session tokens, the private descriptor
+bound auth bundle, and the guest verification-key set. The mock OpenShell
+Gateway verified that `ConnectSupervisor` carried the Sandbox bearer and
+`ReportPolicyStatus` carried the Gateway bearer, observed a new supervisor
+instance after workload start, and acknowledged policy revision 2. Guest exec
+confirmed that the workload passed the one-shot start gate.
+
+VM startup now passes the verified descriptor through the production
+`quarshell-core/isolation.Registry`. The `cautem/vm` backend checks the live
+worker and policy broker, broker health, guest control reachability, and the
+per-generation mTLS identity; it commits those observations and the non-root
+guest readiness identity into generation-bound evidence. `ConfirmedBoundary`
+rechecks those controls and releases the guest start gate only after
+confirmation. `validateGatewayRuntime` now returns after successful host
+preflight instead of unconditionally rejecting Gateway VM launches.
+
+For the separate policy-egress probe, the test helper intentionally configures
+an unreachable corporate proxy at `127.0.0.1:1`; an HTTP 502 after a newly
+allowed policy decision proves the rule passed evaluation but does not prove
+successful upstream data transfer. The `vm.policy-egress` parity row remains
+partial on this evidence.
+
+This remains local HVF evidence against a mock Gateway. It does not exercise
+the full Gateway composition, trusted macOS Team ID signing, credential
+rotation/replay, KVM, or upstream process/exec/loopback operations on a running
+isolation boundary. G04 remains open pending those gaps.
+
+## Current-tree Mac retest and Gateway integration probe
+
+- Reverified: 2026-10-22 (Europe/Samara)
+- `task test`: PASS across all Go workspace modules after the Gateway config forwarding changes.
+- `task vm:parity-check`: PASS (30 entries, pinned OpenShell v0.1.4 commit).
+- `task vm:live-darwin`: PASS; real Apple Silicon/HVF `TestLiveMicroVMLifecycle` passed in 23.23s, including workload boot, policy enforcement/revocation, worker adoption, stop/start, broker-loss shutdown, and Sandbox/Gateway credential exchange through the live test harness.
+- Fixed VM launch-spec cloning to retain `GatewayURL`, image and all other create/network fields. Fixed Gateway gRPC `CreateSandbox` to persist and forward `driver_config` and added tests for backend config selection and persistence.
+- A temporary full Gateway + CLI probe now provisions the VM and launches the guest supervisor, but the supervisor rejects the Sandbox JWT because one or more session claims do not match its active session. The verifier now logs only boolean field-match diagnostics (never token or claim values) to identify the mismatch on the next full-composition run. This is still open integration work; the VM driver live acceptance alone does not prove Gateway VM create/start end-to-end.
+- Trusted Developer ID signing/notarization and Linux KVM remain host credentials/capability gates; macOS Hypervisor.framework lifecycle is locally verified.
+
+## Policy revocation and current-tree HVF retest
+
+- Reverified: 2026-10-22 15:20 Europe/Samara
+- `go test ./...` in `quarshell-driver-vm`: PASS
+- `GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build ./...`: PASS
+- `GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build ./...`: PASS
+- `task vm:live-darwin`: PASS; `TestLiveMicroVMLifecycle` passed in 22.43s
+- The live guest received a policy revision allowing `policy-probe.invalid`,
+  made a request that passed policy evaluation, then received revision 3 with
+  no network policies. The same request returned HTTP 403 after the broker
+  acknowledged revision 3. This directly exercises revocation of a previously
+  granted destination.
+- Backend-native evidence now records the no-NIC/vsock-only network boundary,
+  the parent-liveness path that stops the worker after broker loss, and the
+  guest-only disk confinement path before its digest is projected into the
+  common isolation contract.
+
+This closes the live policy-revision revocation check on macOS HVF. The broader
+VM parity inventory remains incomplete; see `plans/REMAINING.md` for the open
+and partial rows.
+
+## Worker trust and current-tree workspace verification
+
+- Reverified: 2026-10-22 15:41 Europe/Samara
+- `task test`: PASS across every Go workspace module.
+- `task vm:parity-check`: PASS (30 entries, pinned OpenShell v0.1.4 commit).
+- `git diff --check`: PASS.
+- VM worker trust accepts a locally built ad-hoc signed macOS worker only when
+  its exact SHA-256 is configured; the binary is checked for regular-file
+  identity, safe permissions, stable contents during hashing, and a valid
+  ad-hoc signature. A focused trust unit test and Windows AMD64 package
+  cross-compile passed earlier in this work session.
+- A temporary full Gateway + CLI VM create probe reached the Gateway VM
+  runtime but failed at `sandbox.create: provision runtime`; enabling the
+  test Gateway's explicit `allow_driver_config` setting did not change the
+  failure. The Gateway surfaced no underlying driver error, so this probe
+  does not establish full-composition VM success. The temporary Gateway,
+  router, sandbox state, CLI binary, and CLI config created for this probe
+  were removed afterward.
+
+The local worker hash pin is a development trust path and does not replace
+Developer ID signing or notarization for distribution. Full Gateway
+composition remains an open M6c requirement alongside the partial upstream
+VM features listed in `plans/REMAINING.md`.
+
+## VM log follow regression fix
+
+- `Driver.Logs(follow=true)` now tails the guest console and worker log
+  concurrently. Previously, EOF while following the console log kept the
+  method waiting there and it never reached the worker log.
+- `TestVMStartExecCopyLogsStopDeleteLifecycle` appends to the worker log after
+  follow starts and verifies the live update is delivered.
+- Verified with `go test ./vm -run
+  '^TestVMStartExecCopyLogsStopDeleteLifecycle$' -count=1` on macOS ARM64.
+
+The `vm.logs-watch` parity row remains partial because the upstream
+`WatchSandboxes` lifecycle snapshot stream still has no Go VM implementation.
+
+## macOS HVF retest after log-follow and Gateway sandbox-ID fixes
+
+- Latest `task vm:live-darwin`: PASS; `TestLiveMicroVMLifecycle` passed in
+  21.83s after also fixing single-source follow cancellation.
+- `task test`, `task vm:parity-check`, `task fmt:check`: PASS.
+- Linux ARM64 and Windows AMD64 `go build ./...`: PASS.
+- The production proxy environment now replaces an untrusted sandbox ID with
+  the Gateway-issued sandbox ID used by paired runtime credentials. Regression
+  tests cover duplicate and empty caller values.
+- The VM lifecycle test verifies live follow of a late worker-log append and
+  worker-log access when the console log is absent; it passes under `-race`.
+
+## Full Gateway composition smoke on Apple Silicon/HVF
+
+- Initial probe: 2026-10-22 16:47 Europe/Samara; owner-release/log-delivery retest: 16:56 Europe/Samara
+- Host: Apple Silicon, macOS ARM64, HVF/libkrun
+- Commands: `task test`; `task vm:parity-check`; `task vm:live-darwin`; real Gateway HTTP create/start/stop/restart requests
+- Result: workspace tests and parity inventory PASS; live HVF acceptance PASS (23.02s); Gateway create/start/stop/restart returned HTTP 200, including the repeated Start.
+
+The Gateway composition smoke exercised the real Gateway, VM runtime adapter,
+macOS worker, guest bootstrap and host proxy. Start reached the guest
+supervisor and opened the workload lifecycle. Stop returned `stopped`, then a
+new Start advanced runtime generation and credential epoch to 3 and returned
+`running`. This exposed that the Gateway's 45-second supervisor owner lease
+was retained after an intentional Stop. The runtime now releases the owner
+lease after a successful explicit Stop; unexpected stream loss retains it.
+The repeated live Start returned HTTP 200 and the new supervisor instance
+connected immediately without lease-conflict retries.
+
+This supersedes the earlier probe entries above that ended at
+`sandbox.create: provision runtime`: launch-spec cloning and Gateway
+`DriverConfig` forwarding were fixed, paired bearer routing was corrected, and
+the full Gateway create/start/stop/restart path now succeeds.
+
+Supervisor process events use the Sandbox bearer for `PushSandboxLogs`, as in
+the pinned OpenShell auth contract. The current Gateway transport accepts
+sandbox-scoped batches, caps requests at 1000 lines, retains the last 2000
+lines per sandbox in memory, and filters `GetSandboxLogs` by count, source,
+timestamp and level. Gateway tests check sandbox binding; the live paired
+credential HVF fixture observed the process event. `WatchSandbox` and durable
+log retention remain incomplete. The 17:02 composition probe below predates
+the SDK gRPC endpoint wiring and reported HTTP-vs-gRPC warnings; the latest live
+acceptance resolves secrets over the separate gRPC listener. The VM
+parity inventory remains 2 implemented, 24 partial, 2 unsupported, and 2 open.
+
+## Host gRPC endpoint contract and final local gates
+
+The pinned VM driver requires the Gateway gRPC endpoint as host deployment
+configuration and reads `OPENSHELL_GRPC_ENDPOINT`. The Go backend previously
+validated the `grpc_endpoint` runtime setting but discarded it, allowing the
+guest proxy to fall back to the public HTTP URL. `HostConfig` now retains the
+setting, validates that it is an HTTP(S) authority without an API path, honors
+the upstream environment variable, and prefers the host endpoint when building
+the guest proxy environment. Sandbox-level endpoint configuration remains a
+fallback for this product's existing per-sandbox integration.
+
+On 2026-10-22, `task test`, `task vm:parity-check` (30 entries),
+`task fmt:check`, `git diff --check`, and `task vm:live-darwin` all passed;
+the latest live HVF lifecycle took 21.93s. The initial isolated `go test ./vm` had a
+single timing failure in `TestParentLivenessStopReturnsWhileParentAlive`; a
+three-count rerun of that test together with the new endpoint tests passed,
+and the full workspace test gate passed afterward. Cross-builds for Linux
+ARM64 and Windows AMD64 were also run for the VM, Gateway, and runtime modules.
+
+## Latest real Gateway VM, log, and policy-auth retest
+
+- Reverified: 2026-10-22 17:11 Europe/Samara
+- Host: Apple Silicon, macOS ARM64, HVF/libkrun
+- Result: real Gateway create/start/stop/start all returned HTTP 200; runtime generations advanced 2 → 3 and both starts reported `running`. gRPC `GetSandboxLogs` returned the VM supervisor's launch/exit/launch process events (three sandbox-filtered lines; buffer total was 5).
+
+The latest Gateway and CLI proxy binaries were rebuilt from the working tree.
+The host proxy connected both supervisor instances to the Gateway gRPC listener.
+The Gateway returned process events bound to the exact Gateway sandbox ID;
+`PushSandboxLogs` emitted no authentication or unimplemented errors. Explicit
+Stop released the previous owner, so the immediate restart connected without
+lease-conflict retries. Optional secret resolution now reaches the correct
+gRPC endpoint and returns `Unimplemented` for the still-missing
+`GetSandboxProviderEnvironment` handler rather than a transport/auth error.
+
+The Gateway's `ReportPolicyStatus` handler now accepts only a Sandbox bearer
+whose sandbox ID, running runtime generation, and credential epoch match the
+durable sandbox record. It records loaded/failed status for the active policy
+revision; targeted Gateway tests cover both outcomes and stale/cross-sandbox
+rejection. The live real Gateway lifecycle above had no active Gateway policy
+revision configured, so that real-process policy result is covered by unit
+integration tests plus the separate paired-credential live fixture, not this
+manual smoke.
+
+The Go SDK now accepts a dedicated gRPC endpoint, and the CLI proxy configures
+it from `CAUTEM_GATEWAY_GRPC_ENDPOINT`; the live fixture confirms the proxy
+reaches the correct Gateway gRPC listener. `GetSandboxProviderEnvironment`
+remains unimplemented: credential values must stay withheld until sandbox
+provider attachment, endpoint authorization, credential identity/handles and
+supervisor installation are connected end to end. Gateway unary auth admits
+Sandbox bearers for `ReportPolicyStatus` and `GetSandboxProviderEnvironment`,
+matching upstream sandbox-only auth mode. `ReportPolicyStatus` is bound to the
+authenticated sandbox generation and epoch by its handler.
+
+## Latest local acceptance and hosted runner recheck
+
+- Rechecked: 2026-10-22 17:15 Europe/Samara.
+- `task test` passed across all Go workspace modules after Gateway auth, policy
+  status and log delivery changes. `task vm:live-darwin` passed on Apple
+  Silicon/HVF (21.94s), `task vm:parity-check` passed for all 30 inventory
+  entries, and focused Gateway/SDK/CLI packages passed.
+- Hosted workflow run
+  [39764654224](https://github.com/KLORQ/quarshell/actions/runs/39764654224)
+  was queried with `gh`: Linux KVM, macOS HVF and Windows MXC jobs all failed
+  before steps; GitHub reports empty step lists. This is consistent with the
+  account billing/spending-limit failure already recorded in the plan, so it
+  provides no new hardware acceptance evidence.
+- Current inventory at that verification was 4 implemented, 24 partial, 2
+  unsupported and 0 open. Full VM migration is the declared priority;
+  hardware-specific KVM and GPU/VFIO acceptance and credential-bound provider
+  environment remain open.
+
+## Sandbox process-exit RPC implementation
+
+- Implemented and verified: 2026-10-22 17:23 Europe/Samara.
+- `ReportMainProcessExit` and `FinalizeMainProcessExit` now persist exit status,
+  terminal sandbox state and finalization in the lifecycle store. Reports bind
+  to the authenticated sandbox, runtime generation/credential epoch and the
+  active supervisor instance; retries retain the first process result.
+- The supervisor lifecycle bridge now sends its Sandbox Protocol bearer for
+  these RPCs. The unary interceptor accepts Sandbox audience for process exit,
+  policy acknowledgement, provider environment and other sandbox-only methods;
+  Gateway audience remains for token refresh.
+- `go test -C quarshell-gateway ./internal/application/sandbox
+  ./internal/transport/applicationgrpc -count=1` and
+  `go test -C quarshell-runtime ./relayclient ./internal/app/supervisor
+  -count=1` pass. Added tests cover first-result idempotency, finalization,
+  restart reset, stale generation, wrong sandbox/instance and auth audience.
+- This closes the terminal process result portion of Gateway running-boundary
+  parity. Provider environment, sandbox watch/durable logs, shared HA leases,
+  credential rotation/replay and hardware acceptance remain open.
+- Full `task test` passes across every Go workspace module, and
+  `task vm:live-darwin` passes on Apple Silicon/HVF (21.99s) after switching
+  the lifecycle bridge to the Sandbox bearer. The live acceptance exercised
+  boot/recovery, policy revision ACK, natural process exit, explicit
+  stop/start, registry authentication and paired supervisor credentials.
+
+## SQLite-backed bounded supervisor log window
+
+- Implemented and verified: 2026-10-22 17:31 Europe/Samara.
+- Supervisor log batches are atomically stored per sandbox through the shared
+  lifecycle store, retaining the newest 2000 lines up to 8 MiB. With Gateway
+  `--data` set to SQLite, the window survives closing/reopening the Gateway
+  store. `GetSandboxLogs` reads the durable window; in-memory retention remains
+  only as the no-store test/embedder fallback.
+- Tests reopen a SQLite store after 2001 events and verify the oldest line was
+  evicted, newest retained, and sandbox/message bounds are enforced. gRPC log
+  ingest/query tests exercise the durable service integration.
+- `WatchSandbox`, resumable cursor semantics, shared multi-replica event
+  delivery, endpoint-bound provider credentials and hardware-specific KVM/GPU
+  remain open.
+
+## WatchSandbox log/status slice
+
+- Implemented: 2026-10-22 17:38 Europe/Samara.
+- Gateway `WatchSandbox` now sends the initial sandbox snapshot, replays the
+  requested bounded log tail (upstream default 200), filters by source, minimum
+  level and timestamp, streams matching live lines and changed status
+  snapshots, and honors `stop_on_terminal`. Durable local log cursors support replay within
+  the current Gateway epoch and report expired/trimmed cursors. Watchers are
+  removed on stream end and validation errors; replay/live overlap is
+  deduplicated.
+- Workspace `task test`, `task vm:parity-check` (30 entries), `task fmt:check`
+  and `git diff --check` passed after the first WatchSandbox parity fixes.
+  Focused `TestWatchSandbox` tests passed after follow-up fixes for initial
+  snapshot parity, watcher cleanup, deduplication, default tail and timestamp
+  filtering. The full workspace suite has not been rerun after those final
+  edits.
+- This is a partial match for OpenShell `WatchSandbox`: platform-event replay,
+  source-merged resumable cursor semantics and cross-replica delivery are still
+  missing. The VM driver's `watch_sandboxes` platform lifecycle feed also
+  remains incomplete, so the `vm.logs-watch` parity row stays partial.
+- Final verification after these edits: `task test`, `task vm:parity-check`
+  (30 pinned rows), `task fmt:check`, `git diff --check`, focused Gateway
+  WatchSandbox tests and `task vm:live-darwin` all passed. Live HVF acceptance
+  completed in 24.22s and exercised policy revision ACK, Sandbox-bearer
+  process/log delivery and natural workload exit.
+- A follow-up comparison change makes `follow_status` emit any changed sandbox
+  snapshot, not only a phase transition; snapshots now include the canonical
+  main-process instance ID and exit code from the durable process report.
+  Focused Gateway tests and `git diff --check` passed after that change; full
+  workspace gates have not been rerun since.
+- The existing provider binding RPCs now verify the provider definition,
+  distinguish a new attachment from an already bound provider, and propagate
+  binding-store errors during detach. Provider refresh configuration rejects
+  stale credential keys and invalid expiry timestamps, captures the returned
+  value while holding the mutex, and has focused regression coverage. This
+  remains partial: resource-version receipts, durable secret storage,
+  endpoint-bound provider environment materialization and supervisor install
+  are not complete. Workspace and HVF checks above preceded these provider
+  lifecycle edits; focused provider/rootfs tests passed afterward.
+
+## Latest local verification after Gateway watch/provider fixes
+
+- Rechecked: 2026-10-22 17:49 Europe/Samara.
+- `task test`, `task vm:parity-check` (30 pinned OpenShell v0.1.4 rows),
+  `task fmt:check` and `git diff --check` passed after the sandbox status
+  projection, provider binding and provider credential validation changes.
+- `task vm:live-darwin` passed on Apple Silicon/HVF in 23.07s, including VM
+  recovery, policy ACK/revocation, sandbox bearer auth, supervisor process
+  reporting and natural workload exit. The latest provider edits are covered
+  by the workspace and focused Gateway tests; they do not alter the VM driver.
+- Inventory remains 4 implemented, 24 partial, 2 unsupported (GPU/VFIO),
+  0 blocked and 0 open. GitHub-hosted workflows still fail before job steps,
+  so they contribute no new acceptance evidence.
+- Additional VM deployment gates passed locally: `task vm:artifact-check`
+  verified all 7 runtime artifacts and digest failures, `task vm:install-check`
+  passed install/upgrade/rollback, and `task vm:kvm-script-check` passed its
+  fixture lifecycle checks without requiring `/dev/kvm`.
+- VM, Gateway and runtime cross-builds passed for Linux ARM64 and Windows
+  AMD64 (`CGO_ENABLED=0`). Gateway cross-builds require the repository
+  `go.work`; the initial invocation without `GOWORK` failed to resolve that
+  workspace and was repeated successfully with it configured.

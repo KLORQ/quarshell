@@ -28,7 +28,7 @@ func TestValidateIsolationDescriptorBindsHostSupervisorIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	identity := "spiffe://cautem.vm/sandbox/sandbox-a/session/" + session + "/rootfs/" + rootfsDigest + "/runtime/" + runtimeDigest + "/generation/" + generation
-	cfg := Config{Sandbox: "sandbox-a", IsolationDescriptorPath: path, AdmittedIsolationBackend: "cautem/vm", SupervisorControlExpectedIdentity: identity}
+	cfg := Config{Sandbox: "sandbox-logical", IsolationSandboxID: "sandbox-a", IsolationDescriptorPath: path, AdmittedIsolationBackend: "cautem/vm", SupervisorControlExpectedIdentity: identity}
 	if err := validateIsolationDescriptor(cfg); err != nil {
 		t.Fatalf("valid descriptor rejected: %v", err)
 	}

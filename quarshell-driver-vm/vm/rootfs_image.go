@@ -683,36 +683,34 @@ mount -o remount,bind,ro /lower 2>/dev/null || true
 mount -t overlay overlay -o lowerdir=/lower,upperdir=/overlay/upper,workdir=/overlay/work /newroot
 configured_uid=${CAUTEM_VM_SANDBOX_UID:-}
 configured_gid=${CAUTEM_VM_SANDBOX_GID:-}
-if [ -n "$configured_uid" ] || [ -n "$configured_gid" ]; then
-  sandbox_uid=${configured_uid:-1000}
-  sandbox_gid=${configured_gid:-$sandbox_uid}
-  mkdir -p /newroot/etc
-  reconcile_account_file() {
-    account_file=$1
-    account_line=$2
-    account_name=$3
-    account_tmp="$account_file.cautem-tmp"
-    if [ -f "$account_file" ]; then
-      awk -F: -v OFS=: -v name="$account_name" -v line="$account_line" '
-        BEGIN { found=0 }
-        $1 == name { print line; found=1; next }
-        { print }
-        END { if (!found) print line }
-      ' "$account_file" > "$account_tmp"
-    else
-      printf '%s\n' "$account_line" > "$account_tmp"
-    fi
-    if [ -f "$account_file" ]; then
-      account_mode=$(stat -c '%a' "$account_file")
-      chmod "$account_mode" "$account_tmp"
-    fi
-    mv "$account_tmp" "$account_file"
-  }
-  reconcile_account_file /newroot/etc/group "sandbox:x:$sandbox_gid:" sandbox
-  reconcile_account_file /newroot/etc/gshadow 'sandbox:!::' sandbox
-  reconcile_account_file /newroot/etc/passwd "sandbox:x:$sandbox_uid:$sandbox_gid:OpenShell Sandbox:/sandbox:/bin/bash" sandbox
-  reconcile_account_file /newroot/etc/shadow 'sandbox:!:20123:0:99999:7:::' sandbox
-fi
+sandbox_uid=${configured_uid:-1000}
+sandbox_gid=${configured_gid:-$sandbox_uid}
+mkdir -p /newroot/etc
+reconcile_account_file() {
+  account_file=$1
+  account_line=$2
+  account_name=$3
+  account_tmp="$account_file.cautem-tmp"
+  if [ -f "$account_file" ]; then
+    awk -F: -v OFS=: -v name="$account_name" -v line="$account_line" '
+      BEGIN { found=0 }
+      $1 == name { print line; found=1; next }
+      { print }
+      END { if (!found) print line }
+    ' "$account_file" > "$account_tmp"
+  else
+    printf '%s\n' "$account_line" > "$account_tmp"
+  fi
+  if [ -f "$account_file" ]; then
+    account_mode=$(stat -c '%a' "$account_file")
+    chmod "$account_mode" "$account_tmp"
+  fi
+  mv "$account_tmp" "$account_file"
+}
+reconcile_account_file /newroot/etc/group "sandbox:x:$sandbox_gid:" sandbox
+reconcile_account_file /newroot/etc/gshadow 'sandbox:!::' sandbox
+reconcile_account_file /newroot/etc/passwd "sandbox:x:$sandbox_uid:$sandbox_gid:OpenShell Sandbox:/sandbox:/bin/bash" sandbox
+reconcile_account_file /newroot/etc/shadow 'sandbox:!:20123:0:99999:7:::' sandbox
 for path in proc sys dev run tmp; do
   mkdir -p "/newroot/$path"
   mount --rbind "/$path" "/newroot/$path"

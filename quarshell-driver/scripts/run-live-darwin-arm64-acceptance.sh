@@ -5,6 +5,7 @@ unset GOROOT
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 module_dir=$(CDPATH= cd -- "$script_dir/.." && pwd)
 vm_module_dir="$module_dir/../quarshell-driver-vm"
+workspace_dir="$module_dir/.."
 host_os=$(go env GOOS)
 host_arch=$(go env GOARCH)
 
@@ -39,10 +40,12 @@ init_bin=${CAUTEM_VM_TEST_INIT_BIN:-"$build_dir/cautem-init-linux-$guest_arch"}
 supervisor_bin=${CAUTEM_VM_TEST_SUPERVISOR_BIN:-"$build_dir/cautem-supervisor-linux-$guest_arch"}
 ssh_bin=${CAUTEM_VM_TEST_SSH_BIN:-"$build_dir/cautem-sshd-linux-$guest_arch"}
 security_probe=${CAUTEM_VM_TEST_SECURITY_PROBE:-"$build_dir/cautem-vm-security-probe-linux-$guest_arch"}
+proxy_cli=${CAUTEM_VM_TEST_PROXY_CLI:-"$build_dir/cautem-proxy-cli"}
 # Rebuild from the current checkout on every acceptance run. Existence checks
 # alone can leave an old guest protocol binary beside a newer host driver.
 CAUTEM_VM_BUILD_DIR=$build_dir CAUTEM_VM_GUEST_ARCH=$guest_arch \
   "$script_dir/build-vm-runtime.sh"
+go build -C "$workspace_dir/quarshell-cli" -o "$proxy_cli" ./cmd/cautem
 for artifact in "$worker" "$guest_agent" "$init_bin" "$supervisor_bin" "$ssh_bin" "$security_probe"; do
   if [ ! -x "$artifact" ]; then
     echo "MicroVM acceptance artifact is missing or not executable: $artifact" >&2
@@ -102,6 +105,7 @@ CAUTEM_VM_TEST_INIT_BIN=$init_bin \
 CAUTEM_VM_TEST_SUPERVISOR_BIN=$supervisor_bin \
 CAUTEM_VM_TEST_SSH_BIN=$ssh_bin \
 CAUTEM_VM_TEST_SECURITY_PROBE=$security_probe \
+CAUTEM_VM_TEST_PROXY_CLI=$proxy_cli \
 CAUTEM_VM_TEST_E2FS_FORMATTER=$formatter \
 CAUTEM_VM_WORKER=$worker \
 OPENSHELL_VM_RUNTIME_DIR=$runtime_dir \

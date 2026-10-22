@@ -4,11 +4,17 @@ package applicationgrpc
 
 import (
 	"context"
+	"sync"
+	"time"
 
+	"github.com/KLORQ/quarshell-credentials"
 	"github.com/KLORQ/quarshell-gateway/internal/application/endpoint"
+	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
 	policyapp "github.com/KLORQ/quarshell-gateway/internal/application/policy"
 	"github.com/KLORQ/quarshell-gateway/internal/application/provider"
+	"github.com/KLORQ/quarshell-gateway/internal/application/providercred"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
+	"github.com/KLORQ/quarshell-gateway/internal/application/sandboxlogs"
 	"github.com/KLORQ/quarshell-gateway/internal/application/settings"
 	"github.com/KLORQ/quarshell-gateway/internal/application/template"
 	tokenapp "github.com/KLORQ/quarshell-gateway/internal/application/token"
@@ -32,13 +38,36 @@ type Server struct {
 	Providers        *provider.Registry
 	Services         *endpoint.ServiceRegistry
 	ProviderBindings *provider.Service
+	SandboxLogs      *sandboxlogs.Service
 	Tokens           *tokenapp.Service
 	SupervisorHub    *sshrelay.Hub
+	sshMu            sync.RWMutex
+	sshSessions      map[string]sshSession
+	Credentials      *providercred.Store
+	OAuthExchange    *credentials.OAuthExchange
+	stagingMu        sync.Mutex
+	staging          map[string]stagingUpload
+	RootfsStaging    func(context.Context) (string, uint64, error)
+	RuntimeBackendID string
+	GatewayHost      string
+	GatewayPort      int
+	GatewayScheme    string
+	now              func() time.Time
+	logMu            sync.RWMutex
+	sandboxLogs      map[string][]*gatewayv1.SandboxLogLine
+	logWatchers      map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}
+	logCursorEpoch   string
+	logCursorSeq     map[string]uint64
 }
 
 // New returns a server with explicit unimplemented gaps.
 func New(version string, workspaces *workspace.Service, sandboxes *sandbox.Service, policy *policyapp.ChunkService, templates *template.Service, settings *settings.Service, providers *provider.Registry, services *endpoint.ServiceRegistry) *Server {
-	return &Server{Version: version, Workspaces: workspaces, Sandboxes: sandboxes, Policy: policy, Templates: templates, Settings: settings, Providers: providers, Services: services, SupervisorHub: sshrelay.NewHub()}
+	return &Server{Version: version, Workspaces: workspaces, Sandboxes: sandboxes, Policy: policy, Templates: templates, Settings: settings, Providers: providers, Services: services, SupervisorHub: sshrelay.NewHub(), sandboxLogs: make(map[string][]*gatewayv1.SandboxLogLine), logWatchers: make(map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}), logCursorEpoch: randomSessionID(), logCursorSeq: make(map[string]uint64), sshSessions: make(map[string]sshSession), staging: make(map[string]stagingUpload), now: time.Now, Credentials: defaultCredentialStore()}
+}
+
+func defaultCredentialStore() *providercred.Store {
+	store, _ := providercred.NewStore(lifecycle.NewMemoryStore(), []byte("quarshell-dev-provider-credentials"))
+	return store
 }
 
 // Health is served by the new transport.

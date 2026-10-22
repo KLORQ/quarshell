@@ -36,6 +36,19 @@ type networkBrokerProcess struct {
 	liveness       *os.File
 }
 
+func networkBrokerIsolationPID(process *networkBrokerProcess) (int, error) {
+	if process == nil || process.command == nil || process.command.Process == nil {
+		return 0, fmt.Errorf("broker process handle is missing")
+	}
+	if err := processIsAlive(process.command.Process); err != nil {
+		return 0, err
+	}
+	if process.liveness == nil {
+		return 0, fmt.Errorf("broker parent-liveness channel is unavailable")
+	}
+	return process.command.Process.Pid, nil
+}
+
 func startNetworkBroker(config *networkBrokerConfig) (*networkBrokerProcess, error) {
 	if config == nil {
 		return nil, nil
@@ -303,8 +316,8 @@ func prepareBrokerCredential(config networkBrokerConfig, environment []string) (
 	token := ""
 	sandboxToken := ""
 	var gatewayExpiry, sandboxExpiry, authEpoch, sessionRotation uint64
+	var gatewayExpirySeen, sandboxExpirySeen, authEpochSeen, sessionRotationSeen bool
 	runtimeGeneration := ""
-	credentialFieldsSeen := false
 	descriptorPath := ""
 	sandbox := ""
 	filtered := make([]string, 0, len(environment)+1)
@@ -316,19 +329,22 @@ func prepareBrokerCredential(config networkBrokerConfig, environment []string) (
 		case sandboxTokenKey:
 			sandboxToken = value
 		case gatewayExpiryKey, sandboxExpiryKey, authEpochKey, sessionRotationKey:
-			credentialFieldsSeen = true
 			parsed, parseErr := strconv.ParseUint(value, 10, 64)
 			if parseErr != nil {
 				return nil, "", fmt.Errorf("invalid host supervisor credential metadata %s", key)
 			}
 			if key == gatewayExpiryKey {
 				gatewayExpiry = parsed
+				gatewayExpirySeen = true
 			} else if key == sandboxExpiryKey {
 				sandboxExpiry = parsed
+				sandboxExpirySeen = true
 			} else if key == authEpochKey {
 				authEpoch = parsed
+				authEpochSeen = true
 			} else {
 				sessionRotation = parsed
+				sessionRotationSeen = true
 			}
 		case runtimeGenerationKey:
 			runtimeGeneration = value
@@ -349,8 +365,11 @@ func prepareBrokerCredential(config networkBrokerConfig, environment []string) (
 		if sandbox == "" {
 			return nil, "", fmt.Errorf("VM supervisor auth bundle requires a bearer and sandbox identity")
 		}
-		if sandboxToken == "" || runtimeGeneration == "" || !credentialFieldsSeen || gatewayExpiry == 0 || sandboxExpiry == 0 || authEpoch == 0 || sessionRotation == 0 {
+		if sandboxToken == "" || runtimeGeneration == "" || !gatewayExpirySeen || !sandboxExpirySeen || !authEpochSeen || !sessionRotationSeen || authEpoch == 0 || sessionRotation == 0 {
 			return nil, "", fmt.Errorf("VM supervisor auth bundle is missing paired tokens or session metadata")
+		}
+		if gatewayExpiry > uint64(^uint64(0)>>1) || sandboxExpiry > uint64(^uint64(0)>>1) {
+			return nil, "", fmt.Errorf("VM supervisor auth bundle has out-of-range token expiry")
 		}
 		descriptor, err := readHostBootstrapDescriptor(descriptorPath)
 		if err != nil {
@@ -373,7 +392,7 @@ func prepareBrokerCredential(config networkBrokerConfig, environment []string) (
 		credentialEnv = "CAUTEM_SUPERVISOR_AUTH_BUNDLE_FILE="
 	}
 	if token == "" {
-		if sandboxToken != "" || runtimeGeneration != "" || credentialFieldsSeen {
+		if sandboxToken != "" || runtimeGeneration != "" || gatewayExpirySeen || sandboxExpirySeen || authEpochSeen || sessionRotationSeen {
 			return nil, "", fmt.Errorf("VM supervisor credential metadata requires a Gateway bearer")
 		}
 		for _, stale := range []string{path, filepath.Join(config.LogDir, "supervisor-auth.bundle.json")} {

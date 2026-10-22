@@ -68,6 +68,11 @@ func UnaryAuthInterceptorWithSandboxTokens(operatorToken, operatorSubject string
 				return handler(authenticated, request)
 			}
 		}
+		if tokens != nil && isSandboxUnaryMethod(info.FullMethod) {
+			if authenticated, err := withSandboxProtocolPrincipal(ctx, tokens); err == nil {
+				return handler(authenticated, request)
+			}
+		}
 		return nil, status.Error(codes.Unauthenticated, "authentication required")
 	}
 }
@@ -80,12 +85,28 @@ func StreamAuthInterceptorWithSandboxTokens(operatorToken, operatorSubject strin
 			return handler(server, principalServerStream{ServerStream: stream, ctx: authenticated})
 		}
 		method := info.FullMethod
-		if tokens != nil && (method == gatewayv1.OpenShell_ConnectSupervisor_FullMethodName || method == gatewayv1.OpenShell_RelayStream_FullMethodName) {
-			if authenticated, err := withSandboxPrincipal(stream.Context(), tokens); err == nil {
+		if tokens != nil && (method == gatewayv1.OpenShell_ConnectSupervisor_FullMethodName || method == gatewayv1.OpenShell_RelayStream_FullMethodName || method == gatewayv1.OpenShell_PushSandboxLogs_FullMethodName) {
+			if authenticated, err := withSandboxProtocolPrincipal(stream.Context(), tokens); err == nil {
 				return handler(server, principalServerStream{ServerStream: stream, ctx: authenticated})
 			}
 		}
 		return status.Error(codes.Unauthenticated, "authentication required")
+	}
+}
+
+func isSandboxUnaryMethod(method string) bool {
+	switch method {
+	case gatewayv1.OpenShell_ReportPolicyStatus_FullMethodName,
+		gatewayv1.OpenShell_ReportMainProcessExit_FullMethodName,
+		gatewayv1.OpenShell_FinalizeMainProcessExit_FullMethodName,
+		gatewayv1.OpenShell_ReportEndpointStatus_FullMethodName,
+		gatewayv1.OpenShell_ReportProviderReadiness_FullMethodName,
+		gatewayv1.OpenShell_ReportSandboxConfiguration_FullMethodName,
+		gatewayv1.OpenShell_GetSandboxProviderEnvironment_FullMethodName,
+		gatewayv1.OpenShell_ExchangeProviderSubjectToken_FullMethodName:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -121,6 +142,14 @@ func validStaticCredential(ctx context.Context, expected string) bool {
 }
 
 func withSandboxPrincipal(ctx context.Context, tokens *tokenapp.Service) (context.Context, error) {
+	return withSandboxPrincipalForAudience(ctx, tokens, "gateway")
+}
+
+func withSandboxProtocolPrincipal(ctx context.Context, tokens *tokenapp.Service) (context.Context, error) {
+	return withSandboxPrincipalForAudience(ctx, tokens, "sandbox")
+}
+
+func withSandboxPrincipalForAudience(ctx context.Context, tokens *tokenapp.Service, audience string) (context.Context, error) {
 	if tokens == nil {
 		return nil, status.Error(codes.Unauthenticated, "sandbox authentication is unavailable")
 	}
@@ -137,7 +166,7 @@ func withSandboxPrincipal(ctx context.Context, tokens *tokenapp.Service) (contex
 		return nil, status.Error(codes.Unauthenticated, "authentication required")
 	}
 	claims, err := tokens.Verify(strings.TrimSpace(value[len("Bearer "):]))
-	if err != nil || claims.Generation == 0 || claims.Audience != "gateway" {
+	if err != nil || claims.Generation == 0 || claims.Audience != audience {
 		return nil, status.Error(codes.Unauthenticated, "invalid sandbox credential")
 	}
 	principal := authenticatedPrincipal{

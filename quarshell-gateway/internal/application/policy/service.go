@@ -67,6 +67,7 @@ type Revision struct {
 	Approver           string             `json:"approver,omitempty"`
 	ObservedGeneration domain.Generation  `json:"observed_generation,omitempty"`
 	ObservedAt         *time.Time         `json:"observed_at,omitempty"`
+	LoadError          string             `json:"load_error,omitempty"`
 	CreatedAt          time.Time          `json:"created_at"`
 	UpdatedAt          time.Time          `json:"updated_at"`
 }
@@ -387,8 +388,16 @@ func (s *Service) Analyze(ctx context.Context, scope Scope, revisionID string) (
 
 // Observe records the runtime generation that activated a revision.
 func (s *Service) Observe(ctx context.Context, scope Scope, revisionID string, generation domain.Generation) (Revision, error) {
+	return s.ObserveStatus(ctx, scope, revisionID, generation, "")
+}
+
+// ObserveStatus records a runtime generation's policy load result.
+func (s *Service) ObserveStatus(ctx context.Context, scope Scope, revisionID string, generation domain.Generation, loadError string) (Revision, error) {
 	if !scope.Valid() || revisionID == "" || generation == 0 {
 		return Revision{}, domain.Invalidf("policy.observe", "scope, revision and generation are required")
+	}
+	if len(loadError) > 4096 {
+		return Revision{}, domain.Invalidf("policy.observe", "load error exceeds 4096 bytes")
 	}
 	var result Revision
 	err := s.store.Update(ctx, func(tx lifecycle.WriteTx) error {
@@ -408,6 +417,7 @@ func (s *Service) Observe(ctx context.Context, scope Scope, revisionID string, g
 		revision.ObservedGeneration = generation
 		now := s.now().UTC()
 		revision.ObservedAt = &now
+		revision.LoadError = strings.TrimSpace(loadError)
 		revision.UpdatedAt = now
 		payload, err := json.Marshal(revision)
 		if err != nil {
@@ -416,14 +426,22 @@ func (s *Service) Observe(ctx context.Context, scope Scope, revisionID string, g
 		if _, err := tx.Put(revisionKind, revision.ID, record.Version, payload); err != nil {
 			return err
 		}
-		if err := tx.Enqueue(lifecycle.OutboxMessage{ID: revision.ID + ":observed:" + strconv.FormatUint(uint64(generation), 10), Topic: "policy.observed", Payload: payload}); err != nil {
+		topic := "policy.observed"
+		if revision.LoadError != "" {
+			topic = "policy.load_failed"
+		}
+		if err := tx.Enqueue(lifecycle.OutboxMessage{ID: revision.ID + ":observed:" + strconv.FormatUint(uint64(generation), 10), Topic: topic, Payload: payload}); err != nil {
 			return err
 		}
 		result = revision
 		return nil
 	})
 	if err == nil {
-		s.emit(ctx, scope, "policy.observed", result)
+		topic := "policy.observed"
+		if result.LoadError != "" {
+			topic = "policy.load_failed"
+		}
+		s.emit(ctx, scope, topic, result)
 	}
 	return result, err
 }

@@ -69,6 +69,7 @@ func TestCompatSessionRefreshesSupervisorToken(t *testing.T) {
 	defer cancel()
 	instance := newSupervisorInstance("instance-1")
 	token := newSupervisorToken("initial-token")
+	gatewayToken := newSupervisorToken("gateway-initial-token")
 	refreshedPair := make(chan [2]string, 4)
 	cfg := Config{
 		Sandbox: "sandbox-1", Log: slog.New(slog.NewTextHandler(io.Discard, nil)), TokenRefreshInterval: 20 * time.Millisecond,
@@ -79,7 +80,7 @@ func TestCompatSessionRefreshesSupervisorToken(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		done <- supervisorSession(ctx, client, cfg, "instance-1", 1, instance, token)
+		done <- supervisorSession(ctx, client, cfg, "instance-1", 1, instance, token, gatewayToken)
 	}()
 	deadline := time.After(2 * time.Second)
 	ticker := time.NewTicker(5 * time.Millisecond)
@@ -95,6 +96,9 @@ func TestCompatSessionRefreshesSupervisorToken(t *testing.T) {
 	}
 	if got := token.get(); got == "initial-token" || !strings.HasPrefix(got, "sandbox-refreshed-") {
 		t.Fatalf("supervisor token = %q; refresh must select SandboxToken", got)
+	}
+	if got := gatewayToken.get(); got == "gateway-initial-token" || !strings.HasPrefix(got, "gateway-refreshed-") {
+		t.Fatalf("Gateway token = %q; refresh must retain the Gateway bearer separately", got)
 	}
 	select {
 	case pair := <-refreshedPair:

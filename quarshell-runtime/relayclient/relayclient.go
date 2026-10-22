@@ -29,6 +29,9 @@ type Config struct {
 	Sandbox             string
 	// Token is the sandbox-scoped supervisor token (never a user token).
 	Token string
+	// GatewayToken is the paired gateway-scoped credential used for unary
+	// lifecycle, process-event, and token-refresh methods.
+	GatewayToken string
 	// SSHSocket is the sandbox sshd Unix socket (TargetSSH).
 	SSHSocket string
 	// TargetDialSocket delegates TCP target dialing into the sandbox network namespace.
@@ -48,6 +51,7 @@ type Config struct {
 	// IsolationDescriptorPath and AdmittedIsolationBackend bind the VM host
 	// supervisor connection to the driver-provisioned isolation boundary.
 	IsolationDescriptorPath  string
+	IsolationSandboxID       string
 	AdmittedIsolationBackend string
 	TLSConfig                *tls.Config
 	Log                      *slog.Logger

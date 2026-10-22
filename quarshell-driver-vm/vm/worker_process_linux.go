@@ -93,6 +93,10 @@ func verifyWorkerCodeSignature(string, string) error {
 	return fmt.Errorf("Apple code signature verification is unavailable on Linux")
 }
 
+func verifyWorkerAdHocSignature(string) error {
+	return fmt.Errorf("Apple ad-hoc code signature verification is unavailable on Linux")
+}
+
 func namespaceIdentity(path string) (string, error) {
 	identity, err := os.Readlink(path)
 	if err != nil {

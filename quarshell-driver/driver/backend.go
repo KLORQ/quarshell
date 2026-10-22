@@ -371,6 +371,9 @@ type RuntimeTokenStarter interface {
 // material into a runtime launch. Implementations must not persist the bearer
 // values or expose them through inspection and logs.
 type RuntimeLaunchCredentials struct {
+	// SandboxID is the stable control-plane sandbox identifier embedded in
+	// OpenShell session JWTs. It can differ from the backend's runtime ID.
+	SandboxID         string
 	RuntimeGeneration string
 	SessionID         string
 	GatewayID         string

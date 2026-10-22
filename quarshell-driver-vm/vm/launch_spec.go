@@ -17,6 +17,7 @@ type vmLaunchSpec struct {
 	vmCreateSpec
 	WorkDir          string
 	User             string
+	GatewaySandboxID string
 	GatewayID        string
 	VerificationKeys []driver.RuntimeVerificationKey
 }
@@ -31,7 +32,12 @@ func applyOCIImageConfig(spec vmLaunchSpec, config v1.Config) (vmLaunchSpec, err
 		if !path.IsAbs(config.WorkingDir) || path.Clean(config.WorkingDir) != config.WorkingDir || strings.IndexByte(config.WorkingDir, 0) >= 0 {
 			return vmLaunchSpec{}, fmt.Errorf("OCI image working directory %q must be a clean absolute path", config.WorkingDir)
 		}
-		spec.WorkDir = config.WorkingDir
+		// OpenShell VM workloads default to the private /sandbox workspace.
+		// Treat OCI's common implicit root workdir as unset so it does not
+		// overlap supervisor-only credentials under /run during hardening.
+		if config.WorkingDir != "/" {
+			spec.WorkDir = config.WorkingDir
+		}
 	}
 
 	imageUser, err := validateOCIUser(config.User)

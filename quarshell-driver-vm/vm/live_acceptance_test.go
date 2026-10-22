@@ -118,6 +118,14 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		},
 		InitBin: initBin, SupervisorBin: supervisorBin, EnableSSH: true, SSHBin: sshBin,
 	}
+	if os.Getenv("CAUTEM_VM_TEST_GATEWAY_CREDENTIALS_ONLY") == "1" {
+		proxyCLI := strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_PROXY_CLI"))
+		if proxyCLI == "" {
+			t.Fatal("CAUTEM_VM_TEST_PROXY_CLI is required for paired Gateway credential acceptance")
+		}
+		assertLiveGatewayCredentialLaunch(t, ctx, host, rootfsTar, initBin, supervisorBin, sshBin, proxyCLI, policyPath)
+		return
+	}
 	first := newLiveAcceptanceDriver(host)
 	handle, err := first.createSandbox(ctx, vmCreateSpec{
 		Name: "live-microvm-acceptance", Image: "alpine:3.22",
@@ -349,6 +357,12 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatalf("stop restarted terminal MicroVM: %v", err)
 	}
 	t.Log("live explicit Start closed the previous terminal VM worker, booted a fresh worker, and cleared its exit result")
+
+	proxyCLI := strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_PROXY_CLI"))
+	if proxyCLI == "" {
+		t.Fatal("CAUTEM_VM_TEST_PROXY_CLI is required for paired Gateway credential acceptance")
+	}
+	assertLiveGatewayCredentialLaunch(t, ctx, host, rootfsTar, initBin, supervisorBin, sshBin, proxyCLI, policyPath)
 }
 
 func assertLiveIsolationDescriptor(t *testing.T, stateDir string, id core.ID) string {
@@ -960,6 +974,23 @@ func assertLivePolicyRevisionUpdate(t *testing.T, ctx context.Context, sandbox *
 		t.Fatalf("revision 2 did not allow policy-probe.invalid past policy evaluation: exit=%d stdout=%q stderr=%q", allowed.ExitCode, allowed.Stdout, allowed.Stderr)
 	}
 	t.Logf("revision 2 allow decision passed policy evaluation: %s", strings.TrimSpace(allowedOutput))
+	policyDocument = []byte("# cautem-policy-revision: 3\nversion: 1\nlandlock:\n  compatibility: best_effort\nprocess:\n  run_as_user: '1000'\n  run_as_group: '1000'\nnetwork_policies: {}\n")
+	if err := os.WriteFile(updatedPath, policyDocument, 0o600); err != nil {
+		t.Fatalf("write policy revocation revision: %v", err)
+	}
+	if err := os.Rename(updatedPath, policyPath); err != nil {
+		t.Fatalf("atomically publish policy revocation revision: %v", err)
+	}
+	waitForLivePolicyAck(t, ctx, ackPath, 3)
+	revoked, err := sandbox.Exec(ctx, id, driver.ExecRequest{Argv: []string{"/sandbox/proxy-http-probe", "policy-probe.invalid"}})
+	if err != nil {
+		t.Fatalf("request through revoked live policy endpoint: %v", err)
+	}
+	revokedOutput := string(revoked.Stdout) + string(revoked.Stderr)
+	if revoked.ExitCode != 0 || !strings.Contains(revokedOutput, "HTTP 403") {
+		t.Fatalf("revision 3 did not revoke policy-probe.invalid: exit=%d stdout=%q stderr=%q", revoked.ExitCode, revoked.Stdout, revoked.Stderr)
+	}
+	t.Log("live policy revision 3 revoked the previously allowed endpoint")
 	assertLiveNetworkBroker(t, ctx, sandbox, id, "blocked-probe.invalid", probePath)
 }
 

@@ -30,10 +30,11 @@ var ErrSandboxNotReady = gc.ErrSandboxNotReady
 
 // Client exposes native OpenShell Gateway RPC methods and an HTTP health probe.
 type Client struct {
-	http       *gc.Client
-	base       string
-	tokenValue atomic.Value
-	edgeToken  string
+	http        *gc.Client
+	base        string
+	rpcEndpoint string
+	tokenValue  atomic.Value
+	edgeToken   string
 	// Workspace selects the default workspace for resource-oriented methods.
 	Workspace   string
 	insecureTLS bool
@@ -56,6 +57,20 @@ func (c *Client) SetInsecureSkipVerify(skip bool) {
 	c.insecureTLS = skip
 	if c.http != nil {
 		c.http.SetInsecureSkipVerify(skip)
+	}
+}
+
+// SetGRPCEndpoint configures the native Gateway RPC authority independently
+// from the HTTP base URL. The endpoint may be an http(s) URL or host:port.
+// Configure it before the first RPC call.
+func (c *Client) SetGRPCEndpoint(endpoint string) {
+	if c == nil {
+		return
+	}
+	c.rpcMu.Lock()
+	defer c.rpcMu.Unlock()
+	if c.gatewayConn == nil {
+		c.rpcEndpoint = strings.TrimSpace(endpoint)
 	}
 }
 

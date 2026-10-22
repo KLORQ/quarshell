@@ -4,10 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestSandboxRPC(t *testing.T) {
@@ -18,12 +20,22 @@ func TestSandboxRPC(t *testing.T) {
 	server := New("test", nil, sandboxes, nil, nil, nil, nil, nil)
 	ctx := context.Background()
 	selector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "ws"}}
+	driverConfig, err := structpb.NewStruct(map[string]any{
+		"vm": map[string]any{"grpc_endpoint": "http://127.0.0.1:7444"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	created, err := server.CreateSandbox(ctx, &gatewayv1.CreateSandboxRequest{
 		WorkspaceScope: selector, Name: "sb", Labels: map[string]string{"team": "x"},
-		Spec: &gatewayv1.SandboxSpec{Template: &gatewayv1.SandboxTemplate{Image: "ubuntu:24.04"}},
+		Spec: &gatewayv1.SandboxSpec{Template: &gatewayv1.SandboxTemplate{Image: "ubuntu:24.04", DriverConfig: driverConfig}},
 	})
 	if err != nil || created.GetSandbox().GetMetadata().GetName() != "sb" {
 		t.Fatalf("CreateSandbox = %+v err=%v", created, err)
+	}
+	stored, err := sandboxes.Get(ctx, domain.SandboxRef{Workspace: "ws", Sandbox: "sb"})
+	if err != nil || stored.DriverConfigJSON != `{"vm":{"grpc_endpoint":"http://127.0.0.1:7444"}}` {
+		t.Fatalf("persisted driver config = %q, err=%v", stored.DriverConfigJSON, err)
 	}
 	if _, err := server.GetSandbox(ctx, &gatewayv1.GetSandboxRequest{WorkspaceScope: selector, Name: "sb"}); err != nil {
 		t.Fatalf("GetSandbox: %v", err)
@@ -47,5 +59,24 @@ func TestSandboxRPC(t *testing.T) {
 	missing, err := server.DeleteSandbox(ctx, &gatewayv1.DeleteSandboxRequest{WorkspaceScope: selector, Name: "sb", AllowMissing: true})
 	if err != nil || missing.GetOutcome() != gatewayv1.DeletionOutcome_DELETION_OUTCOME_ALREADY_ABSENT {
 		t.Fatalf("Delete missing = %+v err=%v", missing, err)
+	}
+}
+
+func TestSandboxPhaseMapsCanonicalProcessExitStates(t *testing.T) {
+	for state, want := range map[string]gatewayv1.SandboxPhase{
+		"completed": gatewayv1.SandboxPhase_SANDBOX_PHASE_COMPLETED,
+		"error":     gatewayv1.SandboxPhase_SANDBOX_PHASE_ERROR,
+		"failed":    gatewayv1.SandboxPhase_SANDBOX_PHASE_ERROR,
+	} {
+		if got := sandboxProto(sandbox.Sandbox{Sandbox: "sb", State: state}, nil).GetStatus().GetPhase(); got != want {
+			t.Errorf("state %q phase=%s want=%s", state, got, want)
+		}
+	}
+	exitCode := int32(17)
+	status := sandboxProto(sandbox.Sandbox{
+		Sandbox: "sb", State: "completed", MainProcessInstanceID: "instance-1", MainProcessExitCode: &exitCode,
+	}, nil).GetStatus()
+	if status.GetMainProcessInstanceId() != "instance-1" || status.GetExitCode() != exitCode {
+		t.Fatalf("process result not projected to sandbox status: %+v", status)
 	}
 }

@@ -22,7 +22,10 @@ const defaultVMSandboxImage = "nvcr.io/nvidia/base/ubuntu:24.04"
 // HostConfig selects the libkrun runtime bundle and host virtualization device.
 // RuntimeDir follows OpenShell's OPENSHELL_VM_RUNTIME_DIR override.
 type HostConfig struct {
-	RuntimeDir        string
+	RuntimeDir string
+	// GRPCEndpoint is the Gateway supervisor gRPC endpoint supplied to the
+	// guest. OpenShell keeps this host deployment setting out of sandbox config.
+	GRPCEndpoint      string
 	DefaultImage      string
 	AllowDriverConfig bool
 	SandboxUID        *uint32
@@ -30,29 +33,31 @@ type HostConfig struct {
 	GuestTLSCA        string
 	// BootstrapImage overrides the trusted DefaultImage fallback for the
 	// OpenShell-style two-disk boot layout.
-	BootstrapImage           string
-	KVMDevice                string
-	StateDir                 string
-	RootfsTarDir             string
-	RootfsTarMaxBytes        int64
-	RootfsImageCacheMaxBytes int64
-	FormatterPath            string
-	OverlaySizeBytes         uint64
-	ServiceDataDiskSizeBytes uint64
-	GuestAgentPath           string
-	UMOCIPath                string
-	WorkerPath               string
-	WorkerTeamID             string
-	VCPUs                    uint8
-	MemoryMiB                uint32
-	KrunLogLevel             *uint32
-	kvmDeviceCheck           func(string) error
-	workerIsolation          func() (workerIsolationConfig, error)
-	workerProcessAttributes  func() *syscall.SysProcAttr
-	workerSignatureVerifier  func(string, string) error
-	LifecycleExtensions      []LifecycleExtension
-	imagePrepRunner          func(context.Context, HostConfig, string, string, string) error
-	imagePrepVerifier        func(string, string) error
+	BootstrapImage               string
+	KVMDevice                    string
+	StateDir                     string
+	RootfsTarDir                 string
+	RootfsTarMaxBytes            int64
+	RootfsImageCacheMaxBytes     int64
+	FormatterPath                string
+	OverlaySizeBytes             uint64
+	ServiceDataDiskSizeBytes     uint64
+	GuestAgentPath               string
+	UMOCIPath                    string
+	WorkerPath                   string
+	WorkerTeamID                 string
+	WorkerSHA256                 string
+	VCPUs                        uint8
+	MemoryMiB                    uint32
+	KrunLogLevel                 *uint32
+	kvmDeviceCheck               func(string) error
+	workerIsolation              func() (workerIsolationConfig, error)
+	workerProcessAttributes      func() *syscall.SysProcAttr
+	workerSignatureVerifier      func(string, string) error
+	workerAdHocSignatureVerifier func(string) error
+	LifecycleExtensions          []LifecycleExtension
+	imagePrepRunner              func(context.Context, HostConfig, string, string, string) error
+	imagePrepVerifier            func(string, string) error
 }
 
 // HostCapabilities describes the runtime path accepted by the OpenShell-style
@@ -94,11 +99,13 @@ func DefaultHostConfig() HostConfig {
 	}
 	workerPath := strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER"))
 	workerTeamID := strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER_TEAM_ID"))
+	workerSHA256 := strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER_SHA256"))
+	grpcEndpoint := strings.TrimSpace(os.Getenv("OPENSHELL_GRPC_ENDPOINT"))
 	config := normalizeHostConfig(HostConfig{
-		RuntimeDir: runtimeDir, DefaultImage: defaultImage, BootstrapImage: bootstrapImage, KVMDevice: kvmDevice, StateDir: stateDir,
+		RuntimeDir: runtimeDir, GRPCEndpoint: grpcEndpoint, DefaultImage: defaultImage, BootstrapImage: bootstrapImage, KVMDevice: kvmDevice, StateDir: stateDir,
 		RootfsTarDir: rootfsTarDir, RootfsTarMaxBytes: defaultRootfsTarMaxBytes,
 		RootfsImageCacheMaxBytes: rootfsImageCacheMaxBytes,
-		GuestAgentPath:           guestAgentPath, UMOCIPath: umociPath, WorkerPath: workerPath, WorkerTeamID: workerTeamID,
+		GuestAgentPath:           guestAgentPath, UMOCIPath: umociPath, WorkerPath: workerPath, WorkerTeamID: workerTeamID, WorkerSHA256: workerSHA256,
 		KrunLogLevel: uint32Pointer(1),
 	})
 	if strings.TrimSpace(config.BootstrapImage) == "" {

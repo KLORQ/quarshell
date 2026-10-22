@@ -2,6 +2,7 @@ package applicationgrpc
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
@@ -9,6 +10,7 @@ import (
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -17,10 +19,15 @@ func (s *Server) CreateSandbox(ctx context.Context, request *gatewayv1.CreateSan
 	if s.Sandboxes == nil {
 		return nil, status.Error(codes.Unavailable, "sandbox service is not configured")
 	}
+	workspace := workspaceID(request.GetWorkspaceScope())
+	driverConfigJSON, err := s.prepareDriverConfig(ctx, workspace, request.GetSpec().GetTemplate().GetDriverConfig())
+	if err != nil {
+		return nil, err
+	}
 	created, _, err := s.Sandboxes.Create(ctx, sandbox.Request{
-		Workspace: workspaceID(request.GetWorkspaceScope()), Sandbox: domain.SandboxID(request.GetName()),
+		Workspace: workspace, Sandbox: domain.SandboxID(request.GetName()),
 		Generation: 1, Image: imageFromSpec(request.GetSpec()), Command: request.GetSpec().GetCommand(), TTY: request.GetSpec().GetTty(),
-		Resources: resourcesFromSpec(request.GetSpec()), Labels: request.GetLabels(),
+		Resources: resourcesFromSpec(request.GetSpec()), Labels: request.GetLabels(), DriverConfigJSON: driverConfigJSON,
 	})
 	if err != nil {
 		return nil, grpcError(err)
@@ -114,6 +121,43 @@ func (s *Server) sandboxTransition(ctx context.Context, selector *datamodelv1.Wo
 	return &gatewayv1.SandboxResponse{Sandbox: sandboxProto(updated, nil)}, nil
 }
 
+func (s *Server) prepareDriverConfig(ctx context.Context, workspace domain.WorkspaceID, config *structpb.Struct) (string, error) {
+	if config == nil {
+		return "", nil
+	}
+	values := config.AsMap()
+	token, _ := values["rootfs_tar_staging_token"].(string)
+	if token != "" {
+		path, err := s.consumeStagingToken(workspace, token)
+		if err != nil {
+			return "", err
+		}
+		delete(values, "rootfs_tar_staging_token")
+		values["rootfs_tar_path"] = path
+	}
+	for _, raw := range values {
+		envelope, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		token, _ = envelope["rootfs_tar_staging_token"].(string)
+		if token == "" {
+			continue
+		}
+		path, err := s.consumeStagingToken(workspace, token)
+		if err != nil {
+			return "", err
+		}
+		delete(envelope, "rootfs_tar_staging_token")
+		envelope["rootfs_tar_path"] = path
+	}
+	encoded, err := json.Marshal(values)
+	if err != nil {
+		return "", status.Error(codes.InvalidArgument, "sandbox driver_config is invalid")
+	}
+	return string(encoded), nil
+}
+
 func sandboxRef(selector *datamodelv1.WorkspaceSelector, name string) domain.SandboxRef {
 	return domain.SandboxRef{Workspace: workspaceID(selector), Sandbox: domain.SandboxID(name)}
 }
@@ -147,10 +191,17 @@ func sandboxProto(item sandbox.Sandbox, spec *gatewayv1.SandboxSpec) *gatewayv1.
 	if spec == nil {
 		spec = &gatewayv1.SandboxSpec{Template: &gatewayv1.SandboxTemplate{Image: item.Image}}
 	}
+	status := &gatewayv1.SandboxStatus{
+		Phase:                 phaseFromState(item.State),
+		MainProcessInstanceId: item.MainProcessInstanceID,
+	}
+	if item.MainProcessExitCode != nil {
+		status.ExitCode = item.MainProcessExitCode
+	}
 	return &gatewayv1.Sandbox{
 		Metadata: &datamodelv1.ObjectMeta{Id: string(item.Sandbox), Name: string(item.Sandbox), Labels: item.Labels, CreatedTime: timestamppb.New(item.CreatedAt)},
 		Spec:     spec,
-		Status:   &gatewayv1.SandboxStatus{Phase: phaseFromState(item.State)},
+		Status:   status,
 	}
 }
 
@@ -166,6 +217,10 @@ func phaseFromState(state string) gatewayv1.SandboxPhase {
 		return gatewayv1.SandboxPhase_SANDBOX_PHASE_STARTING
 	case "deleted":
 		return gatewayv1.SandboxPhase_SANDBOX_PHASE_DELETING
+	case "completed":
+		return gatewayv1.SandboxPhase_SANDBOX_PHASE_COMPLETED
+	case "error", "failed":
+		return gatewayv1.SandboxPhase_SANDBOX_PHASE_ERROR
 	default:
 		return gatewayv1.SandboxPhase_SANDBOX_PHASE_PROVISIONING
 	}

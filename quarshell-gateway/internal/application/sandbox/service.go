@@ -3,12 +3,14 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,16 +28,17 @@ const recordKind = "sandbox"
 
 // Request creates one sandbox generation.
 type Request struct {
-	Workspace      domain.WorkspaceID
-	Sandbox        domain.SandboxID
-	Generation     domain.Generation
-	Image          string
-	Command        []string
-	TTY            bool
-	Resources      Resources
-	Network        Network
-	Labels         map[string]string
-	IdempotencyKey domain.OperationID
+	Workspace        domain.WorkspaceID
+	Sandbox          domain.SandboxID
+	Generation       domain.Generation
+	Image            string
+	Command          []string
+	TTY              bool
+	Resources        Resources
+	Network          Network
+	Labels           map[string]string
+	DriverConfigJSON string
+	IdempotencyKey   domain.OperationID
 }
 
 // Resources are portable sandbox limits.
@@ -62,22 +65,26 @@ type PortPublish struct {
 
 // Sandbox is the durable sandbox record.
 type Sandbox struct {
-	Workspace         domain.WorkspaceID `json:"workspace"`
-	Sandbox           domain.SandboxID   `json:"sandbox"`
-	Generation        domain.Generation  `json:"generation"`
-	RuntimeGeneration domain.Generation  `json:"runtime_generation,omitempty"`
-	CredentialEpoch   uint64             `json:"credential_epoch"`
-	SessionID         string             `json:"session_id,omitempty"`
-	State             string             `json:"state"`
-	Image             string             `json:"image"`
-	RuntimeID         string             `json:"runtime_id,omitempty"`
-	Command           []string           `json:"command,omitempty"`
-	TTY               bool               `json:"tty,omitempty"`
-	Resources         Resources          `json:"resources,omitempty"`
-	Network           Network            `json:"network,omitempty"`
-	Labels            map[string]string  `json:"labels,omitempty"`
-	CreatedAt         time.Time          `json:"created_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
+	Workspace             domain.WorkspaceID `json:"workspace"`
+	Sandbox               domain.SandboxID   `json:"sandbox"`
+	Generation            domain.Generation  `json:"generation"`
+	RuntimeGeneration     domain.Generation  `json:"runtime_generation,omitempty"`
+	CredentialEpoch       uint64             `json:"credential_epoch"`
+	SessionID             string             `json:"session_id,omitempty"`
+	MainProcessInstanceID string             `json:"main_process_instance_id,omitempty"`
+	MainProcessExitCode   *int32             `json:"main_process_exit_code,omitempty"`
+	MainProcessFinalized  bool               `json:"main_process_finalized,omitempty"`
+	State                 string             `json:"state"`
+	Image                 string             `json:"image"`
+	RuntimeID             string             `json:"runtime_id,omitempty"`
+	Command               []string           `json:"command,omitempty"`
+	TTY                   bool               `json:"tty,omitempty"`
+	Resources             Resources          `json:"resources,omitempty"`
+	Network               Network            `json:"network,omitempty"`
+	Labels                map[string]string  `json:"labels,omitempty"`
+	DriverConfigJSON      string             `json:"driver_config_json,omitempty"`
+	CreatedAt             time.Time          `json:"created_at"`
+	UpdatedAt             time.Time          `json:"updated_at"`
 }
 
 // CredentialEpochOrInitial preserves compatibility with records written before
@@ -98,12 +105,13 @@ func (sandbox Sandbox) RuntimeGenerationOrInitial() domain.Generation {
 
 // Service owns sandbox mutations and reads.
 type Service struct {
-	store       lifecycle.Store
-	coordinator *lifecycle.Coordinator
-	now         func() time.Time
-	Gate        admission.Gate
-	Runtime     sandboxruntime.Runtime
-	Tokens      *tokenapp.Service
+	store              lifecycle.Store
+	coordinator        *lifecycle.Coordinator
+	now                func() time.Time
+	Gate               admission.Gate
+	Runtime            sandboxruntime.Runtime
+	Tokens             *tokenapp.Service
+	SupervisorSessions interface{ ReleaseSupervisor(string) }
 }
 
 // NewService returns a sandbox service backed by store.
@@ -130,7 +138,7 @@ func (s *Service) Create(ctx context.Context, request Request) (Sandbox, bool, e
 		Workspace: request.Workspace, Sandbox: request.Sandbox, Generation: request.Generation,
 		RuntimeGeneration: request.Generation, CredentialEpoch: 1,
 		State: "requested", Image: request.Image, Command: append([]string(nil), request.Command...), TTY: request.TTY,
-		Resources: request.Resources, Network: cloneNetwork(request.Network), Labels: cloneLabels(request.Labels), CreatedAt: now, UpdatedAt: now,
+		Resources: request.Resources, Network: cloneNetwork(request.Network), Labels: cloneLabels(request.Labels), DriverConfigJSON: request.DriverConfigJSON, CreatedAt: now, UpdatedAt: now,
 	}
 	payload, err := json.Marshal(created)
 	if err != nil {
@@ -176,6 +184,7 @@ func (s *Service) Create(ctx context.Context, request Request) (Sandbox, bool, e
 	if !replayed && s.Runtime != nil {
 		runtimeID, err := s.Runtime.Create(ctx, runtimeInput(stored))
 		if err != nil {
+			slog.ErrorContext(ctx, "sandbox runtime creation failed", "workspace", stored.Workspace, "sandbox", stored.Sandbox, "error", err)
 			return Sandbox{}, false, domain.Wrap(err, "sandbox.create", "provision runtime")
 		}
 		if runtimeID != "" {
@@ -371,6 +380,7 @@ func (s *Service) Start(ctx context.Context, ref domain.SandboxRef, generation d
 	}
 	if s.Runtime != nil && changed {
 		if err := s.startRuntime(ctx, s.Runtime, current); err != nil {
+			slog.ErrorContext(ctx, "sandbox runtime start failed", "workspace", current.Workspace, "sandbox", current.Sandbox, "generation", current.RuntimeGenerationOrInitial(), "error", err)
 			if latest, getErr := s.Get(ctx, ref); getErr == nil {
 				current = latest
 			}
@@ -418,6 +428,7 @@ func (s *Service) startRuntime(ctx context.Context, runtime sandboxruntime.Runti
 			return domain.Wrap(err, "sandbox.start", "export session verification key")
 		}
 		return starter.StartWithCredentials(ctx, runtimeInput(current), driver.RuntimeLaunchCredentials{
+			SandboxID:         string(current.Sandbox),
 			RuntimeGeneration: fmt.Sprintf("g%016x", uint64(runtimeGeneration)),
 			SessionID:         current.SessionID,
 			GatewayID:         s.Tokens.GatewayID(),
@@ -473,6 +484,9 @@ func (s *Service) Stop(ctx context.Context, ref domain.SandboxRef, generation do
 			return current, replayed, domain.Wrap(err, "sandbox.stop", "stop runtime")
 		}
 	}
+	if s.SupervisorSessions != nil {
+		s.SupervisorSessions.ReleaseSupervisor(string(current.Sandbox))
+	}
 	return current, replayed, nil
 }
 
@@ -506,6 +520,9 @@ func (s *Service) transition(ctx context.Context, operation, state, topic string
 		}
 		changed = true
 		if operation == "start" && state == "running" {
+			current.MainProcessInstanceID = ""
+			current.MainProcessExitCode = nil
+			current.MainProcessFinalized = false
 			if current.CredentialEpoch == 0 {
 				current.CredentialEpoch = 1
 			}
@@ -548,6 +565,96 @@ func (s *Service) transition(ctx context.Context, operation, state, topic string
 		}
 	}
 	return result, replayed, changed, err
+}
+
+// RecordMainProcessExit durably records the first terminal result reported by
+// the authenticated supervisor. Repeated reports are idempotent; the first
+// result wins, matching the pinned Gateway contract.
+func (s *Service) RecordMainProcessExit(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, instanceID string, exitCode int32) error {
+	if !ref.Valid() || generation == 0 || strings.TrimSpace(instanceID) == "" {
+		return domain.Invalidf("sandbox.process_exit", "sandbox, runtime generation and instance ID are required")
+	}
+	return s.updateProcessExit(ctx, ref, generation, instanceID, func(current *Sandbox) error {
+		if current.MainProcessExitCode != nil {
+			return nil
+		}
+		if current.State != "running" {
+			return domain.New(domain.CodeConflict, "sandbox.process_exit", "sandbox is not running")
+		}
+		code := exitCode
+		current.MainProcessInstanceID = instanceID
+		current.MainProcessExitCode = &code
+		if exitCode == 0 {
+			current.State = "completed"
+		} else {
+			current.State = "error"
+		}
+		return nil
+	})
+}
+
+// FinalizeMainProcessExit marks terminal delivery complete after the exit
+// result has been durably recorded by the current runtime instance.
+func (s *Service) FinalizeMainProcessExit(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, instanceID string) error {
+	if !ref.Valid() || generation == 0 || strings.TrimSpace(instanceID) == "" {
+		return domain.Invalidf("sandbox.process_exit_finalize", "sandbox, runtime generation and instance ID are required")
+	}
+	return s.updateProcessExit(ctx, ref, generation, instanceID, func(current *Sandbox) error {
+		if current.MainProcessExitCode == nil {
+			return domain.New(domain.CodeConflict, "sandbox.process_exit_finalize", "main-process exit has not been reported")
+		}
+		if current.MainProcessInstanceID != instanceID {
+			return domain.New(domain.CodeConflict, "sandbox.process_exit_finalize", "main-process instance does not match the terminal result")
+		}
+		current.MainProcessFinalized = true
+		return nil
+	})
+}
+
+func (s *Service) updateProcessExit(ctx context.Context, ref domain.SandboxRef, generation domain.Generation, instanceID string, mutate func(*Sandbox) error) error {
+	return s.store.Update(ctx, func(tx lifecycle.WriteTx) error {
+		record, exists, err := tx.Get(recordKind, refKey(ref))
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return domain.Wrap(domain.ErrNotFound, "sandbox.process_exit", "sandbox not found")
+		}
+		var current Sandbox
+		if err := json.Unmarshal(record.Payload, &current); err != nil {
+			return err
+		}
+		before, err := json.Marshal(current)
+		if err != nil {
+			return err
+		}
+		if current.RuntimeGenerationOrInitial() != generation {
+			return domain.New(domain.CodeConflict, "sandbox.process_exit", "runtime generation is stale")
+		}
+		if err := mutate(&current); err != nil {
+			return err
+		}
+		updated, err := json.Marshal(current)
+		if err != nil {
+			return err
+		}
+		if bytes.Equal(before, updated) {
+			return nil
+		}
+		current.UpdatedAt = s.now().UTC()
+		payload, err := json.Marshal(current)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Put(recordKind, refKey(ref), record.Version, payload); err != nil {
+			return err
+		}
+		phase := "result"
+		if current.MainProcessFinalized {
+			phase = "finalized"
+		}
+		return tx.Enqueue(lifecycle.OutboxMessage{ID: "sandbox.process-exit:" + refKey(ref) + ":" + strconv.FormatUint(uint64(generation), 10) + ":" + phase, Topic: "sandbox.process_exit." + phase, Payload: payload})
+	})
 }
 
 func newSandboxSessionID() (string, error) {
@@ -604,6 +711,17 @@ func (s *Service) Delete(ctx context.Context, ref domain.SandboxRef, key domain.
 	return err
 }
 
+func cloneAnyMap(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
 func cloneNetwork(network Network) Network {
 	return Network{GatewayURL: network.GatewayURL, ExtraHosts: append([]string(nil), network.ExtraHosts...), PortPublish: append([]PortPublish(nil), network.PortPublish...)}
 }
@@ -643,7 +761,8 @@ func (s *Service) setRuntimeID(ctx context.Context, ref domain.SandboxRef, runti
 func runtimeInput(item Sandbox) sandboxruntime.Sandbox {
 	return sandboxruntime.Sandbox{
 		Workspace: item.Workspace, Sandbox: item.Sandbox, RuntimeID: item.RuntimeID, Image: item.Image, Command: item.Command, TTY: item.TTY,
-		Resources: sandboxruntime.Resources{CPUCores: item.Resources.CPUCores, MemoryBytes: item.Resources.MemoryBytes, PIDs: item.Resources.PIDs, GPU: item.Resources.GPU, GPUCount: item.Resources.GPUCount},
+		DriverConfigJSON: item.DriverConfigJSON,
+		Resources:        sandboxruntime.Resources{CPUCores: item.Resources.CPUCores, MemoryBytes: item.Resources.MemoryBytes, PIDs: item.Resources.PIDs, GPU: item.Resources.GPU, GPUCount: item.Resources.GPUCount},
 		Network: sandboxruntime.Network{
 			GatewayURL: item.Network.GatewayURL, ExtraHosts: append([]string(nil), item.Network.ExtraHosts...),
 			PortPublish: portPublishes(item.Network.PortPublish),

@@ -21,6 +21,22 @@ func (c *Client) PostLogs(ctx context.Context, sandbox string, lines []LogLine) 
 	if current.ID == "" {
 		return fmt.Errorf("resolve OpenShell sandbox for log push: sandbox ID is empty")
 	}
+	return c.postSandboxLogs(ctx, current.ID, lines)
+}
+
+// PostSandboxLogs publishes observations when the caller already holds the
+// Gateway-issued sandbox ID, as a supervisor does with its Sandbox bearer.
+func (c *Client) PostSandboxLogs(ctx context.Context, sandboxID string, lines []LogLine) error {
+	if len(lines) == 0 {
+		return nil
+	}
+	if sandboxID == "" {
+		return fmt.Errorf("sandbox ID is required")
+	}
+	return c.postSandboxLogs(ctx, sandboxID, lines)
+}
+
+func (c *Client) postSandboxLogs(ctx context.Context, sandboxID string, lines []LogLine) error {
 	items := make([]*gatewayv1.SandboxLogLine, 0, len(lines))
 	for _, line := range lines {
 		ts := line.TS
@@ -28,7 +44,7 @@ func (c *Client) PostLogs(ctx context.Context, sandbox string, lines []LogLine) 
 			ts = time.Now()
 		}
 		items = append(items, &gatewayv1.SandboxLogLine{
-			SandboxId: current.ID, EventTime: timestamppb.New(ts),
+			SandboxId: sandboxID, EventTime: timestamppb.New(ts),
 			Source: line.Source, Level: line.Level, Message: line.Text,
 		})
 	}
@@ -40,7 +56,7 @@ func (c *Client) PostLogs(ctx context.Context, sandbox string, lines []LogLine) 
 	if err != nil {
 		return fmt.Errorf("open OpenShell sandbox log push: %w", err)
 	}
-	if err := stream.Send(&gatewayv1.PushSandboxLogsRequest{SandboxId: current.ID, Logs: items}); err != nil {
+	if err := stream.Send(&gatewayv1.PushSandboxLogsRequest{SandboxId: sandboxID, Logs: items}); err != nil {
 		return fmt.Errorf("send OpenShell sandbox logs: %w", err)
 	}
 	if _, err := stream.CloseAndRecv(); err != nil {

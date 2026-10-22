@@ -105,12 +105,25 @@ func ParseVMIdentity(raw string) (VMIdentity, error) {
 	if !canonicalSessionUUID(parts[4]) || err != nil || len(sessionBytes) != 16 {
 		return id, errors.New("supervisorcontrol: VM identity contains an invalid session")
 	}
-	generation, err := hex.DecodeString(parts[10])
-	if err != nil || len(generation) != 16 || strings.ToLower(parts[10]) != parts[10] {
+	if !validVMRuntimeGeneration(parts[10]) || strings.ToLower(parts[10]) != parts[10] {
 		return id, errors.New("supervisorcontrol: VM identity contains an invalid generation")
 	}
 	id = VMIdentity{SandboxID: parts[2], SessionID: parts[4], ImageDigest: parts[6], RuntimeDigest: parts[8], Generation: parts[10]}
 	return id, nil
+}
+
+func validVMRuntimeGeneration(raw string) bool {
+	// Locally provisioned VMs use a random 128-bit generation. Gateway-owned
+	// launch credentials use OpenShell's g-prefixed 64-bit generation.
+	if len(raw) == 32 {
+		decoded, err := hex.DecodeString(raw)
+		return err == nil && len(decoded) == 16
+	}
+	if len(raw) != 17 || raw[0] != 'g' {
+		return false
+	}
+	decoded, err := hex.DecodeString(raw[1:])
+	return err == nil && len(decoded) == 8
 }
 
 func canonicalSessionUUID(raw string) bool {

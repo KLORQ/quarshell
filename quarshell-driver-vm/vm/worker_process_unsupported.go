@@ -40,3 +40,7 @@ func prepareWorkerIsolation(workerIsolationConfig) error {
 func verifyWorkerCodeSignature(string, string) error {
 	return fmt.Errorf("Apple code signature verification is unsupported on this platform")
 }
+
+func verifyWorkerAdHocSignature(string) error {
+	return fmt.Errorf("Apple ad-hoc code signature verification is unsupported on this platform")
+}

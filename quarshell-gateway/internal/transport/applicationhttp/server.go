@@ -227,14 +227,15 @@ func (s *Server) deleteWorkspace(writer http.ResponseWriter, request *http.Reque
 }
 
 type createSandboxRequest struct {
-	ID         string            `json:"id"`
-	Generation uint64            `json:"generation"`
-	Image      string            `json:"image"`
-	Command    []string          `json:"command"`
-	TTY        bool              `json:"tty"`
-	Resources  sandbox.Resources `json:"resources"`
-	Network    sandbox.Network   `json:"network"`
-	Labels     map[string]string `json:"labels"`
+	ID               string            `json:"id"`
+	Generation       uint64            `json:"generation"`
+	Image            string            `json:"image"`
+	Command          []string          `json:"command"`
+	TTY              bool              `json:"tty"`
+	Resources        sandbox.Resources `json:"resources"`
+	Network          sandbox.Network   `json:"network"`
+	Labels           map[string]string `json:"labels"`
+	DriverConfigJSON string            `json:"driver_config_json,omitempty"`
 }
 
 func (s *Server) createSandbox(writer http.ResponseWriter, request *http.Request) {
@@ -246,7 +247,7 @@ func (s *Server) createSandbox(writer http.ResponseWriter, request *http.Request
 	created, replayed, err := s.Sandboxes.Create(request.Context(), sandbox.Request{
 		Workspace: domain.WorkspaceID(request.PathValue("workspace")), Sandbox: domain.SandboxID(body.ID),
 		Generation: domain.Generation(body.Generation), Image: body.Image, Command: body.Command, TTY: body.TTY,
-		Resources: body.Resources, Network: body.Network, Labels: body.Labels,
+		Resources: body.Resources, Network: body.Network, Labels: body.Labels, DriverConfigJSON: body.DriverConfigJSON,
 		IdempotencyKey: domain.OperationID(request.Header.Get("Idempotency-Key")),
 	})
 	if err != nil {

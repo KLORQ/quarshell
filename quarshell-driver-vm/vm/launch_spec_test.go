@@ -62,6 +62,16 @@ func TestApplyOCIImageConfigUsesImageDefaultsAndSafeFallback(t *testing.T) {
 	}
 }
 
+func TestApplyOCIImageConfigKeepsSandboxWorkdirForRootImageWorkdir(t *testing.T) {
+	got, err := applyOCIImageConfig(cloneVMLaunchSpec(vmCreateSpec{}), v1.Config{WorkingDir: "/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.WorkDir != "/sandbox" {
+		t.Fatalf("root image workdir resolved to %q, want private sandbox workspace", got.WorkDir)
+	}
+}
+
 func TestApplyOCIImageConfigRejectsMalformedRuntimeFields(t *testing.T) {
 	tests := []struct {
 		name   string

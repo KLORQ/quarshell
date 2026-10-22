@@ -87,7 +87,10 @@ func (a *App) Proxy(opt ProxyOpts) error {
 	}
 	sandbox := opt.Sandbox
 	if sandbox == "" {
-		sandbox = os.Getenv("CAUTEM_SANDBOX")
+		sandbox = strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_SANDBOX_ID"))
+		if sandbox == "" {
+			sandbox = os.Getenv("CAUTEM_SANDBOX")
+		}
 	}
 	// OpenShell-style: CAUTEM_GATEWAY_URL must resolve via ExtraHosts
 	// (host.cautem.internal → host-gateway). No hostname guessing.
@@ -97,7 +100,8 @@ func (a *App) Proxy(opt ProxyOpts) error {
 		if !opt.GatewayHostMode {
 			gwURL = GuestGatewayURL(gwURL)
 		}
-		gw = klorq.NewWithToken(gwURL, sandboxToken)
+		gw = klorq.NewWithToken(gwURL, sandboxProtocolToken)
+		gw.SetGRPCEndpoint(strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_GRPC_ENDPOINT")))
 		pusher = gatewayAuditPusher{c: gw}
 		if sandboxToken == "" {
 			log.Warn("no sandbox supervisor token; gateway calls will be rejected", "env", EnvSandboxToken)
@@ -110,8 +114,8 @@ func (a *App) Proxy(opt ProxyOpts) error {
 		}
 	}()
 	srv := proxy.NewServer(&eng, audit)
-	srv.GatewayToken = sandboxToken
-	if gw != nil && sandboxToken != "" {
+	srv.GatewayToken = sandboxProtocolToken
+	if gw != nil && sandboxProtocolToken != "" {
 		policyTLSConfig, tlsErr := relayclient.GatewayTLSConfigFromEnvironment()
 		if tlsErr != nil {
 			return tlsErr
@@ -121,7 +125,7 @@ func (a *App) Proxy(opt ProxyOpts) error {
 				GatewayURL:          gwURL,
 				GatewayGRPCEndpoint: strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_GRPC_ENDPOINT")),
 				Sandbox:             sandbox,
-				Token:               sandboxToken,
+				Token:               sandboxProtocolToken,
 				TLSConfig:           policyTLSConfig,
 			}, revision, loadError)
 		}
@@ -177,11 +181,13 @@ func (a *App) Proxy(opt ProxyOpts) error {
 		relayConfig := relayclient.Config{
 			GatewayURL:                        gwURL,
 			GatewayGRPCEndpoint:               strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_GRPC_ENDPOINT")),
+			GatewayToken:                      sandboxToken,
 			SupervisorControlSocket:           supervisorControlSocket,
 			SupervisorControlAddress:          controlAddress,
 			SupervisorControlTLSConfig:        controlTLSConfig,
 			SupervisorControlExpectedIdentity: strings.TrimSpace(os.Getenv(supervisorcontrol.EnvExpectedClientIdentity)),
 			IsolationDescriptorPath:           strings.TrimSpace(os.Getenv("CAUTEM_ISOLATION_DESCRIPTOR_PATH")),
+			IsolationSandboxID:                strings.TrimSpace(os.Getenv("CAUTEM_SANDBOX")),
 			AdmittedIsolationBackend:          strings.TrimSpace(os.Getenv("CAUTEM_ADMITTED_ISOLATION_BACKEND")),
 			Sandbox:                           sandbox,
 			Token:                             sandboxProtocolToken,
@@ -191,14 +197,17 @@ func (a *App) Proxy(opt ProxyOpts) error {
 			TargetTLSConfig:                   targetTLSConfig,
 			TLSConfig:                         relayTLSConfig,
 			Log:                               log.Logger,
-			OnCredentialsRefreshed: func(gatewayToken, _ string) error {
+			OnCredentialsRefreshed: func(gatewayToken, refreshedSandboxToken string) error {
 				if strings.TrimSpace(gatewayToken) == "" {
 					return fmt.Errorf("Gateway returned an empty refreshed Gateway bearer")
 				}
-				if gw != nil {
-					gw.SetToken(gatewayToken)
+				if strings.TrimSpace(refreshedSandboxToken) == "" {
+					return fmt.Errorf("Gateway returned an empty refreshed Sandbox bearer")
 				}
-				srv.SetGatewayToken(gatewayToken)
+				if gw != nil {
+					gw.SetToken(refreshedSandboxToken)
+				}
+				srv.SetGatewayToken(refreshedSandboxToken)
 				return nil
 			},
 		}
@@ -210,7 +219,7 @@ func (a *App) Proxy(opt ProxyOpts) error {
 				log.Error("supervisor relay stopped", slogx.Err(err))
 			}
 		}()
-		log.Info("supervisor relay enabled", "ssh_socket", sshSocket, "control_mtls", controlAddress != "")
+		log.Info("supervisor relay enabled", "ssh_socket", sshSocket, "control_mtls", controlTLSConfig != nil)
 	}
 
 	if ca := srv.CA(); ca != nil && opt.CAOut != "" {
@@ -336,7 +345,7 @@ func (g gatewayAuditPusher) PostLogs(ctx context.Context, sandbox string, lines 
 	for i, l := range lines {
 		out[i] = klorq.LogLine{TS: l.TS, Source: l.Source, Level: l.Level, Text: l.Text}
 	}
-	return g.c.PostLogs(ctx, sandbox, out)
+	return g.c.PostSandboxLogs(ctx, sandbox, out)
 }
 
 func hostEnvForPolicy(doc policy.Document) []string {

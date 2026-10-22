@@ -67,6 +67,18 @@ func TestSupervisorOwnerLeaseSurvivesDisconnectAndExpires(t *testing.T) {
 	}
 }
 
+func TestReleaseSupervisorAllowsImmediateReplacementAfterExplicitStop(t *testing.T) {
+	h := NewHub()
+	noop := func(string, string) error { return nil }
+	if _, err := h.RegisterSupervisor("sandbox", "instance-1", 1, noop, make(chan struct{}), nil); err != nil {
+		t.Fatal(err)
+	}
+	h.ReleaseSupervisor("sandbox")
+	if _, err := h.RegisterSupervisor("sandbox", "instance-2", 1, noop, make(chan struct{}), nil); err != nil {
+		t.Fatalf("explicit stop did not release previous owner: %v", err)
+	}
+}
+
 func TestWaitConnected(t *testing.T) {
 	t.Run("already connected", func(t *testing.T) {
 		h := NewHub()

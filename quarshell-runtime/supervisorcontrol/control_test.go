@@ -156,3 +156,17 @@ func TestPeerGuardBindsClaimsAndRejectsReplay(t *testing.T) {
 		t.Fatal("expired claims were accepted")
 	}
 }
+
+func TestParseVMIdentityAcceptsOpenShellRuntimeGeneration(t *testing.T) {
+	identity := "spiffe://cautem.vm/sandbox/sandbox-a/session/11234567-89ab-cdef-0123-456789abcdef/rootfs/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/runtime/sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/generation/g0000000000000001"
+	parsed, err := ParseVMIdentity(identity)
+	if err != nil || parsed.Generation != "g0000000000000001" {
+		t.Fatalf("ParseVMIdentity() = (%+v, %v), want OpenShell generation", parsed, err)
+	}
+	for _, generation := range []string{"g000000000000000z", "g000000000000001", "g00000000000000001"} {
+		candidate := strings.TrimSuffix(identity, "g0000000000000001") + generation
+		if _, err := ParseVMIdentity(candidate); err == nil {
+			t.Errorf("ParseVMIdentity accepted malformed OpenShell generation %q", generation)
+		}
+	}
+}

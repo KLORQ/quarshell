@@ -328,6 +328,11 @@ tasks:
     cmds:
       - python3 tools/check-vm-parity.py
 
+  "vm:install-check":
+    desc: Verify VM runtime install, upgrade and rollback
+    cmds:
+      - python3 quarshell-driver/scripts/test-vm-runtime-install.py
+
   "vm:artifact-check":
     desc: Verify runtime artifact digests fail closed and publish atomically
     cmds:

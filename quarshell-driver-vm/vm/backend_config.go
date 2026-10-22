@@ -25,7 +25,14 @@ func hostConfigFromMap(values map[string]any) (HostConfig, error) {
 	config.VCPUs = 2
 	config.MemoryMiB = 2048
 	config.OverlaySizeBytes = defaultOverlaySize
-	var endpointScheme string
+	endpointScheme := ""
+	if config.GRPCEndpoint != "" {
+		parsed, err := parseHostGRPCEndpoint(config.GRPCEndpoint)
+		if err != nil {
+			return HostConfig{}, fmt.Errorf("OPENSHELL_GRPC_ENDPOINT: %w", err)
+		}
+		endpointScheme = parsed.Scheme
+	}
 	for key, value := range values {
 		var err error
 		switch key {
@@ -106,10 +113,10 @@ func hostConfigFromMap(values map[string]any) (HostConfig, error) {
 			var endpoint string
 			endpoint, err = vmConfigString(value, key)
 			if err == nil {
-				parsed, parseErr := url.Parse(endpoint)
-				if parseErr != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-					err = fmt.Errorf("grpc_endpoint must be an http(s) URL without credentials, query, or fragment")
-				} else {
+				var parsed *url.URL
+				parsed, err = parseHostGRPCEndpoint(endpoint)
+				if err == nil {
+					config.GRPCEndpoint = endpoint
 					endpointScheme = parsed.Scheme
 				}
 			}
@@ -177,6 +184,14 @@ func hostConfigFromMap(values map[string]any) (HostConfig, error) {
 		config.BootstrapImage = config.DefaultImage
 	}
 	return config, nil
+}
+
+func parseHostGRPCEndpoint(endpoint string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+		return nil, fmt.Errorf("grpc_endpoint must be an http(s) URL without credentials, path, query, or fragment")
+	}
+	return parsed, nil
 }
 
 func applyVMEnvironmentOverrides(config *HostConfig, endpointScheme string, explicit map[string]any) (string, error) {

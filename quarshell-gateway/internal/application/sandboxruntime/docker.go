@@ -3,6 +3,8 @@ package sandboxruntime
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,15 +17,16 @@ import (
 
 // Sandbox is the backend-facing lifecycle input.
 type Sandbox struct {
-	Workspace domain.WorkspaceID
-	Sandbox   domain.SandboxID
-	RuntimeID string
-	Image     string
-	Command   []string
-	TTY       bool
-	Resources Resources
-	Network   Network
-	Labels    map[string]string
+	Workspace        domain.WorkspaceID
+	Sandbox          domain.SandboxID
+	RuntimeID        string
+	Image            string
+	Command          []string
+	TTY              bool
+	Resources        Resources
+	Network          Network
+	Labels           map[string]string
+	DriverConfigJSON string
 }
 
 // Network is the egress and host-network configuration.
@@ -84,6 +87,33 @@ func (d *Docker) PTY(ctx context.Context, sandbox Sandbox, columns, rows uint32)
 	return terminal.OpenMainProcessTTY(ctx, id(sandbox), columns, rows)
 }
 
+// RootfsStaging allocates a backend-owned upload directory.
+func (d *Docker) RootfsStaging(ctx context.Context) (string, uint64, error) {
+	stager, ok := d.Backend.(driver.RuntimeRootfsTarStager)
+	if !ok {
+		return "", 0, domain.New(domain.CodeUnavailable, "sandboxruntime.rootfs", "backend does not support rootfs tar staging")
+	}
+	return stager.RootfsTarStaging(ctx)
+}
+
+// StreamLogs writes backend logs to writer. It prefers the durable LogAccess
+// contract and falls back to the main-process log attacher.
+func (d *Docker) StreamLogs(ctx context.Context, sandbox Sandbox, follow bool, writer io.Writer) error {
+	if access, ok := d.Backend.(driver.LogAccess); ok {
+		return access.Logs(ctx, id(sandbox), follow, writer)
+	}
+	if attacher, ok := d.Backend.(driver.MainProcessLogAttacher); ok {
+		stream, err := attacher.OpenMainProcessLogs(ctx, id(sandbox))
+		if err != nil {
+			return err
+		}
+		defer stream.Close()
+		_, err = io.Copy(writer, stream)
+		return err
+	}
+	return domain.New(domain.CodeUnavailable, "sandboxruntime.logs", "backend does not expose logs")
+}
+
 // Logs streams the canonical sandbox process logs when supported.
 func (d *Docker) Logs(ctx context.Context, sandbox Sandbox) (io.ReadCloser, error) {
 	attacher, ok := d.Backend.(driver.MainProcessLogAttacher)
@@ -126,7 +156,10 @@ func (d *Docker) Create(ctx context.Context, sandbox Sandbox) (string, error) {
 	if err := validateRuntimeContract(ctx, d.Backend); err != nil {
 		return "", err
 	}
-	request := d.createRequest(sandbox)
+	request, err := d.createRequest(sandbox)
+	if err != nil {
+		return "", err
+	}
 	if request.Workspace.Kind == driver.WorkspaceHostPath {
 		if err := os.MkdirAll(request.Workspace.HostPath, 0o700); err != nil {
 			return "", err
@@ -155,7 +188,11 @@ func (d *Docker) StartWithToken(ctx context.Context, sandbox Sandbox, token stri
 		return err
 	}
 	if restorer, ok := d.Backend.(driver.RuntimeLaunchSpecRestorer); ok {
-		if err := restorer.RestoreLaunchSpec(ctx, id(sandbox), d.createRequest(sandbox)); err != nil {
+		request, err := d.createRequest(sandbox)
+		if err != nil {
+			return err
+		}
+		if err := restorer.RestoreLaunchSpec(ctx, id(sandbox), request); err != nil {
 			return err
 		}
 	}
@@ -173,7 +210,11 @@ func (d *Docker) StartWithCredentials(ctx context.Context, sandbox Sandbox, cred
 		return err
 	}
 	if restorer, ok := d.Backend.(driver.RuntimeLaunchSpecRestorer); ok {
-		if err := restorer.RestoreLaunchSpec(ctx, id(sandbox), d.createRequest(sandbox)); err != nil {
+		request, err := d.createRequest(sandbox)
+		if err != nil {
+			return err
+		}
+		if err := restorer.RestoreLaunchSpec(ctx, id(sandbox), request); err != nil {
 			return err
 		}
 	}
@@ -191,7 +232,7 @@ func (d *Docker) SupportsRuntimeCredentials() bool {
 	return ok
 }
 
-func (d *Docker) createRequest(sandbox Sandbox) driver.BackendCreateRequest {
+func (d *Docker) createRequest(sandbox Sandbox) (driver.BackendCreateRequest, error) {
 	kind := d.WorkspaceKind
 	if kind == "" {
 		kind = driver.WorkspaceHostPath
@@ -200,13 +241,40 @@ func (d *Docker) createRequest(sandbox Sandbox) driver.BackendCreateRequest {
 	if kind == driver.WorkspaceHostPath {
 		workspacePath = filepath.Join(d.WorkspaceRoot, string(sandbox.Workspace), string(sandbox.Sandbox))
 	}
+	var backendID driver.BackendID
+	if d.Backend != nil {
+		backendID = d.Backend.ID()
+	}
+	config, err := selectedDriverConfig(sandbox.DriverConfigJSON, backendID)
+	if err != nil {
+		return driver.BackendCreateRequest{}, err
+	}
 	return driver.BackendCreateRequest{
 		SandboxID: core.ID(string(sandbox.Sandbox)), Name: string(sandbox.Sandbox),
 		Workspace: driver.WorkspaceTarget{Kind: kind, ID: string(sandbox.Workspace), HostPath: workspacePath, Persist: true},
 		Workload:  driver.WorkloadSpec{Image: sandbox.Image, Command: append([]string(nil), sandbox.Command...), TTY: sandbox.TTY},
 		Resources: driver.ResourceLimits{CPUCores: sandbox.Resources.CPUCores, MemoryBytes: sandbox.Resources.MemoryBytes, PIDs: sandbox.Resources.PIDs, GPU: sandbox.Resources.GPU, GPUCount: sandbox.Resources.GPUCount},
-		Network:   d.networkSpec(sandbox.Network), Runtime: d.Runtime, Labels: sandbox.Labels,
+		Network:   d.networkSpec(sandbox.Network), Runtime: d.Runtime, Labels: sandbox.Labels, Config: config,
+	}, nil
+}
+
+func selectedDriverConfig(raw string, backendID driver.BackendID) (any, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
 	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &envelope); err != nil || envelope == nil {
+		return nil, fmt.Errorf("sandbox driver_config must be a JSON object keyed by compute driver")
+	}
+	selected, exists := envelope[string(backendID)]
+	if !exists {
+		return nil, nil
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(selected, &object); err != nil || object == nil {
+		return nil, fmt.Errorf("sandbox driver_config for %s must be an object", backendID)
+	}
+	return selected, nil
 }
 
 func (d *Docker) networkSpec(network Network) driver.NetworkSpec {

@@ -47,12 +47,31 @@ func validateIsolationDescriptor(cfg Config) error {
 		return fmt.Errorf("relayclient: decode isolation descriptor: %w", err)
 	}
 	backend := strings.TrimSpace(cfg.AdmittedIsolationBackend)
-	if backend == "" || descriptor.BackendName != backend || descriptor.SandboxID != strings.TrimSpace(cfg.Sandbox) {
-		return fmt.Errorf("relayclient: isolation descriptor does not match admitted backend and sandbox")
+	sandboxID := strings.TrimSpace(cfg.IsolationSandboxID)
+	if sandboxID == "" {
+		sandboxID = strings.TrimSpace(cfg.Sandbox)
+	}
+	if backend == "" || descriptor.BackendName != backend || descriptor.SandboxID != sandboxID {
+		return fmt.Errorf("relayclient: isolation descriptor does not match admitted backend and sandbox (backend_match=%t sandbox_match=%t)", backend != "" && descriptor.BackendName == backend, descriptor.SandboxID == sandboxID)
 	}
 	identity, err := supervisorcontrol.ParseVMIdentity(strings.TrimSpace(cfg.SupervisorControlExpectedIdentity))
-	if err != nil || identity.SandboxID != descriptor.SandboxID || identity.SessionID != descriptor.SessionID || identity.Generation != descriptor.Generation || identity.ImageDigest != descriptor.RootfsDigest || identity.RuntimeDigest != descriptor.RuntimeDigest {
-		return fmt.Errorf("relayclient: VM supervisor identity does not match isolation descriptor")
+	if err != nil {
+		return fmt.Errorf("relayclient: parse VM supervisor identity: %w", err)
+	}
+	if identity.SandboxID != descriptor.SandboxID {
+		return fmt.Errorf("relayclient: VM supervisor sandbox identity does not match isolation descriptor")
+	}
+	if identity.SessionID != descriptor.SessionID {
+		return fmt.Errorf("relayclient: VM supervisor session identity does not match isolation descriptor")
+	}
+	if identity.Generation != descriptor.Generation {
+		return fmt.Errorf("relayclient: VM supervisor generation does not match isolation descriptor")
+	}
+	if identity.ImageDigest != descriptor.RootfsDigest {
+		return fmt.Errorf("relayclient: VM supervisor rootfs identity does not match isolation descriptor")
+	}
+	if identity.RuntimeDigest != descriptor.RuntimeDigest {
+		return fmt.Errorf("relayclient: VM supervisor runtime identity does not match isolation descriptor")
 	}
 	return nil
 }

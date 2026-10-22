@@ -50,12 +50,20 @@ func runSupervisorGRPC(ctx context.Context, cfg Config) error {
 	}
 	defer conn.Close()
 	client := openshellv1.NewOpenShellClient(conn)
-	instanceID, err := newInstanceID()
-	if err != nil {
-		return fmt.Errorf("relayclient: create supervisor instance id: %w", err)
+	instanceID := ""
+	if strings.TrimSpace(cfg.SupervisorControlSocket) == "" && strings.TrimSpace(cfg.SupervisorControlAddress) == "" {
+		instanceID, err = newInstanceID()
+		if err != nil {
+			return fmt.Errorf("relayclient: create supervisor instance id: %w", err)
+		}
 	}
 	instance := newSupervisorInstance(instanceID)
 	token := newSupervisorToken(cfg.Token)
+	gatewayTokenValue := cfg.GatewayToken
+	if strings.TrimSpace(gatewayTokenValue) == "" {
+		gatewayTokenValue = cfg.Token
+	}
+	gatewayToken := newSupervisorToken(gatewayTokenValue)
 	processEvents := make(chan processEventItem, 256)
 	go runProcessEventPusher(ctx, cfg, client, token, processEvents)
 	controlServer, err := startLifecycleControl(ctx, cfg, client, instance, token, processEvents)
@@ -66,11 +74,19 @@ func runSupervisorGRPC(ctx context.Context, cfg Config) error {
 	backoff := cfg.MinBackoff
 	var connectionEpoch uint64
 	for {
+		instanceID, changed := instance.snapshot()
+		if instanceID == "" {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-changed:
+				continue
+			}
+		}
 		if connectionEpoch == ^uint64(0) {
 			return errors.New("relayclient: supervisor connection epoch exhausted")
 		}
 		connectionEpoch++
-		instanceID, changed := instance.snapshot()
 		started := time.Now()
 		sessionCtx, sessionCancel := context.WithCancel(ctx)
 		go func() {
@@ -80,7 +96,7 @@ func runSupervisorGRPC(ctx context.Context, cfg Config) error {
 			case <-sessionCtx.Done():
 			}
 		}()
-		err = supervisorSession(sessionCtx, client, cfg, instanceID, connectionEpoch, instance, token)
+		err = supervisorSession(sessionCtx, client, cfg, instanceID, connectionEpoch, instance, token, gatewayToken)
 		sessionCancel()
 		if ctx.Err() != nil {
 			return nil

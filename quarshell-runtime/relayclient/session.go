@@ -25,7 +25,7 @@ func (c *supervisorControl) send(message *openshellv1.SupervisorMessage) error {
 	return c.stream.Send(message)
 }
 
-func supervisorSession(ctx context.Context, client openshellv1.OpenShellClient, cfg Config, instanceID string, connectionEpoch uint64, instance *supervisorInstance, token *supervisorToken) error {
+func supervisorSession(ctx context.Context, client openshellv1.OpenShellClient, cfg Config, instanceID string, connectionEpoch uint64, instance *supervisorInstance, token, gatewayToken *supervisorToken) error {
 	sessionCtx, sessionCancel := context.WithCancel(ctx)
 	defer sessionCancel()
 	if token.get() == "" {
@@ -95,7 +95,7 @@ func supervisorSession(ctx context.Context, client openshellv1.OpenShellClient, 
 			}
 		case <-refreshTicker.C:
 			refreshCtx, cancel := context.WithTimeout(sessionCtx, 15*time.Second)
-			response, refreshErr := client.RefreshSandboxToken(metadata.NewOutgoingContext(refreshCtx, metadata.Pairs("authorization", "Bearer "+token.get())), &openshellv1.RefreshSandboxTokenRequest{})
+			response, refreshErr := client.RefreshSandboxToken(metadata.NewOutgoingContext(refreshCtx, metadata.Pairs("authorization", "Bearer "+gatewayToken.get())), &openshellv1.RefreshSandboxTokenRequest{})
 			cancel()
 			if refreshErr != nil {
 				return fmt.Errorf("refresh supervisor token: %w", refreshErr)
@@ -112,6 +112,9 @@ func supervisorSession(ctx context.Context, client openshellv1.OpenShellClient, 
 				}
 			}
 			if err := token.set(refreshedToken); err != nil {
+				return err
+			}
+			if err := gatewayToken.set(response.GetToken()); err != nil {
 				return err
 			}
 			cfg.Log.Debug("OpenShell supervisor token refreshed", "op", "supervisor.token.refresh", "sandbox", cfg.Sandbox)

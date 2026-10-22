@@ -18,7 +18,61 @@ import (
 
 	openshellv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"github.com/KLORQ/quarshell-runtime/supervisorcontrol"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
+
+type exitCaptureOpenShellClient struct {
+	emptyOpenShellClient
+	reportBearer   string
+	finalizeBearer string
+}
+
+func (c *exitCaptureOpenShellClient) ReportMainProcessExit(ctx context.Context, _ *openshellv1.ReportMainProcessExitRequest, _ ...grpc.CallOption) (*openshellv1.ReportMainProcessExitResponse, error) {
+	c.reportBearer = outgoingBearer(ctx)
+	return &openshellv1.ReportMainProcessExitResponse{}, nil
+}
+
+func (c *exitCaptureOpenShellClient) FinalizeMainProcessExit(ctx context.Context, _ *openshellv1.FinalizeMainProcessExitRequest, _ ...grpc.CallOption) (*openshellv1.FinalizeMainProcessExitResponse, error) {
+	c.finalizeBearer = outgoingBearer(ctx)
+	return &openshellv1.FinalizeMainProcessExitResponse{}, nil
+}
+
+func outgoingBearer(ctx context.Context) string {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	values := md.Get("authorization")
+	if len(values) != 1 {
+		return ""
+	}
+	return values[0]
+}
+
+func TestLifecycleExitRPCsUseSandboxProtocolBearer(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "exit-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	path := filepath.Join(dir, "control.sock")
+	instance := newSupervisorInstance("instance-1")
+	instance.markConnected("instance-1")
+	client := &exitCaptureOpenShellClient{}
+	server, err := startLifecycleControl(context.Background(), Config{SupervisorControlSocket: path, Sandbox: "sandbox-1"}, client, instance, newSupervisorToken("sandbox-protocol-token"), make(chan processEventItem, 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	for _, operation := range []supervisorcontrol.Request{{Operation: supervisorcontrol.OperationReport, InstanceID: "instance-1", ExitCode: 17}, {Operation: supervisorcontrol.OperationFinalize, InstanceID: "instance-1"}} {
+		if _, err := supervisorcontrol.Call(ctx, path, operation); err != nil {
+			t.Fatalf("%s: %v", operation.Operation, err)
+		}
+	}
+	if client.reportBearer != "Bearer sandbox-protocol-token" || client.finalizeBearer != "Bearer sandbox-protocol-token" {
+		t.Fatalf("exit RPC bearers report=%q finalize=%q", client.reportBearer, client.finalizeBearer)
+	}
+}
 
 func TestLifecycleControlServesRemoteWorkloadOverMTLS(t *testing.T) {
 	ca, caKey := newControlTestCA(t)

@@ -192,6 +192,60 @@ func TestPrepareBrokerCredentialWritesDescriptorBoundAuthBundle(t *testing.T) {
 	if err != nil || bundle.GatewayToken != "signed.jwt.value" || bundle.SandboxToken != "sandbox.jwt.value" || bundle.AuthEpoch != 4 || bundle.SessionRotation != 2 {
 		t.Fatalf("auth bundle = %+v, err = %v", bundle, err)
 	}
+	zeroExpiryEnvironment := []string{
+		"CAUTEM_SANDBOX_TOKEN=gateway.jwt.value",
+		"CAUTEM_SANDBOX_PROTOCOL_TOKEN=sandbox.jwt.value",
+		"CAUTEM_GATEWAY_TOKEN_EXPIRES_AT=0",
+		"CAUTEM_SANDBOX_TOKEN_EXPIRES_AT=0",
+		"CAUTEM_AUTH_EPOCH=4",
+		"CAUTEM_SESSION_ROTATION=2",
+		"CAUTEM_RUNTIME_GENERATION=g0000000000000002",
+		"CAUTEM_SANDBOX=sandbox-a",
+		"CAUTEM_ADMITTED_ISOLATION_BACKEND=cautem/vm",
+		"CAUTEM_ISOLATION_DESCRIPTOR_PATH=" + descriptorPath,
+	}
+	_, zeroExpiryPath, err := prepareBrokerCredential(networkBrokerConfig{LogDir: filepath.Join(dir, "zero-expiry-state")}, zeroExpiryEnvironment)
+	if err != nil {
+		t.Fatalf("prepareBrokerCredential() rejected OpenShell zero expiry: %v", err)
+	}
+	zeroExpiryData, err := os.ReadFile(zeroExpiryPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zeroExpiryBundle, err := isolation.DecodeHostAuthBundle(zeroExpiryData, descriptor)
+	if err != nil || zeroExpiryBundle.GatewayExpiresAt != 0 || zeroExpiryBundle.SandboxExpiresAt != 0 {
+		t.Fatalf("zero-expiry auth bundle = %+v, err = %v", zeroExpiryBundle, err)
+	}
+	for _, testCase := range []struct {
+		name   string
+		mutate func([]string) []string
+	}{
+		{name: "missing paired expiry", mutate: func(environment []string) []string {
+			filtered := environment[:0]
+			for _, entry := range environment {
+				if !strings.HasPrefix(entry, "CAUTEM_GATEWAY_TOKEN_EXPIRES_AT=") {
+					filtered = append(filtered, entry)
+				}
+			}
+			return filtered
+		}},
+		{name: "expiry exceeds signed bundle range", mutate: func(environment []string) []string {
+			for index, entry := range environment {
+				if strings.HasPrefix(entry, "CAUTEM_GATEWAY_TOKEN_EXPIRES_AT=") {
+					environment[index] = "CAUTEM_GATEWAY_TOKEN_EXPIRES_AT=9223372036854775808"
+				}
+			}
+			return environment
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			environment := append([]string(nil), zeroExpiryEnvironment...)
+			_, _, err := prepareBrokerCredential(networkBrokerConfig{LogDir: filepath.Join(dir, "invalid-"+strings.ReplaceAll(testCase.name, " ", "-"))}, testCase.mutate(environment))
+			if err == nil {
+				t.Fatal("prepareBrokerCredential() accepted invalid credential expiry metadata")
+			}
+		})
+	}
 	info, err := os.Lstat(bundlePath)
 	if err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("auth bundle mode = %v, err = %v", info.Mode().Perm(), err)

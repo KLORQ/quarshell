@@ -18,9 +18,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	core "github.com/KLORQ/quarshell-core"
+	"github.com/KLORQ/quarshell-core/isolation"
 	"github.com/KLORQ/quarshell-driver-vm/vmguest"
 	"github.com/KLORQ/quarshell-driver/driver"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -51,7 +53,7 @@ func (d *Driver) StartWithToken(ctx context.Context, id core.ID, token string) e
 // mode-0600 auth bundle for this launch.
 func (d *Driver) StartWithCredentials(ctx context.Context, id core.ID, credentials driver.RuntimeLaunchCredentials) error {
 	if !validRuntimeLaunchCredentials(credentials) {
-		return fmt.Errorf("vm driver: StartWithCredentials requires paired tokens, expiry, positive auth epoch, and session rotation")
+		return fmt.Errorf("vm driver: StartWithCredentials requires paired tokens, valid expiry metadata, positive auth epoch, and session rotation")
 	}
 	return d.start(ctx, id, credentials)
 }
@@ -63,7 +65,7 @@ func validRuntimeLaunchCredentials(credentials driver.RuntimeLaunchCredentials) 
 		}
 	}
 	now := time.Now()
-	if credentials.GatewayID == "" || strings.TrimSpace(credentials.GatewayID) != credentials.GatewayID || strings.ContainsAny(credentials.GatewayID, " \t\r\n") || len(credentials.VerificationKeys) == 0 || len(credentials.VerificationKeys) > 32 {
+	if credentials.SandboxID == "" || strings.TrimSpace(credentials.SandboxID) != credentials.SandboxID || strings.ContainsAny(credentials.SandboxID, " \t\r\n") || credentials.GatewayID == "" || strings.TrimSpace(credentials.GatewayID) != credentials.GatewayID || strings.ContainsAny(credentials.GatewayID, " \t\r\n") || len(credentials.VerificationKeys) == 0 || len(credentials.VerificationKeys) > 32 {
 		return false
 	}
 	seen := make(map[string]struct{}, len(credentials.VerificationKeys))
@@ -85,7 +87,8 @@ func validRuntimeLaunchCredentials(credentials driver.RuntimeLaunchCredentials) 
 			return false
 		}
 	}
-	return validOpenShellRuntimeGeneration(credentials.RuntimeGeneration) && canonicalNonNilUUID(credentials.SessionID) && credentials.GatewayExpiresAt.After(now) && credentials.SandboxExpiresAt.After(now) && credentials.CredentialEpoch > 0 && credentials.SessionRotation > 0
+	validExpiry := func(expiresAt time.Time) bool { return expiresAt.IsZero() || expiresAt.After(now) }
+	return validOpenShellRuntimeGeneration(credentials.RuntimeGeneration) && canonicalNonNilUUID(credentials.SessionID) && validExpiry(credentials.GatewayExpiresAt) && validExpiry(credentials.SandboxExpiresAt) && credentials.CredentialEpoch > 0 && credentials.SessionRotation > 0
 }
 
 func validOpenShellRuntimeGeneration(value string) bool {
@@ -191,9 +194,10 @@ func (d *Driver) start(ctx context.Context, id core.ID, credentials driver.Runti
 		}
 		if credentials.SandboxToken != "" {
 			launchSpec.ProxyEnv = withSupervisorCredentials(launchSpec.ProxyEnv, credentials)
+			launchSpec.GatewaySandboxID = credentials.SandboxID
 			launchSpec.GatewayID = credentials.GatewayID
 			launchSpec.VerificationKeys = cloneRuntimeVerificationKeys(credentials.VerificationKeys)
-			launchSpec.Env = withSupervisorBoundaryKeys(launchSpec.Env, credentials.GatewayID, string(id))
+			launchSpec.Env = withSupervisorBoundaryKeys(launchSpec.Env, credentials.GatewayID, credentials.SandboxID)
 			launchSpec.Env = withSandboxSessionCredentials(launchSpec.Env, credentials)
 		} else {
 			launchSpec.ProxyEnv = withSupervisorToken(launchSpec.ProxyEnv, credentials.GatewayToken)
@@ -262,6 +266,14 @@ func withSupervisorToken(entries []string, token string) []string {
 	return append(environment, "CAUTEM_SANDBOX_TOKEN="+token)
 }
 
+func withGatewaySandboxID(entries []string, sandboxID string) []string {
+	environment := withoutEnvironmentKey(entries, "CAUTEM_GATEWAY_SANDBOX_ID")
+	if sandboxID == "" {
+		return environment
+	}
+	return append(environment, "CAUTEM_GATEWAY_SANDBOX_ID="+sandboxID)
+}
+
 func withSupervisorCredentials(entries []string, credentials driver.RuntimeLaunchCredentials) []string {
 	keys := []string{
 		"CAUTEM_SANDBOX_TOKEN", "CAUTEM_SANDBOX_PROTOCOL_TOKEN",
@@ -276,13 +288,20 @@ func withSupervisorCredentials(entries []string, credentials driver.RuntimeLaunc
 	return append(entries,
 		"CAUTEM_SANDBOX_TOKEN="+credentials.GatewayToken,
 		"CAUTEM_SANDBOX_PROTOCOL_TOKEN="+credentials.SandboxToken,
-		"CAUTEM_GATEWAY_TOKEN_EXPIRES_AT="+strconv.FormatInt(credentials.GatewayExpiresAt.Unix(), 10),
-		"CAUTEM_SANDBOX_TOKEN_EXPIRES_AT="+strconv.FormatInt(credentials.SandboxExpiresAt.Unix(), 10),
+		"CAUTEM_GATEWAY_TOKEN_EXPIRES_AT="+strconv.FormatInt(credentialExpiryUnix(credentials.GatewayExpiresAt), 10),
+		"CAUTEM_SANDBOX_TOKEN_EXPIRES_AT="+strconv.FormatInt(credentialExpiryUnix(credentials.SandboxExpiresAt), 10),
 		"CAUTEM_AUTH_EPOCH="+strconv.FormatUint(credentials.CredentialEpoch, 10),
 		"CAUTEM_SESSION_ROTATION="+strconv.FormatUint(credentials.SessionRotation, 10),
 		"CAUTEM_RUNTIME_GENERATION="+credentials.RuntimeGeneration,
 		"CAUTEM_SESSION_ID="+credentials.SessionID,
 	)
+}
+
+func credentialExpiryUnix(expiresAt time.Time) int64 {
+	if expiresAt.IsZero() {
+		return 0
+	}
+	return expiresAt.Unix()
 }
 
 func (d *Driver) finishRestore(ctx context.Context, id string, names []string) {
@@ -378,6 +397,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	}
 	var proxyCABundle []byte
 	var controlIdentity *vmControlIdentity
+	var isolationDescriptor []byte
 	var brokerConfig *networkBrokerConfig
 	if spec.ProxyBin != "" {
 		proxyCABundlePEM, err := guestProxyCABundle(spec.ProxyEnv)
@@ -393,7 +413,8 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		)
 		launch.VsockPorts = append(launch.VsockPorts, KrunVsockPort{Port: networkBrokerVsockPort, Socket: brokerSocket, Listen: false})
 		proxyEnv := append([]string(nil), spec.ProxyEnv...)
-		endpoint := resolveSupervisorGatewayEndpoint(driverConfig.GRPCEndpoint, spec.GatewayURL)
+		endpoint := resolveSupervisorGatewayEndpoint(d.host.GRPCEndpoint, driverConfig.GRPCEndpoint)
+		endpoint = resolveSupervisorGatewayEndpoint(endpoint, spec.GatewayURL)
 		gatewayURL := strings.TrimSpace(spec.GatewayURL)
 		if gatewayURL == "" {
 			gatewayURL = endpoint
@@ -403,6 +424,11 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		if gatewayURL != "" {
 			proxyEnv = append(proxyEnv, "CAUTEM_GATEWAY_URL="+gatewayURL)
 		}
+		proxySandboxID := launchSpec.GatewaySandboxID
+		if proxySandboxID == "" {
+			proxySandboxID = state.ID
+		}
+		proxyEnv = withGatewaySandboxID(proxyEnv, proxySandboxID)
 		proxyEnv = append(proxyEnv, "CAUTEM_SANDBOX="+state.ID)
 		if endpoint != "" {
 			proxyEnv = append(proxyEnv, "CAUTEM_GATEWAY_GRPC_ENDPOINT="+endpoint)
@@ -443,6 +469,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 				_ = console.Close()
 				return fmt.Errorf("build VM isolation descriptor: %w", err)
 			}
+			isolationDescriptor = descriptor
 			if err := writeVMIsolationDescriptor(sandboxDir, descriptor); err != nil {
 				_ = console.Close()
 				return fmt.Errorf("publish VM isolation descriptor: %w", err)
@@ -496,12 +523,12 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	if isolationFunc == nil {
 		isolationFunc = workerIsolationForChild
 	}
-	isolation, err := isolationFunc()
+	workerIsolation, err := isolationFunc()
 	if err != nil {
 		_ = console.Close()
 		return fmt.Errorf("prepare VM worker isolation: %w", err)
 	}
-	config, err := workerConfigJSON(workerConfig{RuntimeDir: d.host.RuntimeDir, ControlSocket: workerControlPath, Isolation: isolation, WatchParentLiveness: true, NetworkBroker: workerBrokerConfig, Launch: launch})
+	config, err := workerConfigJSON(workerConfig{RuntimeDir: d.host.RuntimeDir, ControlSocket: workerControlPath, Isolation: workerIsolation, WatchParentLiveness: true, NetworkBroker: workerBrokerConfig, Launch: launch})
 	if err != nil {
 		_ = console.Close()
 		return err
@@ -597,7 +624,36 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		return fmt.Errorf("start guest workload: guest did not report a non-root workload identity")
 	}
 	if spec.SupervisorBin != "" {
-		if _, err := d.exchangeControl(startupCtx, state.ID, guestSocket, controlRequest{Operation: "confirm-workload"}); err != nil {
+		if launchSpec.GatewayID != "" && len(launchSpec.VerificationKeys) > 0 {
+			identityDigest := vmWorkloadIdentityDigest(startResponse.WorkloadUID, startResponse.WorkloadGID)
+			sandboxContext := isolation.SandboxContext{
+				SandboxID: state.ID, SessionID: state.RuntimeSessionID, Generation: state.RuntimeGeneration,
+				RootfsDigest: state.RootfsSourceDigest, RuntimeDigest: state.RuntimeDigest,
+				WorkloadUID: startResponse.WorkloadUID, WorkloadGID: startResponse.WorkloadGID,
+				IdentitySource: vmIdentitySource, IdentityDigest: identityDigest,
+			}
+			backend := &vmIsolationBackend{
+				driver: d, state: state, sandboxDir: sandboxDir, guestSocket: guestSocket,
+				descriptor: isolationDescriptor, worker: command, broker: brokerProcess,
+				brokerSocket: brokerSocket, workloadUID: startResponse.WorkloadUID,
+				workloadGID: startResponse.WorkloadGID, controlID: controlIdentity,
+				proxyEnabled: spec.ProxyBin != "" && spec.PolicyPath != "",
+			}
+			registry := isolation.NewRegistry()
+			if err := registry.Register(backend); err != nil {
+				return fmt.Errorf("register VM isolation backend: %w", err)
+			}
+			attached, err := registry.Attach(startupCtx, isolationDescriptor, vmIsolationBackendName, sandboxContext)
+			if err != nil {
+				return fmt.Errorf("attach and confirm VM isolation backend: %w", err)
+			}
+			if err := attached.Start(startupCtx); err != nil {
+				return fmt.Errorf("start workload through confirmed VM isolation backend: %w", err)
+			}
+			if err := attached.Close(context.WithoutCancel(startupCtx)); err != nil {
+				return fmt.Errorf("close VM isolation attach handle: %w", err)
+			}
+		} else if _, err := d.exchangeControl(startupCtx, state.ID, guestSocket, controlRequest{Operation: "confirm-workload"}); err != nil {
 			return fmt.Errorf("confirm guest workload behind VM isolation boundary: %w", err)
 		}
 	}
@@ -1239,26 +1295,77 @@ func (d *Driver) Logs(ctx context.Context, id core.ID, follow bool, writer io.Wr
 		return err
 	}
 	_, _, consolePath := workerSocketPaths(store.root, string(id))
-	file, err := os.Open(consolePath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
+	files := make([]*os.File, 0, 2)
+	for _, source := range []struct{ path, name string }{{consolePath, "console"}, {consolePath + ".worker", "worker"}} {
+		file, err := os.Open(source.path)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			for _, opened := range files {
+				_ = opened.Close()
+			}
+			return fmt.Errorf("open VM %s log: %w", source.name, err)
 		}
-		return fmt.Errorf("open VM console log: %w", err)
+		files = append(files, file)
 	}
-	defer file.Close()
-	if err := streamFile(ctx, file, follow, writer); err != nil {
+	defer func() {
+		for _, file := range files {
+			_ = file.Close()
+		}
+	}()
+	if len(files) == 0 {
+		return nil
+	}
+	if !follow {
+		for _, file := range files {
+			if err := streamFile(ctx, file, false, writer); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	var outputMu sync.Mutex
+	lockedWriter := logLockedWriter{mu: &outputMu, writer: writer}
+	followCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	results := make(chan error, len(files))
+	for _, file := range files {
+		go func(file *os.File) { results <- streamFile(followCtx, file, true, lockedWriter) }(file)
+	}
+	firstErr := <-results
+	cancel()
+	var secondErr error
+	for range files[1:] {
+		err := <-results
+		if secondErr == nil || errors.Is(secondErr, context.Canceled) {
+			secondErr = err
+		}
+	}
+	if firstErr != nil && !errors.Is(firstErr, context.Canceled) {
+		return firstErr
+	}
+	if secondErr != nil && !errors.Is(secondErr, context.Canceled) {
+		return secondErr
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-	workerLog, err := os.Open(consolePath + ".worker")
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("open VM worker log: %w", err)
+	if firstErr != nil {
+		return firstErr
 	}
-	defer workerLog.Close()
-	return streamFile(ctx, workerLog, follow, writer)
+	return secondErr
+}
+
+type logLockedWriter struct {
+	mu     *sync.Mutex
+	writer io.Writer
+}
+
+func (writer logLockedWriter) Write(data []byte) (int, error) {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	return writer.writer.Write(data)
 }
 
 func streamFile(ctx context.Context, file *os.File, follow bool, writer io.Writer) error {

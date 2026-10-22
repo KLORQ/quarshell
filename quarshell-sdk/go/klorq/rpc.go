@@ -42,9 +42,21 @@ func (c *Client) gatewayConnection() (*grpc.ClientConn, error) {
 	if c.gatewayConn != nil {
 		return c.gatewayConn, nil
 	}
-	endpoint, err := url.Parse(c.base)
-	if err != nil || endpoint.Host == "" || endpoint.Path != "" || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+	baseEndpoint, err := url.Parse(c.base)
+	if err != nil || baseEndpoint.Host == "" || baseEndpoint.Path != "" || baseEndpoint.RawQuery != "" || baseEndpoint.Fragment != "" {
 		return nil, fmt.Errorf("gateway RPC: base URL must contain only scheme and authority")
+	}
+	endpoint := *baseEndpoint
+	if configured := strings.TrimSpace(c.rpcEndpoint); configured != "" {
+		if strings.Contains(configured, "://") {
+			configuredEndpoint, parseErr := url.Parse(configured)
+			if parseErr != nil || configuredEndpoint.Host == "" || configuredEndpoint.Path != "" || configuredEndpoint.RawQuery != "" || configuredEndpoint.Fragment != "" {
+				return nil, fmt.Errorf("gateway RPC: endpoint must contain only scheme and authority")
+			}
+			endpoint = *configuredEndpoint
+		} else {
+			endpoint.Host = configured
+		}
 	}
 	var transport credentials.TransportCredentials
 	switch strings.ToLower(endpoint.Scheme) {

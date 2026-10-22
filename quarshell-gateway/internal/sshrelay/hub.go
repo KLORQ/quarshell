@@ -196,6 +196,24 @@ func (h *Hub) RenewSupervisorOwner(sandbox, instanceID string, connectionEpoch u
 	return true
 }
 
+// ReleaseSupervisor removes an owner lease after an explicit sandbox stop.
+// Unexpected stream loss keeps its lease so transient reconnects remain safe.
+func (h *Hub) ReleaseSupervisor(sandbox string) {
+	if h == nil || sandbox == "" {
+		return
+	}
+	h.mu.Lock()
+	s := h.sessions[sandbox]
+	delete(h.owners, sandbox)
+	delete(h.sessions, sandbox)
+	closing := h.takeActiveRelaysLocked(sandbox)
+	h.mu.Unlock()
+	if s != nil {
+		s.close()
+	}
+	closeActiveRelays(closing)
+}
+
 // SupervisorInstance returns the instance ID for the currently
 // connected pinned OpenShell control stream.
 func (h *Hub) SupervisorInstance(sandbox string) (string, bool) {

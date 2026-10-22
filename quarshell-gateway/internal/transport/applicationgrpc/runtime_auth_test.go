@@ -62,7 +62,7 @@ func TestRefreshSandboxTokenRequiresCurrentGeneration(t *testing.T) {
 	}
 }
 
-func TestSandboxTokensAreRestrictedToSupervisorMethods(t *testing.T) {
+func TestSandboxTokensAreRestrictedToSandboxMethods(t *testing.T) {
 	tokens, err := tokenapp.NewService([]byte("0123456789abcdef"), time.Hour)
 	if err != nil {
 		t.Fatalf("NewService token: %v", err)
@@ -86,6 +86,31 @@ func TestSandboxTokensAreRestrictedToSupervisorMethods(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("sandbox bearer on refresh RPC: %v", err)
 	}
+	sandboxRaw, _, err := tokens.IssueForAudience(domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}, 1, "sandbox", "supervisor", time.Minute)
+	if err != nil {
+		t.Fatalf("IssueForAudience: %v", err)
+	}
+	sandboxCtx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+sandboxRaw))
+	for _, method := range []string{
+		gatewayv1.OpenShell_ReportPolicyStatus_FullMethodName,
+		gatewayv1.OpenShell_ReportMainProcessExit_FullMethodName,
+		gatewayv1.OpenShell_FinalizeMainProcessExit_FullMethodName,
+		gatewayv1.OpenShell_GetSandboxProviderEnvironment_FullMethodName,
+	} {
+		if _, err := unary(sandboxCtx, &gatewayv1.ReportPolicyStatusRequest{}, &grpc.UnaryServerInfo{FullMethod: method}, func(ctx context.Context, _ any) (any, error) {
+			if _, ok := sandboxPrincipalFromContext(ctx); !ok {
+				return nil, status.Error(codes.Internal, "sandbox principal missing")
+			}
+			return &gatewayv1.ReportPolicyStatusResponse{}, nil
+		}); err != nil {
+			t.Fatalf("sandbox bearer on sandbox-only RPC %s: %v", method, err)
+		}
+	}
+	if _, err := unary(ctx, &gatewayv1.ReportPolicyStatusRequest{}, &grpc.UnaryServerInfo{FullMethod: gatewayv1.OpenShell_ReportPolicyStatus_FullMethodName}, func(context.Context, any) (any, error) {
+		return &gatewayv1.ReportPolicyStatusResponse{}, nil
+	}); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("Gateway bearer on sandbox-only policy RPC status=%s err=%v", status.Code(err), err)
+	}
 
 	streamAuth := StreamAuthInterceptorWithSandboxTokens("operator", "gateway", tokens)
 	handler := func(_ any, stream grpc.ServerStream) error {
@@ -94,17 +119,18 @@ func TestSandboxTokensAreRestrictedToSupervisorMethods(t *testing.T) {
 		}
 		return nil
 	}
-	if err := streamAuth(nil, fixtureServerStream{ctx: ctx}, &grpc.StreamServerInfo{FullMethod: gatewayv1.OpenShell_ConnectSupervisor_FullMethodName}, handler); err != nil {
-		t.Fatalf("sandbox bearer on ConnectSupervisor: %v", err)
+	if err := streamAuth(nil, fixtureServerStream{ctx: ctx}, &grpc.StreamServerInfo{FullMethod: gatewayv1.OpenShell_ConnectSupervisor_FullMethodName}, handler); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("Gateway bearer on ConnectSupervisor status=%s err=%v; want Sandbox Protocol bearer", status.Code(err), err)
 	}
 	if err := streamAuth(nil, fixtureServerStream{ctx: ctx}, &grpc.StreamServerInfo{FullMethod: gatewayv1.OpenShell_PeerRelay_FullMethodName}, handler); status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("sandbox bearer on PeerRelay status=%s err=%v", status.Code(err), err)
 	}
-	sandboxToken, _, err := tokens.IssueForAudience(domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}, 1, "sandbox", "supervisor", time.Minute)
-	if err != nil {
-		t.Fatalf("IssueForAudience: %v", err)
+	if err := streamAuth(nil, fixtureServerStream{ctx: sandboxCtx}, &grpc.StreamServerInfo{FullMethod: gatewayv1.OpenShell_ConnectSupervisor_FullMethodName}, handler); err != nil {
+		t.Fatalf("Sandbox Protocol bearer on ConnectSupervisor: %v", err)
 	}
-	sandboxCtx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer "+sandboxToken))
+	if err := streamAuth(nil, fixtureServerStream{ctx: sandboxCtx}, &grpc.StreamServerInfo{FullMethod: gatewayv1.OpenShell_PushSandboxLogs_FullMethodName}, handler); err != nil {
+		t.Fatalf("Sandbox Protocol bearer on PushSandboxLogs: %v", err)
+	}
 	if _, err := unary(sandboxCtx, &gatewayv1.RefreshSandboxTokenRequest{}, &grpc.UnaryServerInfo{FullMethod: gatewayv1.OpenShell_RefreshSandboxToken_FullMethodName}, func(context.Context, any) (any, error) {
 		return nil, status.Error(codes.Internal, "handler should not run")
 	}); status.Code(err) != codes.Unauthenticated {
