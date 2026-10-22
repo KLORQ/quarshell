@@ -60,6 +60,28 @@ func TestControlFramingAndExchange(t *testing.T) {
 	}
 }
 
+func TestReadCopySourceRejectsSymlinkAndEnforcesLimit(t *testing.T) {
+	root := t.TempDir()
+	dataPath := filepath.Join(root, "payload")
+	if err := os.WriteFile(dataPath, []byte("payload"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(root, "link")
+	if err := os.Symlink(dataPath, linkPath); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := readCopySource(linkPath, 32); err == nil {
+		t.Fatal("copy-to source followed a final symlink")
+	}
+	if _, _, err := readCopySource(dataPath, 3); err == nil {
+		t.Fatal("copy-to source exceeded the encoded control-frame bound")
+	}
+	data, mode, err := readCopySource(dataPath, 32)
+	if err != nil || string(data) != "payload" || mode.Perm() != 0o640 {
+		t.Fatalf("readCopySource()=(%q,%#o,%v)", data, mode.Perm(), err)
+	}
+}
+
 func TestGuestControlTokenRotationRetriesAfterLostReply(t *testing.T) {
 	root := t.TempDir()
 	stateRoot := filepath.Join(root, "state")

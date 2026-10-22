@@ -1435,18 +1435,11 @@ func (d *Driver) CopyTo(ctx context.Context, id core.ID, source, destination str
 	if d == nil || ctx == nil {
 		return fmt.Errorf("vm driver: CopyTo requires a driver and context")
 	}
-	info, err := os.Stat(source)
+	data, mode, err := readCopySource(source, controlFrameMax/2)
 	if err != nil {
 		return err
 	}
-	if !info.Mode().IsRegular() || info.Size() > controlFrameMax/2 {
-		return fmt.Errorf("vm copy-to source must be a regular file no larger than %d bytes", controlFrameMax/2)
-	}
-	data, err := os.ReadFile(source)
-	if err != nil {
-		return err
-	}
-	return d.copyControl(ctx, id, controlRequest{Operation: "copy-to", Path: destination, Data: data, Mode: uint32(info.Mode().Perm())})
+	return d.copyControl(ctx, id, controlRequest{Operation: "copy-to", Path: destination, Data: data, Mode: uint32(mode.Perm())})
 }
 
 func (d *Driver) CopyFrom(ctx context.Context, id core.ID, source, destination string) error {

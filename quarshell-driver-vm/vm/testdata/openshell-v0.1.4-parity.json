@@ -191,7 +191,8 @@
       "cautem": "quarshell-driver-vm/vm/lifecycle.go",
       "status": "partial",
       "evidence": [
-        "quarshell-driver-vm/vm/live_acceptance_test.go"
+        "quarshell-driver-vm/vm/live_acceptance_test.go",
+        "quarshell-driver-vm/vm/control_test.go::TestReadCopySourceRejectsSymlinkAndEnforcesLimit"
       ]
     },
     {
