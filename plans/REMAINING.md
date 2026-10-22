@@ -133,7 +133,7 @@
 | Linux Landlock/seccomp/network bypass | partial | GitHub-hosted Linux build/test PASS ([latest recheck](https://github.com/KLORQ/quarshell/actions/runs/39692425422)); host-level raw-socket and DNS/UDS bypass probes pending |
 | Native Linux Docker/Podman | pass | GitHub-hosted `ubuntu-24.04`: Docker and rootful/rootless Podman E2E PASS, including userns/binds, egress probes, and backend events; see hosted acceptance runs |
 | Kubernetes real cluster | blocked | cluster + runtime image + guest TLS |
-| KVM/HVF + signed macOS | blocked | GitHub-hosted capability probe; live KVM/HVF access and Apple signing secrets |
+| KVM/HVF + signed macOS | partial | Local Apple Silicon/HVF live acceptance passes. GitHub-hosted Linux exposes `/dev/kvm`, but the live lane still lacks a pinned libkrun runtime bundle and approved digest lock; hosted macOS has no Hypervisor.framework. Distribution signing/notarization still needs Apple credentials. |
 | Windows MXC | blocked | Windows-hosted probe; MXC Go implementation, supported Windows build, `wxc-exec.exe` and `IsoSessionApp.dll` |
 | GPU/VFIO | blocked | physical hardware |
 | Published consumer + clean install | blocked | registry/images |
