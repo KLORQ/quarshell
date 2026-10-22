@@ -1273,3 +1273,10 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - The live Gateway composition now forces the first TTY RPC stream to fail after output, retries the identical TTY request with the same `request_id`, and checks that Gateway uses `AttachExecTerminal` against the existing HVF guest process. The resumed process receives input, returns output and exit status, and is not launched a second time.
 - The same live composition exercises PTY interrupt and archive transfer. Separate retained-process acceptance exercises fresh VM-driver attach and terminate while detached.
 - Full `go test ./...` in `quarshell-gateway`, focused Gateway admission/reconnect `-race` tests, `task vm:parity-check`, and `task fmt:check`: PASS. Inventory remains 25 implemented, 3 partial, 2 physical GPU/VFIO unsupported.
+
+# Gateway reconnect workspace and hosted CI (2026-10-23 01:16 Europe/Samara)
+
+- Product snapshot: `aee7898` (`Reconnect Gateway TTY requests to retained VM sessions`). The live HVF run above exercised this exact product code.
+- Local `task test` across every Go workspace module, `task docs:strict` for English and Russian docs, `task vm:parity-check` (30 unique entries pinned to OpenShell v0.1.4 commit `5a7728c304b5528e954e9ae900cf21f84e1a12b1`), `task fmt:check`, and `git diff --check`: PASS.
+- GitHub Actions: [Linux](https://github.com/KLORQ/quarshell/actions/runs/39854710577), [macOS](https://github.com/KLORQ/quarshell/actions/runs/39854710549), [platform-backends](https://github.com/KLORQ/quarshell/actions/runs/39854710628), and [secret-scan](https://github.com/KLORQ/quarshell/actions/runs/39854710634): all PASS. Linux Docker/Podman acceptance and workspace tests passed; VM package tests/builds passed on hosted Linux/macOS/Windows. Hosted Linux lacks the configured KVM plus approved runtime bundle, hosted macOS lacks HVF, and Windows lacks MXC SDK, so those live lanes were skipped.
+- Inventory: 25 implemented, 3 partial, 2 unsupported. The remaining partial rows are `vm.ssh-connect`, `vm.host-supervisor-isolation`, and `vm.host-supervisor-bootstrap`; physical GPU/VFIO remains unsupported.
