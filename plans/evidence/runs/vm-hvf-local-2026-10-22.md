@@ -1207,3 +1207,8 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 - Command: `task vm:live-darwin`.
 - Result: PASS. `TestLiveMicroVMLifecycle` (24.57 s), `TestLiveLocalOCIEngineImport` (1.15 s), and `TestLiveVMWatchSandboxComposition` (11.68 s) passed on Apple Silicon/HVF.
 - The run rebuilt the CLI with the current Gateway TLS changes and repeated the live worker/broker recovery, explicit Stop/Start and mTLS identity rotation, egress allow/revoke, explicit guest TERM signal, OCI image import, and separate-process CLI upload/download through a real Gateway gRPC server.
+
+# Hosted VM platform matrix (2026-10-23 00:05 Europe/Samara)
+
+- GitHub Actions run: [platform-backends `39845031428`](https://github.com/KLORQ/quarshell/actions/runs/39845031428), result: PASS.
+- Linux/KVM VM package build and tests passed; live KVM was skipped because no operator-approved libkrun runtime bundle/digest lock is configured. macOS VM package build and tests passed; live HVF was skipped because hosted macOS lacks Hypervisor.framework. Windows VM build and compatible package tests passed; native MXC was unavailable on the hosted runner.
