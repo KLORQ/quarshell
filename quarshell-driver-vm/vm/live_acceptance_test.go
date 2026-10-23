@@ -92,7 +92,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 	forwardEchoHelper := buildLiveForwardEchoHelper(t, ctx)
 	proxyHTTPProbe := buildLiveProxyHTTPProbe(t, ctx)

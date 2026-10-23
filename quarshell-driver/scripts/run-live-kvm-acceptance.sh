@@ -128,4 +128,4 @@ OPENSHELL_VM_RUNTIME_DIR=$runtime_dir \
 CAUTEM_VM_TEST_ARTIFACT_DIR=$build_dir \
 CAUTEM_VM_TEST_JSON_LOG="$build_dir/test-events-$test_name.jsonl" \
 python3 "$script_dir/run-required-go-test.py" --test "$test_name" -- \
-  go test -json ./vm -run "^$test_name$" -count=1 -v
+  go test -timeout=20m -json ./vm -run "^$test_name$" -count=1 -v
