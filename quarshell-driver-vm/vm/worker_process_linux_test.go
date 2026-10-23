@@ -19,11 +19,8 @@ import (
 
 func TestWorkerUserNamespaceCanConnectPrivateHostUnixSocket(t *testing.T) {
 	if os.Getenv("CAUTEM_VM_SOCKET_NAMESPACE_CHILD") == "1" {
-		if err := prepareWorkerIsolation(workerIsolationConfig{
-			HostMountNamespace: os.Getenv("CAUTEM_VM_PARENT_MOUNT_NS"),
-			HostUserNamespace:  os.Getenv("CAUTEM_VM_PARENT_USER_NS"),
-		}); err != nil {
-			t.Fatalf("prepare worker namespace: %v", err)
+		if os.Geteuid() != 0 || os.Getegid() != 0 {
+			t.Fatalf("worker namespace identity = %d:%d; want mapped namespace root", os.Geteuid(), os.Getegid())
 		}
 		connection, err := net.DialTimeout("unix", os.Getenv("CAUTEM_VM_NAMESPACE_SOCKET"), 2*time.Second)
 		if err != nil {
@@ -45,18 +42,13 @@ func TestWorkerUserNamespaceCanConnectPrivateHostUnixSocket(t *testing.T) {
 	if err := os.Chmod(socketPath, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	parent, err := workerIsolationForChild()
-	if err != nil {
-		t.Fatal(err)
-	}
 	command := exec.Command(os.Args[0], "-test.run=^TestWorkerUserNamespaceCanConnectPrivateHostUnixSocket$")
 	command.Env = append(os.Environ(),
 		"CAUTEM_VM_SOCKET_NAMESPACE_CHILD=1",
-		"CAUTEM_VM_PARENT_MOUNT_NS="+parent.HostMountNamespace,
-		"CAUTEM_VM_PARENT_USER_NS="+parent.HostUserNamespace,
 		"CAUTEM_VM_NAMESPACE_SOCKET="+socketPath,
 	)
 	command.SysProcAttr = workerProcessAttributes()
+	command.SysProcAttr.Cloneflags = unix.CLONE_NEWUSER
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
