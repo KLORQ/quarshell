@@ -35,5 +35,6 @@ After that change, the following tests passed locally on HVF:
 
 - `TestLiveMicroVMLifecycle` — PASS (36.22 s), including supervisor mTLS reconnect, Gateway credential/policy flow, worker recovery, stop/start, broker-loss fencing, OCI pull/recovery, retained TTY, and shutdown.
 - `TestLiveLocalOCIEngineImport` — PASS (1.16 s).
+- `TestLiveVMWatchSandboxComposition` — PASS (2.78 s), including live Gateway create/start/watch/stop over HVF.
 
-The separate `TestLiveVMWatchSandboxComposition` follow-up did not reach VM startup: the test attempted to fetch the bootstrap image from Docker Hub CloudFront and hit a TLS handshake timeout. A new hosted KVM result is still required to confirm the forwarder fix on Linux.
+The Gateway acceptance fixture now serves the staged rootfs from an in-process OCI registry, avoiding a Docker Hub dependency. A new hosted KVM result is still required to confirm the forwarder fix on Linux.
