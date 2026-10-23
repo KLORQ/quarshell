@@ -491,9 +491,7 @@ func (ss *session) startMainProcess(request *ssh.Request) {
 	go func() {
 		defer connection.Close()
 		defer ss.ch.Close()
-		inputDone := make(chan struct{})
 		go func() {
-			defer close(inputDone)
 			buffer := make([]byte, 32<<10)
 			for {
 				n, readErr := ss.ch.Read(buffer)
@@ -539,11 +537,6 @@ func (ss *session) startMainProcess(request *ssh.Request) {
 				return
 			default:
 				return
-			}
-			select {
-			case <-inputDone:
-				return
-			default:
 			}
 		}
 	}()
