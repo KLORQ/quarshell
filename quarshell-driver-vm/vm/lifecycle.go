@@ -1336,6 +1336,9 @@ func (d *Driver) stopLocked(ctx context.Context, store *stateStore, state sandbo
 		}
 		select {
 		case <-shutdownCtx.Done():
+			if workerPID <= 0 {
+				return fmt.Errorf("force stop VM worker after guest shutdown timeout: worker PID is unavailable")
+			}
 			if err := killProcessGroup(workerPID); err != nil {
 				return fmt.Errorf("force stop VM worker after guest shutdown timeout: %w", err)
 			}
