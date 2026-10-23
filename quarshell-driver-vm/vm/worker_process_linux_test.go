@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestWorkerUserNamespaceCanConnectPrivateHostUnixSocket(t *testing.T) {
+func TestWorkerNamespacesCanConnectPrivateHostUnixSocket(t *testing.T) {
 	if os.Getenv("CAUTEM_VM_SOCKET_NAMESPACE_CHILD") == "1" {
 		if os.Geteuid() != 0 || os.Getegid() != 0 {
 			t.Fatalf("worker namespace identity = %d:%d; want mapped namespace root", os.Geteuid(), os.Getegid())
@@ -42,13 +42,13 @@ func TestWorkerUserNamespaceCanConnectPrivateHostUnixSocket(t *testing.T) {
 	if err := os.Chmod(socketPath, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(os.Args[0], "-test.run=^TestWorkerUserNamespaceCanConnectPrivateHostUnixSocket$")
+	command := exec.Command(os.Args[0], "-test.run=^TestWorkerNamespacesCanConnectPrivateHostUnixSocket$")
 	command.Env = append(os.Environ(),
 		"CAUTEM_VM_SOCKET_NAMESPACE_CHILD=1",
 		"CAUTEM_VM_NAMESPACE_SOCKET="+socketPath,
 	)
 	command.SysProcAttr = workerProcessAttributes()
-	command.SysProcAttr.Cloneflags = unix.CLONE_NEWUSER
+	command.SysProcAttr.Cloneflags = unix.CLONE_NEWUSER | unix.CLONE_NEWNS
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
