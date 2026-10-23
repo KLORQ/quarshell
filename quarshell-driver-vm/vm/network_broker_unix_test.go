@@ -85,6 +85,16 @@ func TestValidateNetworkBrokerConfigRequiresPrivatePolicyAndSafeEnvironment(t *t
 	if _, err := validateNetworkBrokerConfig(config); err == nil || !strings.Contains(err.Error(), "socket path limit") {
 		t.Fatalf("long socket path error = %v", err)
 	}
+	missingSocketRoot := filepath.Join(t.TempDir(), "lazy-socket-root")
+	if err := validateNetworkBrokerSocketDirectory(missingSocketRoot, missingSocketRoot); err != nil {
+		t.Fatalf("validateNetworkBrokerSocketDirectory() rejected the expected lazy socket root: %v", err)
+	}
+	if _, err := os.Lstat(missingSocketRoot); !os.IsNotExist(err) {
+		t.Fatalf("socket directory validation created the missing root: %v", err)
+	}
+	if err := validateNetworkBrokerSocketDirectory(missingSocketRoot, filepath.Join(missingSocketRoot, "different")); err == nil {
+		t.Fatal("validation allowed a missing non-worker socket directory")
+	}
 }
 
 func TestWorkerNetworkBrokerConfigContainsOnlySocketReferences(t *testing.T) {

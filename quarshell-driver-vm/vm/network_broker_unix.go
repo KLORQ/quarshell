@@ -176,9 +176,8 @@ func validateNetworkBrokerConfig(config networkBrokerConfig) (networkBrokerConfi
 	if config.Socket == "" || !filepath.IsAbs(config.Socket) || filepath.Clean(config.Socket) != config.Socket || len(config.Socket) > 96 {
 		return config, fmt.Errorf("VM policy proxy socket must be a clean absolute path within the Unix socket path limit")
 	}
-	socketDir, err := os.Lstat(filepath.Dir(config.Socket))
-	if err != nil || !socketDir.IsDir() || socketDir.Mode()&os.ModeSymlink != 0 || socketDir.Mode().Perm()&0o077 != 0 || !networkPathOwnedByCurrentUser(socketDir) {
-		return config, fmt.Errorf("VM policy proxy socket directory must be private and owned by the current user")
+	if err := validateNetworkBrokerSocketDirectory(filepath.Dir(config.Socket), workerSocketRoot()); err != nil {
+		return config, err
 	}
 	for name, path := range map[string]string{"SSH relay": config.SSHSocket, "supervisor control": config.ControlSocket} {
 		if path != "" && (!filepath.IsAbs(path) || filepath.Clean(path) != path || len(path) > 96 || strings.IndexByte(path, 0) >= 0) {
@@ -511,6 +510,20 @@ func networkBrokerEnvironmentChecked(entries []string) ([]string, error) {
 func networkPathOwnedByCurrentUser(info os.FileInfo) bool {
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	return ok && int(stat.Uid) == os.Getuid()
+}
+
+func validateNetworkBrokerSocketDirectory(path, lazyWorkerRoot string) error {
+	socketDir, err := os.Lstat(path)
+	if os.IsNotExist(err) && path == lazyWorkerRoot {
+		// The socket root is created lazily by the worker control listener, but
+		// the policy broker starts first. startNetworkBroker creates this one
+		// fixed per-UID directory with mode 0700 before binding any socket.
+		return nil
+	}
+	if err != nil || !socketDir.IsDir() || socketDir.Mode()&os.ModeSymlink != 0 || socketDir.Mode().Perm()&0o077 != 0 || !networkPathOwnedByCurrentUser(socketDir) {
+		return fmt.Errorf("VM policy proxy socket directory must be private and owned by the current user")
+	}
+	return nil
 }
 
 func (process *networkBrokerProcess) wait() error {

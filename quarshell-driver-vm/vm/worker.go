@@ -319,8 +319,12 @@ func workerSocketPaths(stateStoreRoot, id string) (string, string, string) {
 	// macOS sockaddr_un has a short sun_path. State roots may be nested under
 	// long per-user cache paths, so keep UDS endpoints under a short private
 	// system temp directory while leaving persistent console data beside state.
-	socketRoot := filepath.Join("/tmp", fmt.Sprintf("cautem-vm-%d", os.Getuid()))
+	socketRoot := workerSocketRoot()
 	return filepath.Join(socketRoot, id+"-worker.sock"), filepath.Join(socketRoot, id+"-guest.sock"), filepath.Join(root, "console.log")
+}
+
+func workerSocketRoot() string {
+	return filepath.Join("/tmp", fmt.Sprintf("cautem-vm-%d", os.Getuid()))
 }
 
 func sshRelaySocketPath(workerSocket, id string) string {
