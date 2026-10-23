@@ -134,10 +134,15 @@ func waitForProxyControlSocket(process *networkBrokerProcess, socket string, tim
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		connection, err := (&net.Dialer{Timeout: 200 * time.Millisecond}).DialContext(ctx, "unix", socket)
-		if err == nil {
-			_ = connection.Close()
+		info, err := os.Lstat(socket)
+		if err == nil && info.Mode()&os.ModeSocket != 0 {
 			return nil
+		}
+		if err == nil {
+			return fmt.Errorf("VM supervisor control endpoint is not a Unix socket")
+		}
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("inspect VM supervisor control socket: %w", err)
 		}
 		select {
 		case <-process.done:

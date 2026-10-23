@@ -4,10 +4,12 @@ package vm
 
 import (
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KLORQ/quarshell-core/isolation"
 )
@@ -94,6 +96,37 @@ func TestValidateNetworkBrokerConfigRequiresPrivatePolicyAndSafeEnvironment(t *t
 	}
 	if err := validateNetworkBrokerSocketDirectory(missingSocketRoot, filepath.Join(missingSocketRoot, "different")); err == nil {
 		t.Fatal("validation allowed a missing non-worker socket directory")
+	}
+}
+
+func TestWaitForProxyControlSocketDoesNotConsumeAConnection(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "vm-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	socket := filepath.Join(dir, "ctl.sock")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	accepted := make(chan struct{}, 1)
+	go func() {
+		connection, acceptErr := listener.Accept()
+		if acceptErr == nil {
+			_ = connection.Close()
+			accepted <- struct{}{}
+		}
+	}()
+	process := &networkBrokerProcess{done: make(chan struct{})}
+	if err := waitForProxyControlSocket(process, socket, time.Second); err != nil {
+		t.Fatalf("waitForProxyControlSocket() error = %v", err)
+	}
+	select {
+	case <-accepted:
+		t.Fatal("control socket readiness check consumed an incoming connection")
+	default:
 	}
 }
 
