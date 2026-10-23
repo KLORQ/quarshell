@@ -24,6 +24,14 @@ type interactiveExecServer struct {
 	stdin     []byte
 	cols      uint32
 	rows      uint32
+	signal    runtimev1.MainProcessSignal
+}
+
+func (s *interactiveExecServer) Signal(_ context.Context, request *runtimev1.MainProcessServiceSignalRequest) (*runtimev1.MainProcessServiceSignalResponse, error) {
+	s.mu.Lock()
+	s.signal = request.GetSignal()
+	s.mu.Unlock()
+	return &runtimev1.MainProcessServiceSignalResponse{}, nil
 }
 
 func (s *interactiveExecServer) AttachTTY(stream grpc.BidiStreamingServer[runtimev1.MainProcessServiceAttachTTYRequest, runtimev1.MainProcessServiceAttachTTYResponse]) error {
@@ -128,6 +136,15 @@ func TestExecInteractiveWithTTYStreamsNonTTYInputAndWorkspace(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = connection.Close() })
 	client := &Client{gatewayConn: connection}
+	if err := client.SignalMainProcess(context.Background(), "team", "shared", runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_INTERRUPT); err != nil {
+		t.Fatal(err)
+	}
+	backend.mu.Lock()
+	signal := backend.signal
+	backend.mu.Unlock()
+	if signal != runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_INTERRUPT {
+		t.Fatalf("main-process signal=%v, want interrupt", signal)
+	}
 	session, err := client.ExecInteractiveWithTTYTimeout(context.Background(), "team", "shared", []string{"cat"}, false, 0, 0, 13*time.Second, SandboxExecOptions{
 		WorkDir: "/workspace", Env: map[string]string{"MODE": "test"}, NoLoginShell: true,
 	})
