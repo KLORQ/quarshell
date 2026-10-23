@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - "plans/ci-matrix.md"
+      - "quarshell-*/**"
+      - "go.work"
+      - "go.work.sum"
       - "tools/**"
       - "scripts/**"
       - ".github/workflows/platform-backends.yml"

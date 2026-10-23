@@ -8,6 +8,8 @@ on:
       - "scripts/**"
       - "plans/**"
       - "go.work"
+      - "go.work.sum"
+      - "quarshell-*/**"
       - "tools/**"
       - "Taskfile.yml"
       - ".github/workflows/linux.yml"

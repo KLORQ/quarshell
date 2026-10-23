@@ -12,6 +12,9 @@ on:
     tags: ["v*"]
     paths:
       - "deploy/macos/**"
+      - "quarshell-*/**"
+      - "go.work"
+      - "go.work.sum"
       - "tools/**"
       - "scripts/**"
       - "plans/**"
