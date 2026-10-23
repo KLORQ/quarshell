@@ -382,6 +382,11 @@ tasks:
     cmds:
       - tools/e2e/podman.sh
 
+  "vm:bootstrap":
+    desc: Build the ext4 VM bootstrap disk from live VM runtime assets
+    cmds:
+      - tools/build-vm-bootstrap.sh
+
   "vm:live-darwin":
     desc: Run the real libkrun/HVF MicroVM lifecycle acceptance on macOS ARM64
     cmds:
