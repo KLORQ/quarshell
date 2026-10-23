@@ -192,13 +192,38 @@ func serveUnixVsockBridge(listener net.Listener, port uint32, limit int) {
 					return
 				}
 				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge connected to host vsock port %d\n", port)
-				bridgeRelayConnections(local, upstream)
+				bridgeSupervisorControlConnections(local, upstream)
 				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge closed for host vsock port %d\n", port)
 			}()
 		default:
 			fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge rejected a connection at its %d-connection limit\n", limit)
 			_ = local.Close()
 		}
+	}
+}
+
+func bridgeSupervisorControlConnections(local, upstream net.Conn) {
+	defer local.Close()
+	defer upstream.Close()
+	type relayResult struct {
+		direction string
+		bytes     int64
+		err       error
+	}
+	done := make(chan relayResult, 2)
+	go func() {
+		count, err := io.Copy(local, upstream)
+		_ = closeRelayWrite(local)
+		done <- relayResult{direction: "host-to-guest", bytes: count, err: err}
+	}()
+	go func() {
+		count, err := io.Copy(upstream, local)
+		_ = closeRelayWrite(upstream)
+		done <- relayResult{direction: "guest-to-host", bytes: count, err: err}
+	}()
+	for range 2 {
+		result := <-done
+		fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge %s finished after %d bytes: %v\n", result.direction, result.bytes, result.err)
 	}
 }
 
