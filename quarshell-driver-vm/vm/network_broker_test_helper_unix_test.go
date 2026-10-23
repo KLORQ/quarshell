@@ -227,7 +227,7 @@ func runPolicyProxyTestHelper(args []string) int {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-		controlServer, err = tls.Listen("unix", controlPath, controlTLS)
+		controlServer, err = net.Listen("unix", controlPath)
 		if err != nil {
 			_ = listener.Close()
 			fmt.Fprintln(os.Stderr, err)
@@ -240,7 +240,7 @@ func runPolicyProxyTestHelper(args []string) int {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-		go serveSupervisorControlTestHelper(controlServer, os.Getenv("CAUTEM_VM_TEST_CONTROL_EVENTS"), os.Getenv("CAUTEM_SUPERVISOR_CONTROL_EXPECTED_CLIENT_IDENTITY"))
+		go serveSupervisorControlTestHelper(controlServer, os.Getenv("CAUTEM_VM_TEST_CONTROL_EVENTS"), os.Getenv("CAUTEM_SUPERVISOR_CONTROL_EXPECTED_CLIENT_IDENTITY"), controlTLS)
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, os.Interrupt)
 	defer cancel()
@@ -435,7 +435,7 @@ func testSupervisorControlTLSConfig() (*tls.Config, error) {
 	}}, nil
 }
 
-func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expectedIdentity string) {
+func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expectedIdentity string, tlsConfigs ...*tls.Config) {
 	var seen sync.Map
 	for {
 		connection, err := listener.Accept()
@@ -446,34 +446,38 @@ func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expected
 		go func() {
 			defer connection.Close()
 			_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
-			if tlsConnection, ok := connection.(*tls.Conn); ok {
+			var transport net.Conn = connection
+			if len(tlsConfigs) > 0 && tlsConfigs[0] != nil {
+				counted := &supervisorControlCountingConn{Conn: connection}
+				tlsConnection := tls.Server(counted, tlsConfigs[0])
+				transport = tlsConnection
 				writeSupervisorControlDiagnostic("tls-handshake-started")
 				if handshakeErr := tlsConnection.Handshake(); handshakeErr != nil {
-					writeSupervisorControlDiagnostic("tls-handshake-failed: " + handshakeErr.Error())
+					writeSupervisorControlDiagnostic(fmt.Sprintf("tls-handshake-failed: %v (server-read=%d server-written=%d)", handshakeErr, counted.readBytes, counted.writtenBytes))
 					if handshakeErr != io.EOF {
 						fmt.Fprintf(os.Stderr, "supervisor control test TLS handshake failed: %v\n", handshakeErr)
 					}
 					return
 				}
-				writeSupervisorControlDiagnostic("tls-handshake-completed")
+				writeSupervisorControlDiagnostic(fmt.Sprintf("tls-handshake-completed (server-read=%d server-written=%d)", counted.readBytes, counted.writtenBytes))
 			}
-			line, err := bufio.NewReader(io.LimitReader(connection, 8<<10)).ReadBytes('\n')
+			line, err := bufio.NewReader(io.LimitReader(transport, 8<<10)).ReadBytes('\n')
 			if err != nil {
-				_ = json.NewEncoder(connection).Encode(supervisorControlTestResponse{Error: "invalid supervisor control request"})
+				_ = json.NewEncoder(transport).Encode(supervisorControlTestResponse{Error: "invalid supervisor control request"})
 				return
 			}
 			var request supervisorControlTestRequest
 			if err := json.Unmarshal(line, &request); err != nil || request.Operation == "" || request.Peer == nil || request.Peer.Identity != expectedIdentity || request.Peer.Protocol != supervisorControlTestProtocol || request.Peer.IssuedAt < time.Now().Add(-time.Minute).UnixMilli() || request.Peer.IssuedAt > time.Now().Add(time.Minute).UnixMilli() {
-				_ = json.NewEncoder(connection).Encode(supervisorControlTestResponse{Error: "invalid supervisor control request"})
+				_ = json.NewEncoder(transport).Encode(supervisorControlTestResponse{Error: "invalid supervisor control request"})
 				return
 			}
 			nonce, nonceErr := hex.DecodeString(request.Peer.Nonce)
 			if nonceErr != nil || len(nonce) != 16 || strings.ToLower(request.Peer.Nonce) != request.Peer.Nonce {
-				_ = json.NewEncoder(connection).Encode(supervisorControlTestResponse{Error: "invalid supervisor control nonce"})
+				_ = json.NewEncoder(transport).Encode(supervisorControlTestResponse{Error: "invalid supervisor control nonce"})
 				return
 			}
 			if _, loaded := seen.LoadOrStore(request.Peer.Nonce, struct{}{}); loaded {
-				_ = json.NewEncoder(connection).Encode(supervisorControlTestResponse{Error: "replayed supervisor control request"})
+				_ = json.NewEncoder(transport).Encode(supervisorControlTestResponse{Error: "replayed supervisor control request"})
 				return
 			}
 			if eventPath != "" {
@@ -495,9 +499,27 @@ func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expected
 			if request.Operation == "begin" {
 				response.InstanceID = "live-vm-instance"
 			}
-			_ = json.NewEncoder(connection).Encode(response)
+			_ = json.NewEncoder(transport).Encode(response)
 		}()
 	}
+}
+
+type supervisorControlCountingConn struct {
+	net.Conn
+	readBytes    int64
+	writtenBytes int64
+}
+
+func (connection *supervisorControlCountingConn) Read(payload []byte) (int, error) {
+	n, err := connection.Conn.Read(payload)
+	connection.readBytes += int64(n)
+	return n, err
+}
+
+func (connection *supervisorControlCountingConn) Write(payload []byte) (int, error) {
+	n, err := connection.Conn.Write(payload)
+	connection.writtenBytes += int64(n)
+	return n, err
 }
 
 func writeSupervisorControlDiagnostic(message string) {
