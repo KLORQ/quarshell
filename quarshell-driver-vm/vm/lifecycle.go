@@ -1309,12 +1309,11 @@ func (d *Driver) stopLocked(ctx context.Context, store *stateStore, state sandbo
 	} else if response, err := workerControl(ctx, workerControlPath, "status"); err == nil {
 		workerPID = response.PID
 	}
-	shutdownCtx := ctx
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(ctx, workerStopTimeout)
-		defer cancel()
-	}
+	// Guest poweroff is best-effort: libkrun can fail to observe an orderly
+	// shutdown on some KVM hosts. Bound the graceful phase even when the caller
+	// has a much longer request deadline, then terminate the worker below.
+	shutdownCtx, cancelShutdown := context.WithTimeout(ctx, workerStopTimeout)
+	defer cancelShutdown()
 	if _, err := d.exchangeControl(shutdownCtx, state.ID, guestSocket, controlRequest{Operation: "stop-workload"}); err != nil {
 		return fmt.Errorf("stop guest workload: %w", err)
 	}
@@ -1337,7 +1336,17 @@ func (d *Driver) stopLocked(ctx context.Context, store *stateStore, state sandbo
 		}
 		select {
 		case <-shutdownCtx.Done():
-			return fmt.Errorf("wait for guest shutdown: %w", shutdownCtx.Err())
+			if err := killProcessGroup(workerPID); err != nil {
+				return fmt.Errorf("force stop VM worker after guest shutdown timeout: %w", err)
+			}
+			d.stopNetworkBroker(state.ID)
+			state.Status = "stopped"
+			state.UpdatedAt = time.Now().UTC()
+			if err := store.save(state); err != nil {
+				return fmt.Errorf("persist stopped VM state after forced shutdown: %w", err)
+			}
+			d.lifecycleExtensions.AfterLaunchFailed(context.Background(), filepath.Join(store.root, "sandboxes", state.ID), state.LifecycleExtensions, LaunchAbortStopped)
+			return nil
 		case <-ticker.C:
 		}
 	}
