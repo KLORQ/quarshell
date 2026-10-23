@@ -157,7 +157,9 @@ const (
 	guestSupervisorControlCredentialDir = SupervisorControlCredentialDir
 	guestSupervisorReadyEnv             = "CAUTEM_VM_SUPERVISOR_READY_FILE"
 	supervisorReadyContents             = "quarshell-supervisor-ready-v1\n"
-	supervisorReadyTimeout              = 30 * time.Second
+	// Keep this above the guest supervisor's 30-second host-control begin
+	// retry window so the supervisor can report its terminal startup error.
+	supervisorReadyTimeout = 45 * time.Second
 )
 
 type boundedBuffer struct {

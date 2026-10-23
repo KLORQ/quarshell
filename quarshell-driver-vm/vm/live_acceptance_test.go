@@ -235,7 +235,8 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		store, _ := openStateStore(host.StateDir)
 		_, _, consolePath := workerSocketPaths(store.root, string(handle.ID))
 		workerLog, _ := os.ReadFile(consolePath + ".worker")
-		t.Fatalf("start live MicroVM: %v; console: %s; worker: %s", err, logs.String(), workerLog)
+		controlEvents, _ := os.ReadFile(controlEventsPath)
+		t.Fatalf("start live MicroVM: %v; console: %s; worker: %s; supervisor control events: %s", err, logs.String(), workerLog, controlEvents)
 	}
 	assertLiveVMPlatformState(t, vmEvents, "running")
 	firstMainPID := assertLiveMainProcessTTY(t, ctx, first, handle.ID, "first")
