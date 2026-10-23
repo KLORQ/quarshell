@@ -42,6 +42,7 @@ type HostConfig struct {
 	// BootstrapImage overrides the trusted DefaultImage fallback for the
 	// OpenShell-style two-disk boot layout.
 	BootstrapImage               string
+	BootstrapDisk                string
 	KVMDevice                    string
 	StateDir                     string
 	RootfsTarDir                 string
@@ -85,6 +86,7 @@ func DefaultHostConfig() HostConfig {
 	}
 	defaultImage := strings.TrimSpace(os.Getenv("OPENSHELL_SANDBOX_IMAGE"))
 	bootstrapImage := strings.TrimSpace(os.Getenv("OPENSHELL_VM_BOOTSTRAP_IMAGE"))
+	bootstrapDisk := strings.TrimSpace(os.Getenv("CAUTEM_VM_BOOTSTRAP_DISK"))
 	kvmDevice := strings.TrimSpace(os.Getenv("CAUTEM_KVM_DEVICE"))
 	if kvmDevice == "" {
 		kvmDevice = "/dev/kvm"
@@ -110,7 +112,7 @@ func DefaultHostConfig() HostConfig {
 	workerSHA256 := strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER_SHA256"))
 	grpcEndpoint := strings.TrimSpace(os.Getenv("OPENSHELL_GRPC_ENDPOINT"))
 	config := normalizeHostConfig(HostConfig{
-		RuntimeDir: runtimeDir, GRPCEndpoint: grpcEndpoint, DefaultImage: defaultImage, BootstrapImage: bootstrapImage, KVMDevice: kvmDevice, StateDir: stateDir,
+		RuntimeDir: runtimeDir, GRPCEndpoint: grpcEndpoint, DefaultImage: defaultImage, BootstrapImage: bootstrapImage, BootstrapDisk: bootstrapDisk, KVMDevice: kvmDevice, StateDir: stateDir,
 		RootfsTarDir: rootfsTarDir, RootfsTarMaxBytes: defaultRootfsTarMaxBytes,
 		RootfsImageCacheMaxBytes: rootfsImageCacheMaxBytes,
 		GuestAgentPath:           guestAgentPath, UMOCIPath: umociPath, WorkerPath: workerPath, WorkerTeamID: workerTeamID, WorkerSHA256: workerSHA256,

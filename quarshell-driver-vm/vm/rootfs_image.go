@@ -874,3 +874,15 @@ func rootfsImageSize(rootfs string) (uint64, error) {
 	}
 	return (size + rootfsImageSizeGranularity - 1) / rootfsImageSizeGranularity * rootfsImageSizeGranularity, nil
 }
+
+// WriteGuestInit writes the embedded VM init script into root.
+func WriteGuestInit(root string) error {
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return err
+	}
+	initDir := filepath.Join(root, "opt", "cautem")
+	if err := os.MkdirAll(initDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(initDir, "vm-init"), []byte(guestInitScript), 0o755)
+}

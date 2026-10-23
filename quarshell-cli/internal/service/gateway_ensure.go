@@ -91,6 +91,11 @@ func (a *App) GatewayEnsure() error {
 		if os.Getenv("OPENSHELL_GRPC_ENDPOINT") == "" {
 			gatewayEnv = append(gatewayEnv, "OPENSHELL_GRPC_ENDPOINT=https://127.0.0.1:17671")
 		}
+		gatewayEnv = append(gatewayEnv,
+			"QUARSHELL_GUEST_TLS_CA="+tlsFiles.CA,
+			"QUARSHELL_GUEST_TLS_CERT="+tlsFiles.ClientCert,
+			"QUARSHELL_GUEST_TLS_KEY="+tlsFiles.ClientKey,
+		)
 	}
 	serviceStarted := false
 	if os.Getenv("CAUTEM_GATEWAY_SERVICE") != "0" {

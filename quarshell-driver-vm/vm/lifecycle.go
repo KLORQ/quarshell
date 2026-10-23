@@ -437,6 +437,12 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		if driverConfig.GuestTLSCA != "" {
 			proxyEnv = append(proxyEnv, "CAUTEM_GUEST_TLS_CA="+driverConfig.GuestTLSCA)
 		}
+		if driverConfig.GuestTLSCert != "" {
+			proxyEnv = append(proxyEnv, "CAUTEM_GUEST_TLS_CERT="+driverConfig.GuestTLSCert)
+		}
+		if driverConfig.GuestTLSKey != "" {
+			proxyEnv = append(proxyEnv, "CAUTEM_GUEST_TLS_KEY="+driverConfig.GuestTLSKey)
+		}
 		brokerConfig = &networkBrokerConfig{
 			Binary: spec.ProxyBin, Policy: spec.PolicyPath,
 			Socket: brokerSocket, LogDir: filepath.Join(store.root, "sandboxes", state.ID),

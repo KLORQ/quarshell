@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
@@ -152,6 +154,23 @@ func (s *Server) prepareDriverConfig(ctx context.Context, workspace domain.Works
 		}
 		delete(envelope, "rootfs_tar_staging_token")
 		envelope["rootfs_tar_path"] = path
+	}
+	if s.RuntimeBackendID == "vm" {
+		vmConfig, _ := values["vm"].(map[string]any)
+		if vmConfig == nil {
+			vmConfig = map[string]any{}
+			values["vm"] = vmConfig
+		}
+		for key, env := range map[string]string{
+			"guest_tls_ca": "QUARSHELL_GUEST_TLS_CA", "guest_tls_cert": "QUARSHELL_GUEST_TLS_CERT",
+			"guest_tls_key": "QUARSHELL_GUEST_TLS_KEY", "grpc_endpoint": "OPENSHELL_GRPC_ENDPOINT",
+		} {
+			if _, exists := vmConfig[key]; !exists {
+				if value := strings.TrimSpace(os.Getenv(env)); value != "" {
+					vmConfig[key] = value
+				}
+			}
+		}
 	}
 	encoded, err := json.Marshal(values)
 	if err != nil {

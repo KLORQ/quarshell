@@ -133,7 +133,84 @@ func (d *Driver) createSandbox(ctx context.Context, spec vmCreateSpec) (driver.H
 	var rootfsSourceType, rootfsSourceRef, rootfsSourceDigest, rootfsSourceManifestDigest, imagePlatform string
 	var workloadDisk, workloadSourceType, workloadSourceRef, workloadSourceDigest, workloadManifestDigest, workloadPlatform string
 	var imageConfig *v1.Config
-	if strings.TrimSpace(d.host.BootstrapImage) != "" {
+	if strings.TrimSpace(d.host.BootstrapDisk) != "" {
+		info, statErr := os.Stat(d.host.BootstrapDisk)
+		if statErr != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			return driver.Handle{}, fmt.Errorf("vm driver bootstrap disk is missing or invalid: %s", d.host.BootstrapDisk)
+		}
+		rootfsImage = d.host.BootstrapDisk
+		rootfsSourceType = "tar"
+		rootfsSourceRef = "uploaded-tar"
+		imagePlatform = "linux/" + runtime.GOARCH
+		digestFile, openErr := os.Open(d.host.BootstrapDisk)
+		if openErr != nil {
+			return driver.Handle{}, fmt.Errorf("open bootstrap disk: %w", openErr)
+		}
+		rootfsSourceDigest, openErr = digestOpenFile(digestFile)
+		_ = digestFile.Close()
+		if openErr != nil {
+			return driver.Handle{}, fmt.Errorf("digest bootstrap disk: %w", openErr)
+		}
+		rootfsSourceManifestDigest = ""
+		if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+			return driver.Handle{}, fmt.Errorf("create VM image cache: %w", err)
+		}
+		cachedBootstrap := filepath.Join(cacheDir, "bootstrap-"+rootfsSourceDigest[:16]+".ext4")
+		if info, statErr := os.Stat(cachedBootstrap); statErr != nil || !info.Mode().IsRegular() {
+			if err := copyRegularFile(d.host.BootstrapDisk, cachedBootstrap, 0o444); err != nil {
+				return driver.Handle{}, fmt.Errorf("cache bootstrap disk: %w", err)
+			}
+			if err := os.Chmod(cachedBootstrap, 0o400); err != nil {
+				return driver.Handle{}, fmt.Errorf("make cached bootstrap disk immutable: %w", err)
+			}
+		}
+		rootfsImage = cachedBootstrap
+
+		var workload preparedRootfsImage
+		var workloadSource resolvedOCIImage
+		if archiveFile != nil {
+			workload, workloadSourceDigest, err = prepareRootfsTarWorkloadDiskInGuest(ctx, archiveFile, archivePath, cacheDir, d.host.FormatterPath, d.host.GuestAgentPath, d.host.UMOCIPath, rootfsImage, d.host, d.host.RootfsTarMaxBytes, d.host.RootfsImageCacheMaxBytes)
+			if err != nil {
+				return driver.Handle{}, fmt.Errorf("vm driver prepare workload tar disk: %w", err)
+			}
+			workloadSourceType = "tar"
+			workloadSourceRef = "uploaded-tar"
+			workloadPlatform = "linux/" + runtime.GOARCH
+		} else {
+			localImage, localSource, localFound, localErr := prepareLocalOCIImage(ctx, spec.Image, cacheDir, d.host.FormatterPath, d.host.GuestAgentPath, d.host.RootfsImageCacheMaxBytes, d.localImageEngines)
+			if localErr != nil {
+				return driver.Handle{}, fmt.Errorf("vm driver import local workload image: %w", localErr)
+			}
+			if localFound {
+				if localSource.LocalArchivePath != "" {
+					defer os.Remove(localSource.LocalArchivePath)
+				}
+				if releaseErr := localImage.Lease.Release(); releaseErr != nil {
+					return driver.Handle{}, fmt.Errorf("vm driver release temporary local image lease: %w", releaseErr)
+				}
+				workloadSource = localSource
+				workload, err = prepareOCIWorkloadDiskInGuest(ctx, workloadSource, cacheDir, d.host.FormatterPath, d.host.GuestAgentPath, d.host.UMOCIPath, rootfsImage, d.host, d.host.RootfsImageCacheMaxBytes)
+			} else {
+				workloadSource, err = resolveWorkloadOCI(ctx, spec.Image, d.ociNameOptions)
+				if err == nil {
+					workload, err = prepareOCIWorkloadDiskInGuest(ctx, workloadSource, cacheDir, d.host.FormatterPath, d.host.GuestAgentPath, d.host.UMOCIPath, rootfsImage, d.host, d.host.RootfsImageCacheMaxBytes)
+				}
+			}
+			if err != nil {
+				return driver.Handle{}, fmt.Errorf("vm driver prepare workload OCI disk: %w", err)
+			}
+			imageConfig = &workloadSource.ImageConfig
+			workloadSourceType = "oci"
+			if workloadSource.LocalEngineImageID != "" {
+				workloadSourceType = "local-oci"
+			}
+			workloadSourceRef = workloadSource.RequestedReference
+			workloadSourceDigest = workloadSource.PlatformManifestDigest
+			workloadManifestDigest = workloadSource.SourceManifestDigest
+			workloadPlatform = workloadSource.Platform.String()
+		}
+		workloadDisk = workload.Path
+	} else if strings.TrimSpace(d.host.BootstrapImage) != "" {
 		bootstrap, source, prepareErr := prepareOCIImageRootfsWithNameOptions(ctx, d.host.BootstrapImage, cacheDir, d.host.FormatterPath, d.host.GuestAgentPath, d.host.RootfsImageCacheMaxBytes, d.ociNameOptions, d.host.UMOCIPath)
 		if prepareErr != nil {
 			return driver.Handle{}, fmt.Errorf("vm driver prepare bootstrap root disk: %w", prepareErr)
