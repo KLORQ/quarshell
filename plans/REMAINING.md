@@ -1,10 +1,10 @@
 # Quarshell — актуальный остаток
 
-Дата: 2026-10-23 (актуализация 04:48 Samara)
+Дата: 2026-10-23 (актуализация 04:52 Samara)
 
 ## Приоритет текущей работы
 
-По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 04:48 Europe/Samara inventory: 25 implemented, 3 partial, 0 blocked, 2 unsupported, 0 open. Свежий локальный macOS/HVF live acceptance PASS на `ca5d820`; hosted KVM run `39879149514` строит pinned libkrun после прохождения package, namespace и Windows/macOS build gates. Общий Linux `task test` выявил readiness-vs-exit scheduling race; обработка уже опубликованного readiness исправлена и проходит 20 повторов в Linux Docker. KVM live acceptance пока не считать закрытой.
+По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 04:52 Europe/Samara inventory: 25 implemented, 3 partial, 0 blocked, 2 unsupported, 0 open. Свежий локальный macOS/HVF live acceptance PASS на `49e22e3`; полный `task test`, conformance 71/71, strict docs, VM artifact/install rollback и parity checks прошли. Hosted KVM run `39879149514` прошёл pinned libkrun build, KVM access, namespace и mount isolation, но VM workload не опубликовал readiness за 30s. Guest agent теперь возвращает до 4 KiB буферизованного pre-readiness PTY output в диагностической ошибке; требуется новый hosted запуск для извлечения причины и проверки исправления. KVM live acceptance пока не считать закрытой.
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 

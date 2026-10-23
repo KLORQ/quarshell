@@ -114,6 +114,24 @@ func (process *retainedTerminal) waitForExpectedAttachment() {
 	}
 }
 
+func (s *controlServer) retainedTerminalOutputTail(id string, limit int) string {
+	if s == nil || id == "" || limit <= 0 {
+		return ""
+	}
+	s.terminalMu.Lock()
+	process := s.terminals[id]
+	s.terminalMu.Unlock()
+	if process == nil {
+		return ""
+	}
+	process.mu.Lock()
+	defer process.mu.Unlock()
+	if len(process.output) > limit {
+		return string(process.output[len(process.output)-limit:])
+	}
+	return string(process.output)
+}
+
 func (process *retainedTerminal) notifyAttachmentChangedLocked() {
 	close(process.attachmentChanged)
 	process.attachmentChanged = make(chan struct{})

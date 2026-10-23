@@ -580,6 +580,9 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 			s.job = nil
 			s.jobDone = nil
 			_ = os.Remove(readyPath)
+			if output := s.retainedTerminalOutputTail(request.SessionID, 4096); output != "" {
+				return fmt.Errorf("guest supervisor did not become ready: %w (pre-readiness output: %q)", err, output)
+			}
 			return fmt.Errorf("guest supervisor did not become ready: %w", err)
 		}
 	}

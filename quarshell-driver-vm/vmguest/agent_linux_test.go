@@ -591,6 +591,18 @@ func TestStartWorkloadReturnsWhenSupervisorExitsBeforeReadiness(t *testing.T) {
 	}
 }
 
+func TestRetainedTerminalOutputTailIsBounded(t *testing.T) {
+	server := &controlServer{terminals: map[string]*retainedTerminal{
+		"startup": {id: "startup", output: []byte("supervisor-startup-error")},
+	}}
+	if got := server.retainedTerminalOutputTail("startup", 7); got != "p-error" {
+		t.Fatalf("output tail=%q, want bounded suffix", got)
+	}
+	if got := server.retainedTerminalOutputTail("missing", 7); got != "" {
+		t.Fatalf("missing terminal output=%q, want empty", got)
+	}
+}
+
 func TestNaturalWorkloadExitPowersOffGuest(t *testing.T) {
 	poweredOff := make(chan struct{}, 1)
 	workDir := t.TempDir()
