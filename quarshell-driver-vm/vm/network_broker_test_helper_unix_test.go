@@ -479,6 +479,14 @@ func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expected
 					_ = file.Close()
 				}
 			}
+			if detailsPath := os.Getenv("CAUTEM_VM_TEST_CONTROL_DETAILS"); detailsPath != "" {
+				if data, marshalErr := json.Marshal(request); marshalErr == nil {
+					if file, openErr := os.OpenFile(detailsPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600); openErr == nil {
+						_, _ = file.Write(append(data, '\n'))
+						_ = file.Close()
+					}
+				}
+			}
 			response := supervisorControlTestResponse{}
 			if request.Operation == "begin" {
 				response.InstanceID = "live-vm-instance"

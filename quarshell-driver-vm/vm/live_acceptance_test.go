@@ -180,6 +180,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	controlEventsPath := filepath.Join(policyDir, "supervisor-events.log")
+	controlDetailsPath := filepath.Join(policyDir, "supervisor-details.jsonl")
 	brokerPIDPath := filepath.Join(policyDir, "broker.pid")
 	policyAckPath := filepath.Join(policyDir, "policy-ack")
 	brokerSpec := vmCreateSpec{
@@ -194,6 +195,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 			"CAUTEM_VM_TEST_BROKER_PID_FILE=" + brokerPIDPath,
 			"CAUTEM_VM_TEST_POLICY_ACK_FILE=" + policyAckPath,
 			"CAUTEM_VM_TEST_CONTROL_EVENTS=" + controlEventsPath,
+			"CAUTEM_VM_TEST_CONTROL_DETAILS=" + controlDetailsPath,
 		},
 		InitBin: initBin, SupervisorBin: supervisorBin, EnableSSH: true, SSHBin: sshBin,
 	}
@@ -437,6 +439,27 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	t.Log("live natural main-process exit powered off the guest and stopped the VM worker")
 
+	signalHandle, err := terminal.createSandbox(ctx, vmCreateSpec{
+		Name: "live-microvm-main-process-signal", Image: "alpine:3.22",
+		DriverConfigJSON: string(driverConfig), Labels: liveGuestInitExtensionLabels(),
+		Command: []string{"/bin/sh", "-c", "exec sleep 30"}, MainProcessRestartPolicy: "never",
+		InitBin: initBin, SupervisorBin: supervisorBin,
+		ProxyBin: brokerSpec.ProxyBin, PolicyPath: brokerSpec.PolicyPath, ProxyEnv: brokerSpec.ProxyEnv,
+	})
+	if err != nil {
+		t.Fatalf("create main-process signal MicroVM: %v", err)
+	}
+	registerLiveSandboxCleanup(t, host, signalHandle.ID)
+	if err := terminal.Start(ctx, signalHandle.ID); err != nil {
+		t.Fatalf("start main-process signal MicroVM: %v", err)
+	}
+	if err := terminal.SignalMainProcess(ctx, signalHandle.ID, driver.ExecSignalKill); err != nil {
+		t.Fatalf("send KILL to canonical main process: %v", err)
+	}
+	waitForSupervisorExitCode(t, ctx, controlDetailsPath, 137)
+	waitForLiveVMStoppedState(t, ctx, host.StateDir, string(signalHandle.ID))
+	t.Log("live canonical process KILL reached the workload process group, was reported as exit 137, and powered off the guest")
+
 	awaitHandle, err := terminal.createSandbox(ctx, vmCreateSpec{
 		Name: "live-microvm-await-main-attachment", Image: "alpine:3.22",
 		DriverConfigJSON: string(driverConfig), Labels: liveGuestInitExtensionLabels(),
@@ -517,6 +540,28 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		t.Fatal("CAUTEM_VM_TEST_PROXY_CLI is required for paired Gateway credential acceptance")
 	}
 	assertLiveGatewayCredentialLaunch(t, ctx, host, rootfsTar, initBin, supervisorBin, sshBin, proxyCLI, policyPath)
+}
+
+func waitForSupervisorExitCode(t *testing.T, ctx context.Context, path string, want int32) {
+	t.Helper()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			for _, line := range strings.Split(string(data), "\n") {
+				var request supervisorControlTestRequest
+				if json.Unmarshal([]byte(line), &request) == nil && request.Operation == "report_main_process_exit" && request.ExitCode == want {
+					return
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("supervisor did not report canonical process exit %d: %v", want, ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func assertLiveIsolationDescriptor(t *testing.T, stateDir string, id core.ID) string {

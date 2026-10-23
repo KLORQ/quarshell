@@ -789,7 +789,7 @@ func (d *Driver) SignalMainProcess(ctx context.Context, id core.ID, signal drive
 		return fmt.Errorf("vm driver: sandbox %q is %s", state.Name, state.Status)
 	}
 	_, guestSocket, _ := workerSocketPaths(store.root, state.ID)
-	_, err = exchangeControl(ctx, guestSocket, controlRequest{Operation: "signal-main-process", Signal: string(signal)})
+	_, err = d.exchangeControl(ctx, state.ID, guestSocket, controlRequest{Operation: "signal-main-process", Signal: string(signal)})
 	return err
 }
 

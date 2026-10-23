@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	userdb "os/user"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -845,19 +846,126 @@ func (s *controlServer) signalMainProcess(name string) error {
 		s.mu.Unlock()
 		return fmt.Errorf("main process is not running")
 	}
-	processGroup := command.Process.Pid
+	processPID := command.Process.Pid
+	supervisorEnabled := s.supervisorEnabled
 	s.mu.Unlock()
-	if err := syscall.Kill(-processGroup, signal); err != nil {
-		if errors.Is(err, syscall.ESRCH) && done != nil {
-			select {
-			case <-done:
-				return nil
-			default:
+	processGroups := []int{processPID}
+	if supervisorEnabled {
+		var err error
+		processGroups, err = guestMainProcessGroups(processPID)
+		if err != nil {
+			if done != nil {
+				select {
+				case <-done:
+					return nil
+				default:
+				}
 			}
+			return fmt.Errorf("find canonical workload process groups: %w", err)
 		}
-		return fmt.Errorf("signal main-process group: %w", err)
+	}
+	for _, processGroup := range processGroups {
+		if err := syscall.Kill(-processGroup, signal); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("signal main-process group %d: %w", processGroup, err)
+		}
 	}
 	return nil
+}
+
+type guestProcessInfo struct {
+	pid  int
+	ppid int
+	pgid int
+}
+
+func guestMainProcessGroups(supervisorPID int) ([]int, error) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil, err
+	}
+	processes := make(map[int]guestProcessInfo, len(entries))
+	children := make(map[int][]guestProcessInfo, len(entries))
+	for _, entry := range entries {
+		pid, parseErr := strconv.Atoi(entry.Name())
+		if parseErr != nil || pid <= 0 {
+			continue
+		}
+		data, readErr := os.ReadFile(filepath.Join("/proc", entry.Name(), "stat"))
+		if readErr != nil {
+			continue
+		}
+		process, parseErr := parseGuestProcessInfo(pid, data)
+		if parseErr == nil {
+			processes[pid] = process
+			children[process.ppid] = append(children[process.ppid], process)
+		}
+	}
+	root, ok := processes[supervisorPID]
+	if !ok {
+		return nil, fmt.Errorf("supervisor process %d is no longer present", supervisorPID)
+	}
+	descendants := map[int]struct{}{supervisorPID: {}}
+	queue := []int{supervisorPID}
+	groups := make(map[int]struct{})
+	for len(queue) > 0 {
+		parent := queue[0]
+		queue = queue[1:]
+		for _, child := range children[parent] {
+			if _, seen := descendants[child.pid]; seen {
+				continue
+			}
+			descendants[child.pid] = struct{}{}
+			groups[child.pgid] = struct{}{}
+			queue = append(queue, child.pid)
+		}
+	}
+	if len(groups) == 0 {
+		return nil, fmt.Errorf("supervisor process %d has no live workload descendants", supervisorPID)
+	}
+	// The canonical supervisor has a separate process group. If any workload
+	// descendant has its own group, signal workload groups only; otherwise the
+	// wrapper and workload intentionally share the same process group.
+	if _, separate := groups[root.pgid]; separate && len(groups) > 1 {
+		delete(groups, root.pgid)
+	} else if _, separate := groups[root.pgid]; separate {
+		workloadPIDs := 0
+		for pid := range descendants {
+			if pid != supervisorPID && processes[pid].pgid != root.pgid {
+				workloadPIDs++
+			}
+		}
+		if workloadPIDs > 0 {
+			delete(groups, root.pgid)
+		}
+	}
+	result := make([]int, 0, len(groups))
+	for group := range groups {
+		if group > 0 {
+			result = append(result, group)
+		}
+	}
+	sort.Ints(result)
+	if len(result) == 0 {
+		return nil, fmt.Errorf("supervisor process %d has no signalable workload groups", supervisorPID)
+	}
+	return result, nil
+}
+
+func parseGuestProcessInfo(pid int, data []byte) (guestProcessInfo, error) {
+	closeParen := strings.LastIndexByte(string(data), ')')
+	if closeParen < 0 || closeParen+2 >= len(data) {
+		return guestProcessInfo{}, fmt.Errorf("malformed process stat")
+	}
+	fields := strings.Fields(string(data[closeParen+1:]))
+	if len(fields) < 3 {
+		return guestProcessInfo{}, fmt.Errorf("malformed process stat")
+	}
+	ppid, ppidErr := strconv.Atoi(fields[1])
+	pgid, pgidErr := strconv.Atoi(fields[2])
+	if ppidErr != nil || pgidErr != nil || ppid < 0 || pgid <= 0 {
+		return guestProcessInfo{}, fmt.Errorf("malformed process stat")
+	}
+	return guestProcessInfo{pid: pid, ppid: ppid, pgid: pgid}, nil
 }
 
 func (s *controlServer) stopWorkload() error {

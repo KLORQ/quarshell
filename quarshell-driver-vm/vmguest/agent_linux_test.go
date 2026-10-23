@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -1291,6 +1292,47 @@ func TestGuestExecOutputBufferIsBounded(t *testing.T) {
 	}
 	if string(buffer.data) != "abcd" || !buffer.truncated {
 		t.Fatalf("bounded output = (%q, truncated=%t)", buffer.data, buffer.truncated)
+	}
+}
+
+func TestSignalMainProcessTargetsSupervisorManagedWorkloadGroup(t *testing.T) {
+	workDir := t.TempDir()
+	pidFile := filepath.Join(workDir, "workload.pid")
+	command := exec.Command("/bin/sh", "-c", "setsid sleep 30 & child=$!; echo $child > \"$1\"; wait $child", "signal-main", pidFile)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = command.Wait()
+		close(done)
+	}()
+	t.Cleanup(func() {
+		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		data, _ := os.ReadFile(pidFile)
+		if childPID, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil {
+			_ = syscall.Kill(-childPID, syscall.SIGKILL)
+		}
+	})
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(pidFile); err == nil {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if _, err := os.Stat(pidFile); err != nil {
+		t.Fatalf("workload PID was not published: %v", err)
+	}
+	server := &controlServer{supervisorEnabled: true, job: command, jobDone: done}
+	if err := server.signalMainProcess("kill"); err != nil {
+		t.Fatalf("signalMainProcess() error=%v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("supervisor-managed workload process group remained alive after KILL")
 	}
 }
 
