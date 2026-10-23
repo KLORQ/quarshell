@@ -78,6 +78,10 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		FormatterPath:  formatter, OverlaySizeBytes: 64 << 20,
 		GuestAgentPath: guestAgent, WorkerPath: strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER")),
 		VCPUs: 2, MemoryMiB: 1024,
+		// The live KVM lane exercises guest-initiated vsock-to-Unix control
+		// connections. Keep libkrun trace output enabled there so failures at
+		// the host socket boundary are diagnosable from the Actions log.
+		KrunLogLevel:        uint32Pointer(krunLogLevelTrace),
 		LifecycleExtensions: []LifecycleExtension{liveGuestInitExtension{}},
 	}
 	host = normalizeHostConfig(host)
