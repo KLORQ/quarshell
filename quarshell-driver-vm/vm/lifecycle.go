@@ -352,10 +352,11 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	brokerSocket := networkBrokerSocketPath(workerControlPath, state.ID)
 	sshSocket := sshRelaySocketPath(workerControlPath, state.ID)
 	supervisorSocket := supervisorControlSocketPath(workerControlPath, state.ID)
+	supervisorProxySocket := supervisorProxySocketPath(workerControlPath, state.ID)
 	if err := validateWorkerSocket(workerControlPath); err != nil {
 		return err
 	}
-	for _, socket := range []string{workerControlPath, guestSocket, brokerSocket, sshSocket, supervisorSocket} {
+	for _, socket := range []string{workerControlPath, guestSocket, brokerSocket, sshSocket, supervisorSocket, supervisorProxySocket} {
 		if err := removeStaleUnixSocket(socket); err != nil {
 			return err
 		}
@@ -499,8 +500,8 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 				"CAUTEM_VM_SUPERVISOR_ENABLED=1",
 				"CAUTEM_VM_SUPERVISOR_CONTROL_PORT="+strconv.Itoa(int(supervisorControlPort)),
 			)
-			launch.VsockPorts = append(launch.VsockPorts, KrunVsockPort{Port: supervisorControlPort, Socket: supervisorSocket, Listen: false})
-			brokerConfig.ControlSocket = supervisorSocket
+			launch.VsockPorts = append(launch.VsockPorts, KrunVsockPort{Port: supervisorControlPort, Socket: supervisorSocket, Listen: true})
+			brokerConfig.ControlSocket = supervisorProxySocket
 		}
 		if spec.EnableSSH {
 			launch.Env = append(launch.Env, "CAUTEM_VM_SSH_RELAY_PORT="+strconv.Itoa(int(sshRelayVsockPort)))
@@ -520,12 +521,20 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 		}
 	}
 	brokerStarted := false
+	var supervisorForwardCancel context.CancelFunc
 	defer func() {
 		if !brokerStarted {
+			if supervisorForwardCancel != nil {
+				supervisorForwardCancel()
+				delete(d.supervisorForwarders, state.ID)
+			}
 			stopNetworkBroker(brokerProcess)
 		}
 	}()
 	workerBrokerConfig := workerNetworkBrokerConfig(brokerConfig)
+	if workerBrokerConfig != nil && brokerConfig != nil && brokerConfig.ControlSocket != "" {
+		workerBrokerConfig.ControlSocket = supervisorSocket
+	}
 	isolationFunc := d.host.workerIsolation
 	if isolationFunc == nil {
 		isolationFunc = workerIsolationForChild
@@ -601,6 +610,12 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	}
 	if err := d.waitForGuestOrExit(startupCtx, state.ID, guestSocket, done); err != nil {
 		return err
+	}
+	if brokerConfig != nil && brokerConfig.ControlSocket != "" {
+		forwardCtx, cancel := context.WithCancel(context.Background())
+		supervisorForwardCancel = cancel
+		d.supervisorForwarders[state.ID] = cancel
+		go forwardSupervisorControl(forwardCtx, supervisorSocket, brokerConfig.ControlSocket)
 	}
 	if len(proxyCABundle) > 0 {
 		if _, err := d.exchangeControl(startupCtx, state.ID, guestSocket, controlRequest{
@@ -1227,6 +1242,10 @@ func (d *Driver) watchWorker(id, root string, done <-chan error) {
 }
 
 func (d *Driver) stopNetworkBroker(id string) {
+	if cancel := d.supervisorForwarders[id]; cancel != nil {
+		cancel()
+		delete(d.supervisorForwarders, id)
+	}
 	if process := d.brokers[id]; process != nil {
 		stopNetworkBroker(process)
 		delete(d.brokers, id)

@@ -98,8 +98,14 @@ func startSupervisorControlBridge(port uint32) (string, error) {
 		_ = os.Remove(supervisorControlPath)
 		return "", fmt.Errorf("secure guest supervisor control socket: %w", err)
 	}
+	vsock, err := listenVsock(port)
+	if err != nil {
+		_ = listener.Close()
+		_ = os.Remove(supervisorControlPath)
+		return "", fmt.Errorf("listen on guest supervisor control vsock port %d: %w", port, err)
+	}
 	fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge listening on %s via host vsock port %d\n", supervisorControlPath, port)
-	go serveUnixVsockBridge(listener, port, supervisorRelayConnections)
+	go serveUnixVsockBridge(listener, vsock, port, supervisorRelayConnections)
 	return supervisorControlPath, nil
 }
 
@@ -172,7 +178,7 @@ func serveVsockUnixBridge(listener net.Listener, socket string, limit int) {
 	}
 }
 
-func serveUnixVsockBridge(listener net.Listener, port uint32, limit int) {
+func serveUnixVsockBridge(listener, vsock net.Listener, port uint32, limit int) {
 	semaphore := make(chan struct{}, limit)
 	for {
 		local, err := listener.Accept()
@@ -184,14 +190,14 @@ func serveUnixVsockBridge(listener net.Listener, port uint32, limit int) {
 		case semaphore <- struct{}{}:
 			go func() {
 				defer func() { <-semaphore }()
-				fmt.Fprintf(os.Stderr, "cautem-init: connecting supervisor control bridge to host vsock port %d\n", port)
-				upstream, dialErr := connectHostBroker(port)
-				if dialErr != nil {
-					fmt.Fprintf(os.Stderr, "cautem-init: connect supervisor control bridge to host vsock port %d: %v\n", port, dialErr)
+				fmt.Fprintf(os.Stderr, "cautem-init: accepting host vsock connection for supervisor control port %d\n", port)
+				upstream, acceptErr := vsock.Accept()
+				if acceptErr != nil {
+					fmt.Fprintf(os.Stderr, "cautem-init: accept host vsock connection for supervisor control port %d: %v\n", port, acceptErr)
 					_ = local.Close()
 					return
 				}
-				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge connected to host vsock port %d\n", port)
+				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge accepted host vsock port %d\n", port)
 				bridgeSupervisorControlConnections(local, upstream)
 				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge closed for host vsock port %d\n", port)
 			}()

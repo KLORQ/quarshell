@@ -33,6 +33,7 @@ type Driver struct {
 	pendingRestores        map[string]ExtensionRestoreContext
 	workers                map[string]*exec.Cmd
 	brokers                map[string]*networkBrokerProcess
+	supervisorForwarders   map[string]context.CancelFunc
 	workerLiveness         map[string]*os.File
 	localImageEngines      []localImageEngine
 	lifecycleExtensions    *LifecycleExtensionRegistry
@@ -51,7 +52,7 @@ func NewWithHostConfig(config HostConfig) *Driver {
 	return &Driver{
 		host: normalizeHostConfig(config), launchSpecs: make(map[string]vmLaunchSpec),
 		launchSpecInputs: make(map[string]vmLaunchSpec), pendingRestores: make(map[string]ExtensionRestoreContext),
-		workers: make(map[string]*exec.Cmd), brokers: make(map[string]*networkBrokerProcess), workerLiveness: make(map[string]*os.File), createGate: make(chan struct{}, 1),
+		workers: make(map[string]*exec.Cmd), brokers: make(map[string]*networkBrokerProcess), supervisorForwarders: make(map[string]context.CancelFunc), workerLiveness: make(map[string]*os.File), createGate: make(chan struct{}, 1),
 		lifecycleExtensions: registry, lifecycleExtensionsErr: registryErr,
 	}
 }

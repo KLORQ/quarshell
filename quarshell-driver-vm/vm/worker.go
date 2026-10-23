@@ -204,8 +204,8 @@ func validateWorkerRelayMapping(mappings []KrunVsockPort, environment []string, 
 		}
 	} else {
 		found := find(supervisorControlPort)
-		if len(found) != 1 || found[0].Socket != broker.ControlSocket || found[0].Listen || countEnv("CAUTEM_VM_SUPERVISOR_CONTROL_PORT=", "CAUTEM_VM_SUPERVISOR_CONTROL_PORT="+strconv.Itoa(int(supervisorControlPort))) != 1 || countEnv("CAUTEM_VM_SUPERVISOR_ENABLED=", "CAUTEM_VM_SUPERVISOR_ENABLED=1") != 1 {
-			return fmt.Errorf("VM worker requires one guest-initiated supervisor control vsock mapping")
+		if len(found) != 1 || found[0].Socket != broker.ControlSocket || !found[0].Listen || countEnv("CAUTEM_VM_SUPERVISOR_CONTROL_PORT=", "CAUTEM_VM_SUPERVISOR_CONTROL_PORT="+strconv.Itoa(int(supervisorControlPort))) != 1 || countEnv("CAUTEM_VM_SUPERVISOR_ENABLED=", "CAUTEM_VM_SUPERVISOR_ENABLED=1") != 1 {
+			return fmt.Errorf("VM worker requires one host-listening supervisor control vsock mapping")
 		}
 	}
 	return nil
@@ -333,6 +333,10 @@ func sshRelaySocketPath(workerSocket, id string) string {
 
 func supervisorControlSocketPath(workerSocket, id string) string {
 	return filepath.Join(filepath.Dir(workerSocket), id+"-control.sock")
+}
+
+func supervisorProxySocketPath(workerSocket, id string) string {
+	return filepath.Join(filepath.Dir(workerSocket), id+"-control-proxy.sock")
 }
 
 func networkBrokerSocketPath(workerSocket, id string) string {

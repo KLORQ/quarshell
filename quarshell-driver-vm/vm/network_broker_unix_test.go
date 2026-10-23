@@ -358,7 +358,7 @@ func TestValidateWorkerRelayMappingsRequireExpectedVsockDirection(t *testing.T) 
 			VsockPorts: []KrunVsockPort{
 				{Port: networkBrokerVsockPort, Socket: "/tmp/cautem-vm/proxy.sock", Listen: false},
 				{Port: sshRelayVsockPort, Socket: "/tmp/cautem-vm/ssh.sock", Listen: true},
-				{Port: supervisorControlPort, Socket: "/tmp/cautem-vm/control.sock", Listen: false},
+				{Port: supervisorControlPort, Socket: "/tmp/cautem-vm/control.sock", Listen: true},
 			},
 			Env: []string{
 				"CAUTEM_VM_NETWORK_BROKER_PORT=5501", "CAUTEM_VM_NETWORK_PROXY_PORT=3128",
@@ -375,9 +375,9 @@ func TestValidateWorkerRelayMappingsRequireExpectedVsockDirection(t *testing.T) 
 		t.Fatalf("guest-initiated SSH mapping error = %v", err)
 	}
 	config.Launch.VsockPorts[1].Listen = true
-	config.Launch.VsockPorts[2].Listen = true
-	if err := validateWorkerNetworkBroker(config); err == nil || !strings.Contains(err.Error(), "guest-initiated supervisor control") {
-		t.Fatalf("host-listening control mapping error = %v", err)
+	config.Launch.VsockPorts[2].Listen = false
+	if err := validateWorkerNetworkBroker(config); err == nil || !strings.Contains(err.Error(), "host-listening supervisor control") {
+		t.Fatalf("guest-initiated control mapping error = %v", err)
 	}
 }
 
