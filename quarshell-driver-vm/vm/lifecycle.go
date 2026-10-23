@@ -574,6 +574,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	d.workers[state.ID] = command
 	d.workerLiveness[state.ID] = parentLiveness
 	done := make(chan error, 1)
+	d.workerDone[state.ID] = done
 	go func() {
 		done <- command.Wait()
 		close(done)
@@ -586,7 +587,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 			if brokerProcess != nil {
 				go watchHostNetworkBroker(brokerProcess, command)
 			}
-			go d.watchWorker(state.ID, store.root, done)
+			go d.watchWorker(state.ID, store.root, command, done)
 			return
 		}
 		d.lifecycleExtensions.AfterLaunchFailed(context.Background(), sandboxDir, state.LifecycleExtensions, LaunchAbortLauncherSpawnFailed)
@@ -599,6 +600,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 				<-done
 			}
 			delete(d.workers, state.ID)
+			delete(d.workerDone, state.ID)
 			d.closeWorkerLiveness(state.ID)
 		}
 	}()
@@ -1226,13 +1228,17 @@ func (d *Driver) waitForExistingGuest(ctx context.Context, id, socket string) er
 	}
 }
 
-func (d *Driver) watchWorker(id, root string, done <-chan error) {
+func (d *Driver) watchWorker(id, root string, command *exec.Cmd, done <-chan error) {
 	<-done
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.workers[id] != command {
+		return
+	}
 	d.stopNetworkBroker(id)
-	_ = killWorkerProcessGroup(d.workers[id])
+	_ = killWorkerProcessGroup(command)
 	delete(d.workers, id)
+	delete(d.workerDone, id)
 	d.closeWorkerLiveness(id)
 	store, err := openStateStore(root)
 	if err != nil {
@@ -1325,6 +1331,9 @@ func (d *Driver) stopLocked(ctx context.Context, store *stateStore, state sandbo
 	for {
 		if _, err := workerControl(shutdownCtx, workerControlPath, "status"); err != nil {
 			_ = killProcessGroup(workerPID)
+			if err := d.waitForWorkerExit(state.ID, workerPID, workerControlPath); err != nil {
+				return fmt.Errorf("wait for stopped VM worker: %w", err)
+			}
 			d.stopNetworkBroker(state.ID)
 			state.Status = "stopped"
 			state.UpdatedAt = time.Now().UTC()
@@ -1342,6 +1351,9 @@ func (d *Driver) stopLocked(ctx context.Context, store *stateStore, state sandbo
 			if err := killProcessGroup(workerPID); err != nil {
 				return fmt.Errorf("force stop VM worker after guest shutdown timeout: %w", err)
 			}
+			if err := d.waitForWorkerExit(state.ID, workerPID, workerControlPath); err != nil {
+				return fmt.Errorf("wait for forcibly stopped VM worker: %w", err)
+			}
 			d.stopNetworkBroker(state.ID)
 			state.Status = "stopped"
 			state.UpdatedAt = time.Now().UTC()
@@ -1350,6 +1362,42 @@ func (d *Driver) stopLocked(ctx context.Context, store *stateStore, state sandbo
 			}
 			d.lifecycleExtensions.AfterLaunchFailed(context.Background(), filepath.Join(store.root, "sandboxes", state.ID), state.LifecycleExtensions, LaunchAbortStopped)
 			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+// waitForWorkerExit waits for the exact worker launched by this driver. A
+// recovered worker has no local exec.Cmd, so its control socket is polled
+// until it disappears. The caller holds d.mu to keep a later Start from
+// replacing the worker handle while cleanup is in progress.
+func (d *Driver) waitForWorkerExit(id string, pid int, controlSocket string) error {
+	if command := d.workers[id]; command != nil && command.Process != nil && command.Process.Pid == pid {
+		if done := d.workerDone[id]; done != nil {
+			timer := time.NewTimer(workerStopTimeout)
+			defer timer.Stop()
+			select {
+			case <-done:
+				delete(d.workers, id)
+				delete(d.workerDone, id)
+				d.closeWorkerLiveness(id)
+				return nil
+			case <-timer.C:
+				return fmt.Errorf("worker process %d did not exit", pid)
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), workerStopTimeout)
+	defer cancel()
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if _, err := workerControl(ctx, controlSocket, "status"); err != nil {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("worker control socket remained available after process %d was killed", pid)
 		case <-ticker.C:
 		}
 	}

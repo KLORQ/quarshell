@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -602,4 +603,20 @@ func writeFakeExt4Fixture(path string, mode os.FileMode) error {
 	image := make([]byte, 4096)
 	image[1024+0x38], image[1024+0x39] = 0x53, 0xef
 	return os.WriteFile(path, image, mode)
+}
+
+func TestWatchWorkerDoesNotActOnReplacementProcessHandle(t *testing.T) {
+	driver := NewWithHostConfig(HostConfig{StateDir: t.TempDir()})
+	oldWorker := &exec.Cmd{}
+	newWorker := &exec.Cmd{}
+	driver.workers["sandbox"] = newWorker
+	driver.workerDone["sandbox"] = make(chan error)
+	done := make(chan error)
+	close(done)
+
+	driver.watchWorker("sandbox", t.TempDir(), oldWorker, done)
+
+	if driver.workers["sandbox"] != newWorker {
+		t.Fatal("old worker watcher removed or replaced the current worker handle")
+	}
 }
