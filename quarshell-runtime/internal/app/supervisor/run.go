@@ -259,6 +259,13 @@ func runWorkload(args []string) (int, error) {
 			case waitErr = <-result:
 				closeWorkloadStartGate(hostStartGate)
 				closeWorkloadStartGate(initStartGateWriter)
+				// A short-lived initializer can publish readiness and exit before
+				// this select runs. Once Wait has completed, the readiness reader
+				// can now deterministically report either that message or EOF.
+				if readyErr := <-ready; readyErr == nil {
+					readinessPublished = true
+					goto workloadExited
+				}
 				code, _ := workloadExitCode(waitErr)
 				return 125, fmt.Errorf("cautem-supervisor: workload exited before readiness (code %d)", code)
 			}

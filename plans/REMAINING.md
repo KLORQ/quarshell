@@ -1,10 +1,10 @@
 # Quarshell — актуальный остаток
 
-Дата: 2026-10-23 (актуализация 04:36 Samara)
+Дата: 2026-10-23 (актуализация 04:48 Samara)
 
 ## Приоритет текущей работы
 
-По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 04:36 Europe/Samara inventory: 25 implemented, 3 partial, 0 blocked, 2 unsupported, 0 open. macOS/HVF live acceptance PASS на `8023af9`; hosted KVM доходит до гостевого старта, но supervisor readiness пока не подтверждён (run `39877080970`). Исправляется найденный deadlock в guest agent error path.
+По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 04:48 Europe/Samara inventory: 25 implemented, 3 partial, 0 blocked, 2 unsupported, 0 open. Свежий локальный macOS/HVF live acceptance PASS на `ca5d820`; hosted KVM run `39879149514` строит pinned libkrun после прохождения package, namespace и Windows/macOS build gates. Общий Linux `task test` выявил readiness-vs-exit scheduling race; обработка уже опубликованного readiness исправлена и проходит 20 повторов в Linux Docker. KVM live acceptance пока не считать закрытой.
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 

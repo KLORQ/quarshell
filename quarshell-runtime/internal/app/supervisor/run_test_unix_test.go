@@ -103,7 +103,7 @@ func TestRunPublishesReadinessAfterInitializerHandshake(t *testing.T) {
 	t.Setenv(envSupervisorReadyFile, readyPath)
 	t.Setenv("CAUTEM_MAIN_PROCESS_RESTART_POLICY", "never")
 	t.Setenv(waitForWorkloadReadyEnv, "1")
-	code, err := Run([]string{"sh", "-c", "printf '1 1000 1000\\n' >&3; sleep 0.05"})
+	code, err := Run([]string{"sh", "-c", "printf '1 1000 1000\\n' >&3"})
 	if err != nil || code != 0 {
 		t.Fatalf("Run()=(%d,%v), want successful initialized workload", code, err)
 	}
