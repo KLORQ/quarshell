@@ -943,7 +943,7 @@ func validateRequest(request Request) error {
 	if request.Generation == 0 {
 		return domain.Invalidf("sandbox.create", "generation must be positive")
 	}
-	if strings.TrimSpace(request.Image) == "" {
+	if strings.TrimSpace(request.Image) == "" && !strings.Contains(request.DriverConfigJSON, `"rootfs_tar_path"`) {
 		return domain.Invalidf("sandbox.create", "image is required")
 	}
 	for _, argument := range request.Command {

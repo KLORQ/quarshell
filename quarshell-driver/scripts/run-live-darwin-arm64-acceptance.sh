@@ -62,6 +62,10 @@ cleanup() {
   fi
 }
 trap cleanup EXIT HUP INT TERM
+if [ ! -s "$rootfs_tar" ] && [ -n "${CAUTEM_VM_TEST_ROOTFS_URL:-}" ]; then
+  mkdir -p "$(dirname "$rootfs_tar")"
+  curl --fail --location --silent --show-error "$CAUTEM_VM_TEST_ROOTFS_URL" --output "$rootfs_tar"
+fi
 if [ ! -s "$rootfs_tar" ]; then
   if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required to prepare the default Alpine Linux rootfs; set CAUTEM_VM_TEST_ROOTFS_TAR to use an existing fixture" >&2

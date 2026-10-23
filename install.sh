@@ -121,7 +121,7 @@ main() {
   esac
 
   if ! has_cmd docker && ! has_cmd podman; then
-    info "warning: Docker or Podman is required before creating sandboxes"
+    info "note: container sandboxes need Docker or Podman; VM mode does not"
   fi
   if [ "${CAUTEM_NO_START:-0}" != "1" ]; then
     info "starting local gateway"

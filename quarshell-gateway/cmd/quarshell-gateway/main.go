@@ -337,14 +337,8 @@ func main() {
 				log.Fatalf("grpc TLS: %v", err)
 			}
 			tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}}
-			if *tlsClientCA != "" {
-				pool, err := loadClientCA(*tlsClientCA)
-				if err != nil {
-					log.Fatalf("grpc client CA: %v", err)
-				}
-				tlsConfig.ClientCAs = pool
-				tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-			}
+			// gRPC sandbox/supervisor credentials are bearer/JWT based. Client
+			// certificates are enforced on the operator HTTP API only.
 			options = append(options, grpc.Creds(grpcCredentials.NewTLS(tlsConfig)))
 		}
 		grpcServer = grpc.NewServer(options...)

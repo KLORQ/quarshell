@@ -76,7 +76,22 @@ func (a *App) GatewayEnsure() error {
 		return fmt.Errorf("gateway ensure: TLS: %w", err)
 	}
 	gatewayArgs := []string{"--listen", "127.0.0.1:17670", "--grpc-listen", localGatewayGRPCEndpoint, "--data-dir", dataDir, "--tls-cert", tlsFiles.ServerCert, "--tls-key", tlsFiles.ServerKey, "--tls-client-ca", tlsFiles.CA}
+	runtimeName := strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_RUNTIME"))
+	if runtimeName != "" {
+		gatewayArgs = append(gatewayArgs, "--runtime", runtimeName)
+	}
+	if runtimeConfig := strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_RUNTIME_CONFIG")); runtimeConfig != "" {
+		gatewayArgs = append(gatewayArgs, "--runtime-config", runtimeConfig)
+	}
 	gatewayEnv := []string{"QUARSHELL_TOKEN=" + token}
+	if runtimeName == "vm" {
+		if os.Getenv("OPENSHELL_VM_TLS_CA") == "" {
+			gatewayEnv = append(gatewayEnv, "OPENSHELL_VM_TLS_CA="+tlsFiles.CA)
+		}
+		if os.Getenv("OPENSHELL_GRPC_ENDPOINT") == "" {
+			gatewayEnv = append(gatewayEnv, "OPENSHELL_GRPC_ENDPOINT=https://127.0.0.1:17671")
+		}
+	}
 	serviceStarted := false
 	if os.Getenv("CAUTEM_GATEWAY_SERVICE") != "0" {
 		serviceStarted, _ = startGatewayService(bin, gatewayArgs, gatewayEnv, dataDir, logPath)

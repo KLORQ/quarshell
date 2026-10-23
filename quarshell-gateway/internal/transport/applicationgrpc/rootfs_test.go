@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/KLORQ/quarshell-core/domain"
@@ -52,7 +52,7 @@ func TestRootfsTarStagingConsumedByCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 	path, _ := driverConfig["rootfs_tar_path"].(string)
-	if filepath.Dir(path) != dir {
+	if !strings.HasPrefix(path, dir+string(os.PathSeparator)) {
 		t.Fatalf("rootfs path = %q", path)
 	}
 	if _, err := server.BeginRootfsTarStaging(ctx, &gatewayv1.BeginRootfsTarStagingRequest{WorkspaceScope: selector, FileName: "rootfs.tar", SizeBytes: 2048}); err == nil {

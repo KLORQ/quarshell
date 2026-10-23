@@ -51,7 +51,11 @@ func (s *Server) BeginRootfsTarStaging(ctx context.Context, request *gatewayv1.B
 		return nil, status.Error(codes.Internal, "mint staging token")
 	}
 	token := base64.RawURLEncoding.EncodeToString(tokenBytes)
-	path := filepath.Join(directory, token+"-"+name)
+	fileDir := filepath.Join(directory, token)
+	if err := os.MkdirAll(fileDir, 0o700); err != nil {
+		return nil, status.Error(codes.Unavailable, "prepare staging directory")
+	}
+	path := filepath.Join(fileDir, name)
 	expires := s.now().Add(15 * time.Minute)
 	s.stagingMu.Lock()
 	if s.staging == nil {
