@@ -442,16 +442,20 @@ func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expected
 		if err != nil {
 			return
 		}
+		writeSupervisorControlDiagnostic("accepted")
 		go func() {
 			defer connection.Close()
 			_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
 			if tlsConnection, ok := connection.(*tls.Conn); ok {
+				writeSupervisorControlDiagnostic("tls-handshake-started")
 				if handshakeErr := tlsConnection.Handshake(); handshakeErr != nil {
+					writeSupervisorControlDiagnostic("tls-handshake-failed: " + handshakeErr.Error())
 					if handshakeErr != io.EOF {
 						fmt.Fprintf(os.Stderr, "supervisor control test TLS handshake failed: %v\n", handshakeErr)
 					}
 					return
 				}
+				writeSupervisorControlDiagnostic("tls-handshake-completed")
 			}
 			line, err := bufio.NewReader(io.LimitReader(connection, 8<<10)).ReadBytes('\n')
 			if err != nil {
@@ -494,4 +498,17 @@ func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expected
 			_ = json.NewEncoder(connection).Encode(response)
 		}()
 	}
+}
+
+func writeSupervisorControlDiagnostic(message string) {
+	path := os.Getenv("CAUTEM_VM_TEST_CONTROL_DIAGNOSTICS")
+	if path == "" {
+		return
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintln(file, message)
+	_ = file.Close()
 }

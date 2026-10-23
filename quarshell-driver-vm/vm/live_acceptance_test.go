@@ -181,6 +181,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 	}
 	controlEventsPath := filepath.Join(policyDir, "supervisor-events.log")
 	controlDetailsPath := filepath.Join(policyDir, "supervisor-details.jsonl")
+	controlDiagnosticsPath := filepath.Join(policyDir, "supervisor-diagnostics.log")
 	brokerPIDPath := filepath.Join(policyDir, "broker.pid")
 	policyAckPath := filepath.Join(policyDir, "policy-ack")
 	brokerSpec := vmCreateSpec{
@@ -196,6 +197,7 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 			"CAUTEM_VM_TEST_POLICY_ACK_FILE=" + policyAckPath,
 			"CAUTEM_VM_TEST_CONTROL_EVENTS=" + controlEventsPath,
 			"CAUTEM_VM_TEST_CONTROL_DETAILS=" + controlDetailsPath,
+			"CAUTEM_VM_TEST_CONTROL_DIAGNOSTICS=" + controlDiagnosticsPath,
 		},
 		InitBin: initBin, SupervisorBin: supervisorBin, EnableSSH: true, SSHBin: sshBin,
 	}
@@ -238,7 +240,8 @@ func TestLiveMicroVMLifecycle(t *testing.T) {
 		_, _, consolePath := workerSocketPaths(store.root, string(handle.ID))
 		workerLog, _ := os.ReadFile(consolePath + ".worker")
 		controlEvents, _ := os.ReadFile(controlEventsPath)
-		t.Fatalf("start live MicroVM: %v; console: %s; worker: %s; supervisor control events: %s", err, logs.String(), workerLog, controlEvents)
+		controlDiagnostics, _ := os.ReadFile(controlDiagnosticsPath)
+		t.Fatalf("start live MicroVM: %v; console: %s; worker: %s; supervisor control events: %s; supervisor control diagnostics: %s", err, logs.String(), workerLog, controlEvents, controlDiagnostics)
 	}
 	assertLiveVMPlatformState(t, vmEvents, "running")
 	firstMainPID := assertLiveMainProcessTTY(t, ctx, first, handle.ID, "first")
