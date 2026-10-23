@@ -54,6 +54,7 @@ for artifact in "$worker" "$guest_agent" "$init_bin" "$supervisor_bin" "$ssh_bin
 done
 
 rootfs_tar=${CAUTEM_VM_TEST_ROOTFS_TAR:-"$build_dir/alpine-rootfs.tar"}
+local_test_image=${CAUTEM_VM_TEST_LOCAL_IMAGE:-docker.io/library/alpine:3.22}
 container_id=
 cleanup() {
   if [ -n "$container_id" ]; then
@@ -78,7 +79,9 @@ if [ ! -s "$rootfs_tar" ]; then
   docker rm "$container_id" >/dev/null
   container_id=
 fi
-docker pull --platform "linux/$guest_arch" docker.io/library/alpine:3.22 >/dev/null
+if ! docker image inspect "$local_test_image" >/dev/null 2>&1; then
+  docker pull --platform "linux/$guest_arch" "$local_test_image" >/dev/null
+fi
 if [ ! -s "$rootfs_tar" ]; then
   echo "live MicroVM rootfs tar is missing or empty: $rootfs_tar" >&2
   exit 2
@@ -105,7 +108,7 @@ fi
 cd "$vm_module_dir"
 CAUTEM_VM_ACCEPTANCE=1 \
 CAUTEM_VM_LOCAL_IMAGE_ACCEPTANCE=1 \
-CAUTEM_VM_TEST_LOCAL_IMAGE="docker.io/library/alpine:3.22" \
+CAUTEM_VM_TEST_LOCAL_IMAGE=$local_test_image \
 CAUTEM_VM_TEST_ROOTFS_TAR=$rootfs_tar \
 CAUTEM_VM_TEST_GUEST_AGENT=$guest_agent \
 CAUTEM_VM_TEST_INIT_BIN=$init_bin \

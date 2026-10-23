@@ -38,3 +38,13 @@ After that change, the following tests passed locally on HVF:
 - `TestLiveVMWatchSandboxComposition` — PASS (2.78 s), including live Gateway create/start/watch/stop over HVF.
 
 The Gateway acceptance fixture now serves the staged rootfs from an in-process OCI registry, avoiding a Docker Hub dependency. A new hosted KVM result is still required to confirm the forwarder fix on Linux.
+
+## Full task follow-up
+
+The complete `task vm:live-darwin` lane passed again after the mTLS forwarder change, using the cached, hash-verified umoci artifact and cached Docker image:
+
+- `TestLiveMicroVMLifecycle` — PASS (28.54 s).
+- `TestLiveLocalOCIEngineImport` — PASS (1.16 s).
+- `TestLiveVMWatchSandboxComposition` — PASS (2.63 s).
+
+The runner script now skips `docker pull` when its configured local image already exists. The Gateway composition test serves the staged rootfs from a local OCI registry, so these live VM checks completed without Docker Hub access. Hosted KVM remains the cross-hypervisor confirmation gate.
