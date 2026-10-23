@@ -69,6 +69,12 @@ type MainProcessWaiter interface {
 	WaitMainProcess(context.Context, core.ID) (int, error)
 }
 
+// MainProcessSignaler delivers a placement-neutral signal to the canonical
+// workload process group when the backend supports process handles.
+type MainProcessSignaler interface {
+	SignalMainProcess(context.Context, core.ID, ExecProcessSignal) error
+}
+
 // MainProcessLogAttacher opens the canonical process log stream before waiting
 // begins so short-lived workloads cannot exit before the CLI attaches.
 type MainProcessLogAttacher interface {

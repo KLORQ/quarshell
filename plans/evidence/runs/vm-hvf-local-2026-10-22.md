@@ -18,6 +18,23 @@ pinned OpenShell Gateway descriptors remain unchanged. The next hosted KVM run
 will report client-side TLS handshake errors from the supervisor readiness
 probe to narrow down the live control-channel timeout.
 
+## Canonical main-process signals
+
+- Reverified: 2026-10-23
+- Checks: workspace `task test`, Linux ARM64 guest-agent signal test in
+  `golang:1.27.2`, proto lint, parity and compatibility checks: PASS
+- HVF: `TestLiveMicroVMLifecycle` PASS (85.61s), OCI import PASS (1.14s),
+  Gateway watch composition PASS (8.38s)
+- KVM: [39885362170](https://github.com/KLORQ/quarshell/actions/runs/39885362170)
+  failed live supervisor readiness with the same mTLS handshake timeout.
+
+OpenShell's `BoundaryProcess` signal contract is now exposed for the canonical
+main workload: TERM, KILL, INT, and HUP traverse the Gateway extension and the
+authenticated VM control channel to the guest workload process group. The
+guest-agent process-group test passed in a Linux ARM64 container. This closes
+signal delivery for the canonical workload path; the host-side
+`RunningBoundary`/`BoundaryProcess` process-handle layer remains incomplete.
+
 ## Rootfs archive staging flow
 
 - Reverified: 2026-10-22

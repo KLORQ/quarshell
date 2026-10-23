@@ -21,6 +21,157 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type MainProcessSignal int32
+
+const (
+	MainProcessSignal_MAIN_PROCESS_SIGNAL_UNSPECIFIED MainProcessSignal = 0
+	MainProcessSignal_MAIN_PROCESS_SIGNAL_TERMINATE   MainProcessSignal = 1
+	MainProcessSignal_MAIN_PROCESS_SIGNAL_KILL        MainProcessSignal = 2
+	MainProcessSignal_MAIN_PROCESS_SIGNAL_INTERRUPT   MainProcessSignal = 3
+	MainProcessSignal_MAIN_PROCESS_SIGNAL_HANGUP      MainProcessSignal = 4
+)
+
+// Enum value maps for MainProcessSignal.
+var (
+	MainProcessSignal_name = map[int32]string{
+		0: "MAIN_PROCESS_SIGNAL_UNSPECIFIED",
+		1: "MAIN_PROCESS_SIGNAL_TERMINATE",
+		2: "MAIN_PROCESS_SIGNAL_KILL",
+		3: "MAIN_PROCESS_SIGNAL_INTERRUPT",
+		4: "MAIN_PROCESS_SIGNAL_HANGUP",
+	}
+	MainProcessSignal_value = map[string]int32{
+		"MAIN_PROCESS_SIGNAL_UNSPECIFIED": 0,
+		"MAIN_PROCESS_SIGNAL_TERMINATE":   1,
+		"MAIN_PROCESS_SIGNAL_KILL":        2,
+		"MAIN_PROCESS_SIGNAL_INTERRUPT":   3,
+		"MAIN_PROCESS_SIGNAL_HANGUP":      4,
+	}
+)
+
+func (x MainProcessSignal) Enum() *MainProcessSignal {
+	p := new(MainProcessSignal)
+	*p = x
+	return p
+}
+
+func (x MainProcessSignal) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (MainProcessSignal) Descriptor() protoreflect.EnumDescriptor {
+	return file_cautem_runtime_v1_main_process_proto_enumTypes[0].Descriptor()
+}
+
+func (MainProcessSignal) Type() protoreflect.EnumType {
+	return &file_cautem_runtime_v1_main_process_proto_enumTypes[0]
+}
+
+func (x MainProcessSignal) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use MainProcessSignal.Descriptor instead.
+func (MainProcessSignal) EnumDescriptor() ([]byte, []int) {
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{0}
+}
+
+type MainProcessServiceSignalRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Workspace     string                 `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Sandbox       string                 `protobuf:"bytes,2,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
+	Signal        MainProcessSignal      `protobuf:"varint,3,opt,name=signal,proto3,enum=cautem.runtime.v1.MainProcessSignal" json:"signal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MainProcessServiceSignalRequest) Reset() {
+	*x = MainProcessServiceSignalRequest{}
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MainProcessServiceSignalRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MainProcessServiceSignalRequest) ProtoMessage() {}
+
+func (x *MainProcessServiceSignalRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MainProcessServiceSignalRequest.ProtoReflect.Descriptor instead.
+func (*MainProcessServiceSignalRequest) Descriptor() ([]byte, []int) {
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *MainProcessServiceSignalRequest) GetWorkspace() string {
+	if x != nil {
+		return x.Workspace
+	}
+	return ""
+}
+
+func (x *MainProcessServiceSignalRequest) GetSandbox() string {
+	if x != nil {
+		return x.Sandbox
+	}
+	return ""
+}
+
+func (x *MainProcessServiceSignalRequest) GetSignal() MainProcessSignal {
+	if x != nil {
+		return x.Signal
+	}
+	return MainProcessSignal_MAIN_PROCESS_SIGNAL_UNSPECIFIED
+}
+
+type MainProcessServiceSignalResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MainProcessServiceSignalResponse) Reset() {
+	*x = MainProcessServiceSignalResponse{}
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MainProcessServiceSignalResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MainProcessServiceSignalResponse) ProtoMessage() {}
+
+func (x *MainProcessServiceSignalResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MainProcessServiceSignalResponse.ProtoReflect.Descriptor instead.
+func (*MainProcessServiceSignalResponse) Descriptor() ([]byte, []int) {
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{1}
+}
+
 type MainProcessTTYStart struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Workspace     string                 `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
@@ -33,7 +184,7 @@ type MainProcessTTYStart struct {
 
 func (x *MainProcessTTYStart) Reset() {
 	*x = MainProcessTTYStart{}
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[0]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -45,7 +196,7 @@ func (x *MainProcessTTYStart) String() string {
 func (*MainProcessTTYStart) ProtoMessage() {}
 
 func (x *MainProcessTTYStart) ProtoReflect() protoreflect.Message {
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[0]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58,7 +209,7 @@ func (x *MainProcessTTYStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MainProcessTTYStart.ProtoReflect.Descriptor instead.
 func (*MainProcessTTYStart) Descriptor() ([]byte, []int) {
-	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{0}
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *MainProcessTTYStart) GetWorkspace() string {
@@ -99,7 +250,7 @@ type MainProcessTTYResize struct {
 
 func (x *MainProcessTTYResize) Reset() {
 	*x = MainProcessTTYResize{}
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[1]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -111,7 +262,7 @@ func (x *MainProcessTTYResize) String() string {
 func (*MainProcessTTYResize) ProtoMessage() {}
 
 func (x *MainProcessTTYResize) ProtoReflect() protoreflect.Message {
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[1]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -124,7 +275,7 @@ func (x *MainProcessTTYResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MainProcessTTYResize.ProtoReflect.Descriptor instead.
 func (*MainProcessTTYResize) Descriptor() ([]byte, []int) {
-	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{1}
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MainProcessTTYResize) GetCols() uint32 {
@@ -155,7 +306,7 @@ type MainProcessServiceAttachTTYRequest struct {
 
 func (x *MainProcessServiceAttachTTYRequest) Reset() {
 	*x = MainProcessServiceAttachTTYRequest{}
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[2]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -167,7 +318,7 @@ func (x *MainProcessServiceAttachTTYRequest) String() string {
 func (*MainProcessServiceAttachTTYRequest) ProtoMessage() {}
 
 func (x *MainProcessServiceAttachTTYRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[2]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -180,7 +331,7 @@ func (x *MainProcessServiceAttachTTYRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use MainProcessServiceAttachTTYRequest.ProtoReflect.Descriptor instead.
 func (*MainProcessServiceAttachTTYRequest) Descriptor() ([]byte, []int) {
-	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{2}
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *MainProcessServiceAttachTTYRequest) GetPayload() isMainProcessServiceAttachTTYRequest_Payload {
@@ -252,7 +403,7 @@ type MainProcessServiceAttachTTYResponse struct {
 
 func (x *MainProcessServiceAttachTTYResponse) Reset() {
 	*x = MainProcessServiceAttachTTYResponse{}
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[3]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -264,7 +415,7 @@ func (x *MainProcessServiceAttachTTYResponse) String() string {
 func (*MainProcessServiceAttachTTYResponse) ProtoMessage() {}
 
 func (x *MainProcessServiceAttachTTYResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[3]
+	mi := &file_cautem_runtime_v1_main_process_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -277,7 +428,7 @@ func (x *MainProcessServiceAttachTTYResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use MainProcessServiceAttachTTYResponse.ProtoReflect.Descriptor instead.
 func (*MainProcessServiceAttachTTYResponse) Descriptor() ([]byte, []int) {
-	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{3}
+	return file_cautem_runtime_v1_main_process_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MainProcessServiceAttachTTYResponse) GetPayload() isMainProcessServiceAttachTTYResponse_Payload {
@@ -326,7 +477,12 @@ var File_cautem_runtime_v1_main_process_proto protoreflect.FileDescriptor
 
 const file_cautem_runtime_v1_main_process_proto_rawDesc = "" +
 	"\n" +
-	"$cautem/runtime/v1/main_process.proto\x12\x11cautem.runtime.v1\"u\n" +
+	"$cautem/runtime/v1/main_process.proto\x12\x11cautem.runtime.v1\"\x97\x01\n" +
+	"\x1fMainProcessServiceSignalRequest\x12\x1c\n" +
+	"\tworkspace\x18\x01 \x01(\tR\tworkspace\x12\x18\n" +
+	"\asandbox\x18\x02 \x01(\tR\asandbox\x12<\n" +
+	"\x06signal\x18\x03 \x01(\x0e2$.cautem.runtime.v1.MainProcessSignalR\x06signal\"\"\n" +
+	" MainProcessServiceSignalResponse\"u\n" +
 	"\x13MainProcessTTYStart\x12\x1c\n" +
 	"\tworkspace\x18\x01 \x01(\tR\tworkspace\x12\x18\n" +
 	"\asandbox\x18\x02 \x01(\tR\asandbox\x12\x12\n" +
@@ -343,9 +499,16 @@ const file_cautem_runtime_v1_main_process_proto_rawDesc = "" +
 	"#MainProcessServiceAttachTTYResponse\x12\x18\n" +
 	"\x06stdout\x18\x01 \x01(\fH\x00R\x06stdout\x12\x1d\n" +
 	"\texit_code\x18\x02 \x01(\x05H\x00R\bexitCodeB\t\n" +
-	"\apayload2\x94\x01\n" +
+	"\apayload*\xbc\x01\n" +
+	"\x11MainProcessSignal\x12#\n" +
+	"\x1fMAIN_PROCESS_SIGNAL_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dMAIN_PROCESS_SIGNAL_TERMINATE\x10\x01\x12\x1c\n" +
+	"\x18MAIN_PROCESS_SIGNAL_KILL\x10\x02\x12!\n" +
+	"\x1dMAIN_PROCESS_SIGNAL_INTERRUPT\x10\x03\x12\x1e\n" +
+	"\x1aMAIN_PROCESS_SIGNAL_HANGUP\x10\x042\x87\x02\n" +
 	"\x12MainProcessService\x12~\n" +
-	"\tAttachTTY\x125.cautem.runtime.v1.MainProcessServiceAttachTTYRequest\x1a6.cautem.runtime.v1.MainProcessServiceAttachTTYResponse(\x010\x01BEZCgithub.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1;runtimev1b\x06proto3"
+	"\tAttachTTY\x125.cautem.runtime.v1.MainProcessServiceAttachTTYRequest\x1a6.cautem.runtime.v1.MainProcessServiceAttachTTYResponse(\x010\x01\x12q\n" +
+	"\x06Signal\x122.cautem.runtime.v1.MainProcessServiceSignalRequest\x1a3.cautem.runtime.v1.MainProcessServiceSignalResponseBEZCgithub.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1;runtimev1b\x06proto3"
 
 var (
 	file_cautem_runtime_v1_main_process_proto_rawDescOnce sync.Once
@@ -359,23 +522,30 @@ func file_cautem_runtime_v1_main_process_proto_rawDescGZIP() []byte {
 	return file_cautem_runtime_v1_main_process_proto_rawDescData
 }
 
-var file_cautem_runtime_v1_main_process_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_cautem_runtime_v1_main_process_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_cautem_runtime_v1_main_process_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_cautem_runtime_v1_main_process_proto_goTypes = []any{
-	(*MainProcessTTYStart)(nil),                 // 0: cautem.runtime.v1.MainProcessTTYStart
-	(*MainProcessTTYResize)(nil),                // 1: cautem.runtime.v1.MainProcessTTYResize
-	(*MainProcessServiceAttachTTYRequest)(nil),  // 2: cautem.runtime.v1.MainProcessServiceAttachTTYRequest
-	(*MainProcessServiceAttachTTYResponse)(nil), // 3: cautem.runtime.v1.MainProcessServiceAttachTTYResponse
+	(MainProcessSignal)(0),                      // 0: cautem.runtime.v1.MainProcessSignal
+	(*MainProcessServiceSignalRequest)(nil),     // 1: cautem.runtime.v1.MainProcessServiceSignalRequest
+	(*MainProcessServiceSignalResponse)(nil),    // 2: cautem.runtime.v1.MainProcessServiceSignalResponse
+	(*MainProcessTTYStart)(nil),                 // 3: cautem.runtime.v1.MainProcessTTYStart
+	(*MainProcessTTYResize)(nil),                // 4: cautem.runtime.v1.MainProcessTTYResize
+	(*MainProcessServiceAttachTTYRequest)(nil),  // 5: cautem.runtime.v1.MainProcessServiceAttachTTYRequest
+	(*MainProcessServiceAttachTTYResponse)(nil), // 6: cautem.runtime.v1.MainProcessServiceAttachTTYResponse
 }
 var file_cautem_runtime_v1_main_process_proto_depIdxs = []int32{
-	0, // 0: cautem.runtime.v1.MainProcessServiceAttachTTYRequest.start:type_name -> cautem.runtime.v1.MainProcessTTYStart
-	1, // 1: cautem.runtime.v1.MainProcessServiceAttachTTYRequest.resize:type_name -> cautem.runtime.v1.MainProcessTTYResize
-	2, // 2: cautem.runtime.v1.MainProcessService.AttachTTY:input_type -> cautem.runtime.v1.MainProcessServiceAttachTTYRequest
-	3, // 3: cautem.runtime.v1.MainProcessService.AttachTTY:output_type -> cautem.runtime.v1.MainProcessServiceAttachTTYResponse
-	3, // [3:4] is the sub-list for method output_type
-	2, // [2:3] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // 0: cautem.runtime.v1.MainProcessServiceSignalRequest.signal:type_name -> cautem.runtime.v1.MainProcessSignal
+	3, // 1: cautem.runtime.v1.MainProcessServiceAttachTTYRequest.start:type_name -> cautem.runtime.v1.MainProcessTTYStart
+	4, // 2: cautem.runtime.v1.MainProcessServiceAttachTTYRequest.resize:type_name -> cautem.runtime.v1.MainProcessTTYResize
+	5, // 3: cautem.runtime.v1.MainProcessService.AttachTTY:input_type -> cautem.runtime.v1.MainProcessServiceAttachTTYRequest
+	1, // 4: cautem.runtime.v1.MainProcessService.Signal:input_type -> cautem.runtime.v1.MainProcessServiceSignalRequest
+	6, // 5: cautem.runtime.v1.MainProcessService.AttachTTY:output_type -> cautem.runtime.v1.MainProcessServiceAttachTTYResponse
+	2, // 6: cautem.runtime.v1.MainProcessService.Signal:output_type -> cautem.runtime.v1.MainProcessServiceSignalResponse
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_cautem_runtime_v1_main_process_proto_init() }
@@ -383,12 +553,12 @@ func file_cautem_runtime_v1_main_process_proto_init() {
 	if File_cautem_runtime_v1_main_process_proto != nil {
 		return
 	}
-	file_cautem_runtime_v1_main_process_proto_msgTypes[2].OneofWrappers = []any{
+	file_cautem_runtime_v1_main_process_proto_msgTypes[4].OneofWrappers = []any{
 		(*MainProcessServiceAttachTTYRequest_Start)(nil),
 		(*MainProcessServiceAttachTTYRequest_Stdin)(nil),
 		(*MainProcessServiceAttachTTYRequest_Resize)(nil),
 	}
-	file_cautem_runtime_v1_main_process_proto_msgTypes[3].OneofWrappers = []any{
+	file_cautem_runtime_v1_main_process_proto_msgTypes[5].OneofWrappers = []any{
 		(*MainProcessServiceAttachTTYResponse_Stdout)(nil),
 		(*MainProcessServiceAttachTTYResponse_ExitCode)(nil),
 	}
@@ -397,13 +567,14 @@ func file_cautem_runtime_v1_main_process_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cautem_runtime_v1_main_process_proto_rawDesc), len(file_cautem_runtime_v1_main_process_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   4,
+			NumEnums:      1,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_cautem_runtime_v1_main_process_proto_goTypes,
 		DependencyIndexes: file_cautem_runtime_v1_main_process_proto_depIdxs,
+		EnumInfos:         file_cautem_runtime_v1_main_process_proto_enumTypes,
 		MessageInfos:      file_cautem_runtime_v1_main_process_proto_msgTypes,
 	}.Build()
 	File_cautem_runtime_v1_main_process_proto = out.File

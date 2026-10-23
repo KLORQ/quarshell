@@ -106,6 +106,15 @@ func (d *Docker) WaitMainProcess(ctx context.Context, sandbox Sandbox) (int, err
 	return waiter.WaitMainProcess(ctx, id(sandbox))
 }
 
+// SignalMainProcess delivers an allowlisted signal to the canonical workload.
+func (d *Docker) SignalMainProcess(ctx context.Context, sandbox Sandbox, signal driver.ExecProcessSignal) error {
+	signaler, ok := d.Backend.(driver.MainProcessSignaler)
+	if !ok {
+		return domain.New(domain.CodeUnavailable, "sandboxruntime.main_process.signal", "backend cannot signal the main process")
+	}
+	return signaler.SignalMainProcess(ctx, id(sandbox), signal)
+}
+
 // RootfsStaging allocates a backend-owned upload directory.
 func (d *Docker) RootfsStaging(ctx context.Context) (string, uint64, error) {
 	stager, ok := d.Backend.(driver.RuntimeRootfsTarStager)

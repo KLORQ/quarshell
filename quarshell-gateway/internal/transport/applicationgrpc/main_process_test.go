@@ -23,6 +23,7 @@ type mainProcessRuntime struct {
 	terminal *mainProcessTerminal
 	cols     uint32
 	rows     uint32
+	signal   driver.ExecProcessSignal
 }
 
 func (r *mainProcessRuntime) Create(context.Context, sandboxruntime.Sandbox) (string, error) {
@@ -47,6 +48,10 @@ func (r *mainProcessRuntime) ResizePTY(_ context.Context, _ sandboxruntime.Sandb
 func (*mainProcessRuntime) WaitMainProcess(context.Context, sandboxruntime.Sandbox) (int, error) {
 	return 13, nil
 }
+func (r *mainProcessRuntime) SignalMainProcess(_ context.Context, _ sandboxruntime.Sandbox, signal driver.ExecProcessSignal) error {
+	r.signal = signal
+	return nil
+}
 
 type mainProcessTerminal struct {
 	mu       sync.Mutex
@@ -54,6 +59,31 @@ type mainProcessTerminal struct {
 	output   *bytes.Reader
 	ready    chan struct{}
 	readyOne sync.Once
+}
+
+func TestSignalMainProcessRPCUsesWorkspaceScopedCanonicalProcess(t *testing.T) {
+	runtime := &mainProcessRuntime{terminal: newMainProcessTerminal()}
+	sandboxes, err := sandboxapp.NewService(lifecycle.NewMemoryStore())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sandboxes.Runtime = runtime
+	if _, _, err := sandboxes.Create(context.Background(), sandboxapp.Request{
+		Workspace: "team", Sandbox: "agent", Generation: domain.Generation(1),
+		Image: "alpine:3.22", Command: []string{"sleep", "30"}, TTY: true, IdempotencyKey: "create-signal-main",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{Sandboxes: sandboxes}
+	_, err = server.Signal(context.Background(), &runtimev1.MainProcessServiceSignalRequest{
+		Workspace: "team", Sandbox: "agent", Signal: runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_INTERRUPT,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.signal != driver.ExecSignalInterrupt {
+		t.Fatalf("main-process signal=%q, want %q", runtime.signal, driver.ExecSignalInterrupt)
+	}
 }
 
 func newMainProcessTerminal() *mainProcessTerminal {

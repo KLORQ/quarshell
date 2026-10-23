@@ -23,6 +23,7 @@ type Request struct {
 	Env                        []string `json:"env,omitempty"`
 	User                       string   `json:"user,omitempty"`
 	RestartPolicy              string   `json:"restart_policy,omitempty"`
+	Signal                     string   `json:"signal,omitempty"`
 	TTY                        bool     `json:"tty,omitempty"`
 	AwaitMainProcessAttachment bool     `json:"await_main_process_attachment,omitempty"`
 	WorkDir                    string   `json:"workdir,omitempty"`

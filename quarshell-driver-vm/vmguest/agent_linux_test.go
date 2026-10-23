@@ -1254,6 +1254,36 @@ func TestGuestTerminalSignalAllowlist(t *testing.T) {
 	}
 }
 
+func TestSignalMainProcessSignalsCanonicalProcessGroup(t *testing.T) {
+	workDir := t.TempDir()
+	if err := os.Chmod(workDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	poweredOff := make(chan struct{}, 1)
+	server := &controlServer{
+		uid: uint32(os.Geteuid()), gid: uint32(os.Getegid()),
+		workloadCommand: func([]string, bool) []string { return []string{"/bin/sh", "-c", "exec sleep 30"} },
+		powerOffGuest:   func() error { poweredOff <- struct{}{}; return nil },
+	}
+	if err := server.startWorkload(context.Background(), Request{Argv: []string{"ignored"}, WorkDir: workDir}); err != nil {
+		t.Fatalf("startWorkload() error=%v", err)
+	}
+	if err := server.signalMainProcess("terminate"); err != nil {
+		t.Fatalf("signalMainProcess() error=%v", err)
+	}
+	done := server.jobDone
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("canonical main process did not exit after TERM")
+	}
+	select {
+	case <-poweredOff:
+	case <-time.After(2 * time.Second):
+		t.Fatal("guest did not power off after canonical process termination")
+	}
+}
+
 func TestGuestExecOutputBufferIsBounded(t *testing.T) {
 	buffer := boundedBuffer{limit: 4}
 	if written, err := buffer.Write([]byte("abcdefgh")); written != 8 || err != nil {

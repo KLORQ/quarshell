@@ -374,6 +374,21 @@ func (s *Service) WaitMainProcess(ctx context.Context, ref domain.SandboxRef) (i
 	return waiter.WaitMainProcess(ctx, runtimeInput(current))
 }
 
+// SignalMainProcess sends an allowlisted signal to the canonical workload.
+func (s *Service) SignalMainProcess(ctx context.Context, ref domain.SandboxRef, signal driver.ExecProcessSignal) error {
+	current, err := s.Get(ctx, ref)
+	if err != nil {
+		return err
+	}
+	signaler, ok := s.Runtime.(interface {
+		SignalMainProcess(context.Context, sandboxruntime.Sandbox, driver.ExecProcessSignal) error
+	})
+	if !ok {
+		return domain.New(domain.CodeUnavailable, "sandbox.main_process.signal", "runtime cannot signal the main process")
+	}
+	return signaler.SignalMainProcess(ctx, runtimeInput(current), signal)
+}
+
 // List returns sandboxes for one workspace sorted by sandbox ID.
 func (s *Service) List(ctx context.Context, workspace domain.WorkspaceID) ([]Sandbox, error) {
 	if !workspace.Valid() {

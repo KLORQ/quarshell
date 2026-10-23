@@ -254,6 +254,14 @@ func (s *controlServer) validateRequest(request Request) error {
 	if request.User != "" && request.Operation != "start-workload" && request.Operation != "exec" && request.Operation != "exec-terminal" && request.Operation != "exec-stream" {
 		return fmt.Errorf("workload identity is only valid for workload operations")
 	}
+	if request.Signal != "" && request.Operation != "signal-main-process" {
+		return fmt.Errorf("signal is only valid for signal-main-process")
+	}
+	if request.Operation == "signal-main-process" {
+		if _, ok := guestTerminalSignal(request.Signal); !ok {
+			return fmt.Errorf("main-process signal is not supported")
+		}
+	}
 	if !s.authorizedRequest(request) {
 		return fmt.Errorf("unauthorized guest control request")
 	}
@@ -307,6 +315,11 @@ func (s *controlServer) dispatch(ctx context.Context, request Request) Response 
 		return Response{}
 	case "stop-workload":
 		if err := s.stopWorkload(); err != nil {
+			return Response{Error: err.Error()}
+		}
+		return Response{}
+	case "signal-main-process":
+		if err := s.signalMainProcess(request.Signal); err != nil {
 			return Response{Error: err.Error()}
 		}
 		return Response{}
@@ -819,6 +832,32 @@ func guestProcessDiagnostic(pid int) string {
 		return fmt.Sprintf("pid=%d state=%s wchan unavailable: %v", pid, state, wchanErr)
 	}
 	return fmt.Sprintf("pid=%d state=%s wchan=%s", pid, state, strings.TrimSpace(string(wchan)))
+}
+
+func (s *controlServer) signalMainProcess(name string) error {
+	signal, ok := guestTerminalSignal(name)
+	if !ok {
+		return fmt.Errorf("main-process signal is not supported")
+	}
+	s.mu.Lock()
+	command, done := s.job, s.jobDone
+	if command == nil || command.Process == nil {
+		s.mu.Unlock()
+		return fmt.Errorf("main process is not running")
+	}
+	processGroup := command.Process.Pid
+	s.mu.Unlock()
+	if err := syscall.Kill(-processGroup, signal); err != nil {
+		if errors.Is(err, syscall.ESRCH) && done != nil {
+			select {
+			case <-done:
+				return nil
+			default:
+			}
+		}
+		return fmt.Errorf("signal main-process group: %w", err)
+	}
+	return nil
 }
 
 func (s *controlServer) stopWorkload() error {

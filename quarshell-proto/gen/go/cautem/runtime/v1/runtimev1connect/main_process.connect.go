@@ -36,11 +36,15 @@ const (
 	// MainProcessServiceAttachTTYProcedure is the fully-qualified name of the MainProcessService's
 	// AttachTTY RPC.
 	MainProcessServiceAttachTTYProcedure = "/cautem.runtime.v1.MainProcessService/AttachTTY"
+	// MainProcessServiceSignalProcedure is the fully-qualified name of the MainProcessService's Signal
+	// RPC.
+	MainProcessServiceSignalProcedure = "/cautem.runtime.v1.MainProcessService/Signal"
 )
 
 // MainProcessServiceClient is a client for the cautem.runtime.v1.MainProcessService service.
 type MainProcessServiceClient interface {
 	AttachTTY(context.Context) *connect.BidiStreamForClient[v1.MainProcessServiceAttachTTYRequest, v1.MainProcessServiceAttachTTYResponse]
+	Signal(context.Context, *connect.Request[v1.MainProcessServiceSignalRequest]) (*connect.Response[v1.MainProcessServiceSignalResponse], error)
 }
 
 // NewMainProcessServiceClient constructs a client for the cautem.runtime.v1.MainProcessService
@@ -60,12 +64,19 @@ func NewMainProcessServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(mainProcessServiceMethods.ByName("AttachTTY")),
 			connect.WithClientOptions(opts...),
 		),
+		signal: connect.NewClient[v1.MainProcessServiceSignalRequest, v1.MainProcessServiceSignalResponse](
+			httpClient,
+			baseURL+MainProcessServiceSignalProcedure,
+			connect.WithSchema(mainProcessServiceMethods.ByName("Signal")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // mainProcessServiceClient implements MainProcessServiceClient.
 type mainProcessServiceClient struct {
 	attachTTY *connect.Client[v1.MainProcessServiceAttachTTYRequest, v1.MainProcessServiceAttachTTYResponse]
+	signal    *connect.Client[v1.MainProcessServiceSignalRequest, v1.MainProcessServiceSignalResponse]
 }
 
 // AttachTTY calls cautem.runtime.v1.MainProcessService.AttachTTY.
@@ -73,10 +84,16 @@ func (c *mainProcessServiceClient) AttachTTY(ctx context.Context) *connect.BidiS
 	return c.attachTTY.CallBidiStream(ctx)
 }
 
+// Signal calls cautem.runtime.v1.MainProcessService.Signal.
+func (c *mainProcessServiceClient) Signal(ctx context.Context, req *connect.Request[v1.MainProcessServiceSignalRequest]) (*connect.Response[v1.MainProcessServiceSignalResponse], error) {
+	return c.signal.CallUnary(ctx, req)
+}
+
 // MainProcessServiceHandler is an implementation of the cautem.runtime.v1.MainProcessService
 // service.
 type MainProcessServiceHandler interface {
 	AttachTTY(context.Context, *connect.BidiStream[v1.MainProcessServiceAttachTTYRequest, v1.MainProcessServiceAttachTTYResponse]) error
+	Signal(context.Context, *connect.Request[v1.MainProcessServiceSignalRequest]) (*connect.Response[v1.MainProcessServiceSignalResponse], error)
 }
 
 // NewMainProcessServiceHandler builds an HTTP handler from the service implementation. It returns
@@ -92,10 +109,18 @@ func NewMainProcessServiceHandler(svc MainProcessServiceHandler, opts ...connect
 		connect.WithSchema(mainProcessServiceMethods.ByName("AttachTTY")),
 		connect.WithHandlerOptions(opts...),
 	)
+	mainProcessServiceSignalHandler := connect.NewUnaryHandler(
+		MainProcessServiceSignalProcedure,
+		svc.Signal,
+		connect.WithSchema(mainProcessServiceMethods.ByName("Signal")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/cautem.runtime.v1.MainProcessService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case MainProcessServiceAttachTTYProcedure:
 			mainProcessServiceAttachTTYHandler.ServeHTTP(w, r)
+		case MainProcessServiceSignalProcedure:
+			mainProcessServiceSignalHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -107,4 +132,8 @@ type UnimplementedMainProcessServiceHandler struct{}
 
 func (UnimplementedMainProcessServiceHandler) AttachTTY(context.Context, *connect.BidiStream[v1.MainProcessServiceAttachTTYRequest, v1.MainProcessServiceAttachTTYResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("cautem.runtime.v1.MainProcessService.AttachTTY is not implemented"))
+}
+
+func (UnimplementedMainProcessServiceHandler) Signal(context.Context, *connect.Request[v1.MainProcessServiceSignalRequest]) (*connect.Response[v1.MainProcessServiceSignalResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("cautem.runtime.v1.MainProcessService.Signal is not implemented"))
 }

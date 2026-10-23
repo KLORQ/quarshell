@@ -768,6 +768,33 @@ func (d *Driver) WaitMainProcess(ctx context.Context, id core.ID) (int, error) {
 
 var _ driver.MainProcessWaiter = (*Driver)(nil)
 
+// SignalMainProcess sends a placement-neutral signal to the canonical guest
+// workload process group over the authenticated supervisor control channel.
+func (d *Driver) SignalMainProcess(ctx context.Context, id core.ID, signal driver.ExecProcessSignal) error {
+	if d == nil || ctx == nil {
+		return fmt.Errorf("vm driver: SignalMainProcess requires a driver and context")
+	}
+	if !validExecProcessSignal(signal) {
+		return fmt.Errorf("vm driver: unsupported main-process signal %q", signal)
+	}
+	store, err := openStateStore(d.host.StateDir)
+	if err != nil {
+		return err
+	}
+	state, err := store.load(string(id))
+	if err != nil {
+		return err
+	}
+	if state.Status != "running" {
+		return fmt.Errorf("vm driver: sandbox %q is %s", state.Name, state.Status)
+	}
+	_, guestSocket, _ := workerSocketPaths(store.root, state.ID)
+	_, err = exchangeControl(ctx, guestSocket, controlRequest{Operation: "signal-main-process", Signal: string(signal)})
+	return err
+}
+
+var _ driver.MainProcessSignaler = (*Driver)(nil)
+
 func (d *Driver) installGuestRuntimeAssets(ctx context.Context, id, guestSocket string, spec vmLaunchSpec, controlIdentity *vmControlIdentity) error {
 	assets := make([]struct {
 		host  string

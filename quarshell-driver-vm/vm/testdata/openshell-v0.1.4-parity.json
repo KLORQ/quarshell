@@ -266,6 +266,8 @@
         "quarshell-driver-vm/vm/live_acceptance_test.go::assertLiveMainProcessTTY",
         "quarshell-driver-vm/vm/live_acceptance_test.go::TestLiveMicroVMLifecycle",
         "quarshell-driver-vm/vm/terminal.go::OpenMainProcessTTY",
+        "quarshell-driver-vm/vm/lifecycle.go::SignalMainProcess",
+        "quarshell-driver-vm/vmguest/agent_linux_test.go::TestSignalMainProcessSignalsCanonicalProcessGroup",
         "quarshell-driver-vm/vm/terminal.go::AttachExecTerminal",
         "quarshell-driver-vm/vmguest/agent_linux.go::startWorkload",
         "quarshell-driver-vm/vmguest/retained_terminal.go::waitForExpectedAttachment",

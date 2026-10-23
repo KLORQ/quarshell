@@ -220,6 +220,25 @@ func (c *Client) AttachMainProcessTTY(ctx context.Context, workspace, name strin
 	return newGatewayInteractiveSession(streamCtx, cancel, &mainProcessTTYClientStream{stream: stream}), nil
 }
 
+// SignalMainProcess sends an allowlisted signal to a sandbox's canonical
+// workload process through the Quarshell runtime extension.
+func (c *Client) SignalMainProcess(ctx context.Context, workspace, name string, signal runtimev1.MainProcessSignal) error {
+	if workspace == "" || name == "" || signal < runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_TERMINATE || signal > runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_HANGUP {
+		return fmt.Errorf("usage: SignalMainProcess(workspace, name, supported signal)")
+	}
+	connection, err := c.gatewayConnection()
+	if err != nil {
+		return err
+	}
+	_, err = runtimev1.NewMainProcessServiceClient(connection).Signal(ctx, &runtimev1.MainProcessServiceSignalRequest{
+		Workspace: workspace, Sandbox: name, Signal: signal,
+	})
+	if err != nil {
+		return fmt.Errorf("signal main process in sandbox %q: %w", name, err)
+	}
+	return nil
+}
+
 type gatewayInteractiveSession struct {
 	stream gatewayInteractiveStream
 	cancel context.CancelFunc

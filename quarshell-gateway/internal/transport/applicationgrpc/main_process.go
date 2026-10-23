@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/KLORQ/quarshell-core/domain"
+	"github.com/KLORQ/quarshell-driver/driver"
 	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
@@ -40,6 +41,33 @@ func (s *Server) AttachTTY(stream grpc.BidiStreamingServer[runtimev1.MainProcess
 	}
 	ref := domain.SandboxRef{Workspace: domain.WorkspaceID(start.GetWorkspace()), Sandbox: domain.SandboxID(start.GetSandbox())}
 	return s.attachMainProcessTTY(stream.Context(), ref, columns, rows, &mainProcessTTYStreamAdapter{stream: stream})
+}
+
+func (s *Server) Signal(ctx context.Context, request *runtimev1.MainProcessServiceSignalRequest) (*runtimev1.MainProcessServiceSignalResponse, error) {
+	if s.Sandboxes == nil {
+		return nil, status.Error(codes.Unavailable, "sandbox service is not configured")
+	}
+	if strings.TrimSpace(request.GetWorkspace()) == "" || strings.TrimSpace(request.GetSandbox()) == "" {
+		return nil, status.Error(codes.InvalidArgument, "main-process signal requires workspace and sandbox")
+	}
+	var signal driver.ExecProcessSignal
+	switch request.GetSignal() {
+	case runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_TERMINATE:
+		signal = driver.ExecSignalTerminate
+	case runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_KILL:
+		signal = driver.ExecSignalKill
+	case runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_INTERRUPT:
+		signal = driver.ExecSignalInterrupt
+	case runtimev1.MainProcessSignal_MAIN_PROCESS_SIGNAL_HANGUP:
+		signal = driver.ExecSignalHangup
+	default:
+		return nil, status.Error(codes.InvalidArgument, "unsupported main-process signal")
+	}
+	ref := domain.SandboxRef{Workspace: domain.WorkspaceID(request.GetWorkspace()), Sandbox: domain.SandboxID(request.GetSandbox())}
+	if err := s.Sandboxes.SignalMainProcess(ctx, ref, signal); err != nil {
+		return nil, grpcError(err)
+	}
+	return &runtimev1.MainProcessServiceSignalResponse{}, nil
 }
 
 type mainProcessTTYStreamAdapter struct {

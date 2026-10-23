@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	MainProcessService_AttachTTY_FullMethodName = "/cautem.runtime.v1.MainProcessService/AttachTTY"
+	MainProcessService_Signal_FullMethodName    = "/cautem.runtime.v1.MainProcessService/Signal"
 )
 
 // MainProcessServiceClient is the client API for MainProcessService service.
@@ -31,6 +32,7 @@ const (
 // left unchanged.
 type MainProcessServiceClient interface {
 	AttachTTY(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[MainProcessServiceAttachTTYRequest, MainProcessServiceAttachTTYResponse], error)
+	Signal(ctx context.Context, in *MainProcessServiceSignalRequest, opts ...grpc.CallOption) (*MainProcessServiceSignalResponse, error)
 }
 
 type mainProcessServiceClient struct {
@@ -54,6 +56,16 @@ func (c *mainProcessServiceClient) AttachTTY(ctx context.Context, opts ...grpc.C
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type MainProcessService_AttachTTYClient = grpc.BidiStreamingClient[MainProcessServiceAttachTTYRequest, MainProcessServiceAttachTTYResponse]
 
+func (c *mainProcessServiceClient) Signal(ctx context.Context, in *MainProcessServiceSignalRequest, opts ...grpc.CallOption) (*MainProcessServiceSignalResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MainProcessServiceSignalResponse)
+	err := c.cc.Invoke(ctx, MainProcessService_Signal_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MainProcessServiceServer is the server API for MainProcessService service.
 // All implementations must embed UnimplementedMainProcessServiceServer
 // for forward compatibility.
@@ -63,6 +75,7 @@ type MainProcessService_AttachTTYClient = grpc.BidiStreamingClient[MainProcessSe
 // left unchanged.
 type MainProcessServiceServer interface {
 	AttachTTY(grpc.BidiStreamingServer[MainProcessServiceAttachTTYRequest, MainProcessServiceAttachTTYResponse]) error
+	Signal(context.Context, *MainProcessServiceSignalRequest) (*MainProcessServiceSignalResponse, error)
 	mustEmbedUnimplementedMainProcessServiceServer()
 }
 
@@ -75,6 +88,9 @@ type UnimplementedMainProcessServiceServer struct{}
 
 func (UnimplementedMainProcessServiceServer) AttachTTY(grpc.BidiStreamingServer[MainProcessServiceAttachTTYRequest, MainProcessServiceAttachTTYResponse]) error {
 	return status.Error(codes.Unimplemented, "method AttachTTY not implemented")
+}
+func (UnimplementedMainProcessServiceServer) Signal(context.Context, *MainProcessServiceSignalRequest) (*MainProcessServiceSignalResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Signal not implemented")
 }
 func (UnimplementedMainProcessServiceServer) mustEmbedUnimplementedMainProcessServiceServer() {}
 func (UnimplementedMainProcessServiceServer) testEmbeddedByValue()                            {}
@@ -104,13 +120,36 @@ func _MainProcessService_AttachTTY_Handler(srv interface{}, stream grpc.ServerSt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type MainProcessService_AttachTTYServer = grpc.BidiStreamingServer[MainProcessServiceAttachTTYRequest, MainProcessServiceAttachTTYResponse]
 
+func _MainProcessService_Signal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MainProcessServiceSignalRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MainProcessServiceServer).Signal(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MainProcessService_Signal_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MainProcessServiceServer).Signal(ctx, req.(*MainProcessServiceSignalRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MainProcessService_ServiceDesc is the grpc.ServiceDesc for MainProcessService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var MainProcessService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "cautem.runtime.v1.MainProcessService",
 	HandlerType: (*MainProcessServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Signal",
+			Handler:    _MainProcessService_Signal_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "AttachTTY",

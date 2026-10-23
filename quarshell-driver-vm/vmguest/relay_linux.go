@@ -98,6 +98,7 @@ func startSupervisorControlBridge(port uint32) (string, error) {
 		_ = os.Remove(supervisorControlPath)
 		return "", fmt.Errorf("secure guest supervisor control socket: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge listening on %s via host vsock port %d\n", supervisorControlPath, port)
 	go serveUnixVsockBridge(listener, port, supervisorRelayConnections)
 	return supervisorControlPath, nil
 }
@@ -178,18 +179,24 @@ func serveUnixVsockBridge(listener net.Listener, port uint32, limit int) {
 		if err != nil {
 			return
 		}
+		fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge accepted a local connection for vsock port %d\n", port)
 		select {
 		case semaphore <- struct{}{}:
 			go func() {
 				defer func() { <-semaphore }()
+				fmt.Fprintf(os.Stderr, "cautem-init: connecting supervisor control bridge to host vsock port %d\n", port)
 				upstream, dialErr := connectHostBroker(port)
 				if dialErr != nil {
+					fmt.Fprintf(os.Stderr, "cautem-init: connect supervisor control bridge to host vsock port %d: %v\n", port, dialErr)
 					_ = local.Close()
 					return
 				}
+				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge connected to host vsock port %d\n", port)
 				bridgeRelayConnections(local, upstream)
+				fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge closed for host vsock port %d\n", port)
 			}()
 		default:
+			fmt.Fprintf(os.Stderr, "cautem-init: supervisor control bridge rejected a connection at its %d-connection limit\n", limit)
 			_ = local.Close()
 		}
 	}
