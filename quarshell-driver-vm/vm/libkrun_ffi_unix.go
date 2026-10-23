@@ -4,10 +4,12 @@ package vm
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -212,6 +214,9 @@ func validateVsockSocketPath(path string) error {
 }
 
 func (c *krunContext) configure(config KrunLaunchConfig) error {
+	if config.KrunLogLevel >= 4 {
+		logKrunVsockSocketPermissions(config.VsockPorts)
+	}
 	if err := checkKrun("krun_set_vm_config", c.api.setVMConfig(c.id, config.VCPUs, config.MemoryMiB)); err != nil {
 		return err
 	}
@@ -289,6 +294,24 @@ func (c *krunContext) configure(config KrunLaunchConfig) error {
 	runtime.KeepAlive(envOwners)
 	runtime.KeepAlive(env)
 	return nil
+}
+
+func logKrunVsockSocketPermissions(mappings []KrunVsockPort) {
+	fmt.Fprintf(os.Stderr, "libkrun vsock socket diagnostics: uid=%d euid=%d gid=%d egid=%d\n", os.Getuid(), os.Geteuid(), os.Getgid(), os.Getegid())
+	for _, mapping := range mappings {
+		for current := mapping.Socket; current != "/"; current = filepath.Dir(current) {
+			info, err := os.Lstat(current)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "libkrun vsock socket path component %q: %v\n", current, err)
+				continue
+			}
+			owner := "unknown"
+			if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+				owner = fmt.Sprintf("uid=%d gid=%d", stat.Uid, stat.Gid)
+			}
+			fmt.Fprintf(os.Stderr, "libkrun vsock socket path component %q: mode=%#o %s\n", current, info.Mode().Perm(), owner)
+		}
+	}
 }
 
 func libkrunGuestEnvironment(environment []string) []string {
