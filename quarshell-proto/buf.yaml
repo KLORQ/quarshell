@@ -29,6 +29,7 @@ lint:
       - proto/openshell/middleware/v1/supervisor_middleware.proto
       - proto/openshell/sandbox_protocol/v1/openshell_sandbox.proto
     SERVICE_SUFFIX:
+      - proto/cautem/runtime/v1/main_process.proto
       - proto/openshell/compute/v1/compute_driver.proto
       - proto/openshell/credentials/v1/credential_driver.proto
       - proto/openshell/gateway/v1/openshell.proto

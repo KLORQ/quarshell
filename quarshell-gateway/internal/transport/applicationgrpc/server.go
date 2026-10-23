@@ -20,6 +20,7 @@ import (
 	tokenapp "github.com/KLORQ/quarshell-gateway/internal/application/token"
 	"github.com/KLORQ/quarshell-gateway/internal/application/workspace"
 	"github.com/KLORQ/quarshell-gateway/internal/sshrelay"
+	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,6 +29,7 @@ import (
 // Server is the greenfield OpenShell gRPC server.
 type Server struct {
 	gatewayv1.UnimplementedOpenShellServer
+	runtimev1.UnimplementedMainProcessServiceServer
 	Version          string
 	Workspaces       *workspace.Service
 	Sandboxes        *sandbox.Service

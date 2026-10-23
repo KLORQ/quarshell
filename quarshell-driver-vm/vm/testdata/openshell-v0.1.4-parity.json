@@ -275,7 +275,13 @@
         "quarshell-driver-vm/vm/isolation_backend.go::vmIsolationBackend",
         "quarshell-driver-vm/vm/live_gateway_acceptance_test.go::assertLiveGatewayCredentialLaunch",
         "quarshell-driver-vm/vm/worker_parent_liveness_unix_test.go::TestParentLivenessWatchKillsWorkerWhenParentExits",
-        "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayWorkerTrustRequiresConfiguredIdentity"
+        "quarshell-driver-vm/vm/spec_test.go::TestValidateGatewayWorkerTrustRequiresConfiguredIdentity",
+        "quarshell-proto/proto/cautem/runtime/v1/main_process.proto",
+        "quarshell-sdk/go/klorq/exec_interactive.go::AttachMainProcessTTY",
+        "quarshell-sdk/go/klorq/exec_interactive_test.go::TestExecInteractiveWithTTYStreamsNonTTYInputAndWorkspace",
+        "quarshell-cli/internal/service/sandbox_gateway_test.go::TestRemoteSandboxCreateForegroundAttachesToCanonicalProcess",
+        "quarshell-gateway/internal/transport/applicationgrpc/main_process.go::AttachTTY",
+        "quarshell-gateway/internal/transport/applicationgrpc/main_process_test.go::TestAttachTTYStreamsCanonicalMainProcessAndExit"
       ]
     },
     {

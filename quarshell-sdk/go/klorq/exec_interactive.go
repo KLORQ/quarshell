@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
 	dm "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	pb "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
@@ -22,7 +23,13 @@ func (c *Client) ExecInteractiveWithTTY(ctx context.Context, workspace, name str
 // ExecInteractiveWithTTYTimeout opens interactive exec with an explicit PTY
 // setting and optional server-side process deadline.
 func (c *Client) ExecInteractiveWithTTYTimeout(ctx context.Context, workspace, name string, argv []string, tty bool, cols, rows uint32, timeout time.Duration, options SandboxExecOptions) (SandboxInteractiveOutput, error) {
-	if workspace == "" || name == "" || len(argv) == 0 {
+	if options.AttachMainProcess {
+		if !tty || len(argv) != 0 {
+			return nil, fmt.Errorf("main-process attachment requires tty=true and an empty command")
+		}
+		return c.AttachMainProcessTTY(ctx, workspace, name, cols, rows)
+	}
+	if workspace == "" || name == "" || (len(argv) == 0 && !options.AttachMainProcess) {
 		return nil, fmt.Errorf("usage: ExecInteractiveWithTTY(workspace, name, argv, tty, cols, rows, options)")
 	}
 	rpc, err := c.gatewayClient()
@@ -152,7 +159,65 @@ func cloneStringMap(input map[string]string) map[string]string {
 }
 
 type gatewayInteractiveStream interface {
-	grpc.BidiStreamingClient[pb.ExecSandboxInput, pb.ExecSandboxEvent]
+	Send(*pb.ExecSandboxInput) error
+	Recv() (*pb.ExecSandboxEvent, error)
+	CloseSend() error
+}
+
+type mainProcessTTYClientStream struct {
+	stream grpc.BidiStreamingClient[runtimev1.MainProcessServiceAttachTTYRequest, runtimev1.MainProcessServiceAttachTTYResponse]
+}
+
+func (s *mainProcessTTYClientStream) Send(input *pb.ExecSandboxInput) error {
+	switch payload := input.GetPayload().(type) {
+	case *pb.ExecSandboxInput_Stdin:
+		return s.stream.Send(&runtimev1.MainProcessServiceAttachTTYRequest{Payload: &runtimev1.MainProcessServiceAttachTTYRequest_Stdin{Stdin: append([]byte(nil), payload.Stdin...)}})
+	case *pb.ExecSandboxInput_Resize:
+		return s.stream.Send(&runtimev1.MainProcessServiceAttachTTYRequest{Payload: &runtimev1.MainProcessServiceAttachTTYRequest_Resize{Resize: &runtimev1.MainProcessTTYResize{Cols: payload.Resize.GetCols(), Rows: payload.Resize.GetRows()}}})
+	default:
+		return fmt.Errorf("main-process TTY stream accepts only stdin and resize")
+	}
+}
+
+func (s *mainProcessTTYClientStream) Recv() (*pb.ExecSandboxEvent, error) {
+	event, err := s.stream.Recv()
+	if err != nil {
+		return nil, err
+	}
+	switch payload := event.GetPayload().(type) {
+	case *runtimev1.MainProcessServiceAttachTTYResponse_Stdout:
+		return &pb.ExecSandboxEvent{Payload: &pb.ExecSandboxEvent_Stdout{Stdout: &pb.ExecSandboxStdout{Data: append([]byte(nil), payload.Stdout...)}}}, nil
+	case *runtimev1.MainProcessServiceAttachTTYResponse_ExitCode:
+		return &pb.ExecSandboxEvent{Payload: &pb.ExecSandboxEvent_Exit{Exit: &pb.ExecSandboxExit{ExitCode: payload.ExitCode}}}, nil
+	default:
+		return &pb.ExecSandboxEvent{}, nil
+	}
+}
+
+func (s *mainProcessTTYClientStream) CloseSend() error { return s.stream.CloseSend() }
+
+// AttachMainProcessTTY attaches to the retained canonical PTY created during
+// sandbox startup. It uses the Quarshell extension service while leaving the
+// pinned OpenShell gateway descriptor unchanged.
+func (c *Client) AttachMainProcessTTY(ctx context.Context, workspace, name string, cols, rows uint32) (SandboxInteractiveOutput, error) {
+	if workspace == "" || name == "" {
+		return nil, fmt.Errorf("usage: AttachMainProcessTTY(workspace, name, cols, rows)")
+	}
+	connection, err := c.gatewayConnection()
+	if err != nil {
+		return nil, err
+	}
+	streamCtx, cancel := context.WithCancel(ctx)
+	stream, err := runtimev1.NewMainProcessServiceClient(connection).AttachTTY(streamCtx)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("open main-process TTY attachment in sandbox %q: %w", name, err)
+	}
+	if err := stream.Send(&runtimev1.MainProcessServiceAttachTTYRequest{Payload: &runtimev1.MainProcessServiceAttachTTYRequest_Start{Start: &runtimev1.MainProcessTTYStart{Workspace: workspace, Sandbox: name, Cols: cols, Rows: rows}}}); err != nil {
+		cancel()
+		return nil, fmt.Errorf("start main-process TTY attachment in sandbox %q: %w", name, err)
+	}
+	return newGatewayInteractiveSession(streamCtx, cancel, &mainProcessTTYClientStream{stream: stream}), nil
 }
 
 type gatewayInteractiveSession struct {

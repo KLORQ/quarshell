@@ -200,6 +200,8 @@ func (a *App) sandboxCreateOpenShell(opt SandboxCreateOpts) error {
 		}
 		attachedProviders = append(attachedProviders, instance)
 	}
+	mainTTY := opt.ForceTTY || (term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())))
+	awaitMainProcess := len(opt.Argv) > 0 && !opt.Detach && editor == "" && mainTTY
 	sandbox := klorq.Sandbox{
 		Name: opt.Name, Workspace: workspace, Image: image,
 		WorkloadTemplateName: opt.Template, Labels: opt.Labels,
@@ -209,7 +211,7 @@ func (a *App) sandboxCreateOpenShell(opt SandboxCreateOpts) error {
 		// OpenShell forces retention when a forward or service exposure needs
 		// to outlive the create request, even when --no-keep was supplied.
 		Ephemeral: opt.NoKeep && opt.ExposePort == 0 && len(opt.Forwards) == 0,
-		TTY:       opt.ForceTTY || (term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))),
+		TTY:       mainTTY, AwaitMainProcessAttachment: awaitMainProcess,
 	}
 	if strings.TrimSpace(opt.Policy) != "" {
 		policyDocument, readErr := os.ReadFile(opt.Policy)
@@ -228,10 +230,8 @@ func (a *App) sandboxCreateOpenShell(opt SandboxCreateOpts) error {
 		}}
 	}
 	createCommand := canonicalMainCommand(opt.Argv)
-	if len(createCommand) > 0 && !opt.Detach {
-		// This Gateway has not implemented OpenShell's initial-main-process
-		// attachment handshake yet. Execute foreground argv through the native
-		// interactive exec stream after provisioning instead of starting it twice.
+	if len(createCommand) > 0 && !opt.Detach && !awaitMainProcess {
+		// The retained main-process attach contract is currently PTY-backed.
 		createCommand = nil
 	}
 	createdResult, err := client.CreateControlSandboxOperation(ctx, sandbox, createCommand)
@@ -276,8 +276,11 @@ func (a *App) sandboxCreateOpenShell(opt SandboxCreateOpts) error {
 	fmt.Printf("sandbox create: ok name=%s id=%s workspace=%s runtime=gateway image=%s\n",
 		created.Name, shortID(created.ID), created.Workspace, created.Image)
 	if len(opt.Argv) > 0 && !opt.Detach {
-		tty := opt.ForceTTY || (term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd())))
-		code, execErr := runGatewayInteractive(ctx, client, workspace, ExecOpts{Name: created.Name, Argv: canonicalMainCommand(opt.Argv), TTY: tty}, klorq.SandboxExecOptions{})
+		argv := canonicalMainCommand(opt.Argv)
+		if awaitMainProcess {
+			argv = nil
+		}
+		code, execErr := runGatewayInteractive(ctx, client, workspace, ExecOpts{Name: created.Name, Argv: argv, TTY: mainTTY, AttachMainProcess: awaitMainProcess}, klorq.SandboxExecOptions{AttachMainProcess: awaitMainProcess})
 		if execErr != nil {
 			err := execErr
 			return fmt.Errorf("sandbox create: sandbox was created; native interactive command failed: %w", err)

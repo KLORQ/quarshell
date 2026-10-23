@@ -88,6 +88,24 @@ func (d *Docker) PTY(ctx context.Context, sandbox Sandbox, columns, rows uint32)
 	return terminal.OpenMainProcessTTY(ctx, id(sandbox), columns, rows)
 }
 
+// ResizePTY changes the size of the canonical main-process PTY.
+func (d *Docker) ResizePTY(ctx context.Context, sandbox Sandbox, columns, rows uint32) error {
+	terminal, ok := d.Backend.(driver.MainProcessTTY)
+	if !ok {
+		return domain.New(domain.CodeUnavailable, "sandboxruntime.pty.resize", "backend does not expose a PTY")
+	}
+	return terminal.ResizeMainProcessTTY(ctx, id(sandbox), columns, rows)
+}
+
+// WaitMainProcess returns the canonical process exit status.
+func (d *Docker) WaitMainProcess(ctx context.Context, sandbox Sandbox) (int, error) {
+	waiter, ok := d.Backend.(driver.MainProcessWaiter)
+	if !ok {
+		return 0, domain.New(domain.CodeUnavailable, "sandboxruntime.main_process.wait", "backend cannot observe main-process exit")
+	}
+	return waiter.WaitMainProcess(ctx, id(sandbox))
+}
+
 // RootfsStaging allocates a backend-owned upload directory.
 func (d *Docker) RootfsStaging(ctx context.Context) (string, uint64, error) {
 	stager, ok := d.Backend.(driver.RuntimeRootfsTarStager)

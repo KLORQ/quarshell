@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
@@ -17,7 +19,9 @@ import (
 
 type remoteLookupTestServer struct {
 	gatewayv1.UnimplementedOpenShellServer
-	commands [][]string
+	runtimev1.UnimplementedMainProcessServiceServer
+	commands        [][]string
+	mainAttachStart *runtimev1.MainProcessTTYStart
 }
 
 func (s *remoteLookupTestServer) ExecSandboxInteractive(stream grpc.BidiStreamingServer[gatewayv1.ExecSandboxInput, gatewayv1.ExecSandboxEvent]) error {
@@ -25,11 +29,32 @@ func (s *remoteLookupTestServer) ExecSandboxInteractive(stream grpc.BidiStreamin
 	if err != nil {
 		return err
 	}
-	s.commands = append(s.commands, append([]string(nil), start.GetStart().GetCommand()...))
+	request := start.GetStart()
+	s.commands = append(s.commands, append([]string(nil), request.GetCommand()...))
 	if err := stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Stdout{Stdout: &gatewayv1.ExecSandboxStdout{Data: []byte("foreground-output\n")}}}); err != nil {
 		return err
 	}
 	return stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Exit{Exit: &gatewayv1.ExecSandboxExit{ExitCode: 0}}})
+}
+
+func (s *remoteLookupTestServer) AttachTTY(stream grpc.BidiStreamingServer[runtimev1.MainProcessServiceAttachTTYRequest, runtimev1.MainProcessServiceAttachTTYResponse]) error {
+	first, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	s.mainAttachStart = first.GetStart()
+	for {
+		if _, err := stream.Recv(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+	}
+	if err := stream.Send(&runtimev1.MainProcessServiceAttachTTYResponse{Payload: &runtimev1.MainProcessServiceAttachTTYResponse_Stdout{Stdout: []byte("foreground-output\n")}}); err != nil {
+		return err
+	}
+	return stream.Send(&runtimev1.MainProcessServiceAttachTTYResponse{Payload: &runtimev1.MainProcessServiceAttachTTYResponse_ExitCode{ExitCode: 0}})
 }
 
 type remoteNativeCreateTestServer struct {
@@ -88,6 +113,7 @@ func TestRemoteSandboxCreateCarriesWorkloadOptions(t *testing.T) {
 	server := grpc.NewServer()
 	created := &remoteNativeCreateTestServer{remoteLookupTestServer: &remoteLookupTestServer{}}
 	gatewayv1.RegisterOpenShellServer(server, created)
+	runtimev1.RegisterMainProcessServiceServer(server, created)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	app := &App{GatewayURLOverride: "http://" + listener.Addr().String(), GlobalWorkspace: "team"}
@@ -150,17 +176,18 @@ func TestRemoteSandboxCreateForegroundAttachesToCanonicalProcess(t *testing.T) {
 	server := grpc.NewServer()
 	created := &remoteNativeCreateTestServer{remoteLookupTestServer: &remoteLookupTestServer{}}
 	gatewayv1.RegisterOpenShellServer(server, created)
+	runtimev1.RegisterMainProcessServiceServer(server, created)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	app := &App{GatewayURLOverride: "http://" + listener.Addr().String(), GlobalWorkspace: "team"}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	app.SetCommandContext(ctx)
-	if err := app.sandboxCreateOpenShell(SandboxCreateOpts{Name: "agent", Image: "alpine:3.22", Argv: []string{"sh", "-c", "printf hello"}}); err != nil {
+	if err := app.sandboxCreateOpenShell(SandboxCreateOpts{Name: "agent", Image: "alpine:3.22", Argv: []string{"sh", "-c", "printf hello"}, ForceTTY: true}); err != nil {
 		t.Fatal(err)
 	}
-	if created.request == nil || created.request.GetAwaitMainProcessAttachment() || len(created.request.GetSpec().GetCommand()) != 0 || len(created.commands) != 1 || len(created.commands[0]) != 3 {
-		t.Fatalf("foreground remote create request=%+v exec commands=%v", created.request, created.commands)
+	if created.request == nil || !created.request.GetAwaitMainProcessAttachment() || len(created.request.GetSpec().GetCommand()) != 3 || len(created.commands) != 0 || created.mainAttachStart == nil || created.mainAttachStart.GetWorkspace() != "team" || created.mainAttachStart.GetSandbox() != "agent" {
+		t.Fatalf("foreground remote create request=%+v exec commands=%v main attach=%+v", created.request, created.commands, created.mainAttachStart)
 	}
 }
 

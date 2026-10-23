@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package cautem.runtime.v1;
+
+option go_package = "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1;runtimev1";
+
+// MainProcessService exposes Quarshell's retained canonical-process handles.
+// It is an additive runtime extension; the pinned OpenShell wire contract is
+// left unchanged.
+service MainProcessService {
+  rpc AttachTTY(stream MainProcessServiceAttachTTYRequest) returns (stream MainProcessServiceAttachTTYResponse);
+}
+
+message MainProcessTTYStart {
+  string workspace = 1;
+  string sandbox = 2;
+  uint32 cols = 3;
+  uint32 rows = 4;
+}
+
+message MainProcessTTYResize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message MainProcessServiceAttachTTYRequest {
+  oneof payload {
+    MainProcessTTYStart start = 1;
+    bytes stdin = 2;
+    MainProcessTTYResize resize = 3;
+  }
+}
+
+message MainProcessServiceAttachTTYResponse {
+  oneof payload {
+    bytes stdout = 1;
+    int32 exit_code = 2;
+  }
+}

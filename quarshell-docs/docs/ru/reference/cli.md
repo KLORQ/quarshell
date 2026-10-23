@@ -97,10 +97,10 @@ SSH helper из сгенерированных настроек `sandbox ssh-con
 
 Host bind mount, локальная сборка образа, display и переключатели локального
 runtime не входят в контракт OpenShell Gateway create. `--upload` передаёт
-файлы через native OpenShell interactive execution RPC. Foreground-команда
-после создания запускается через native interactive exec: этот Gateway пока
-не реализует handshake OpenShell для подключения к начальному main process.
-Detached-команда передаётся в create request.
+файлы через native OpenShell interactive execution RPC. Foreground-команда с
+TTY запускается как canonical main process в create request, после чего CLI
+подключается к сохранённому PTY. Команда без TTY запускается через native
+interactive exec после создания. Detached-команда передаётся в create request.
 
 Добавляйте `--gateway` к команде `sandbox template`, чтобы управлять шаблоном
 в workspace выбранного Gateway. Gateway template create также принимает

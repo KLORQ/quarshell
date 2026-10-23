@@ -18,14 +18,15 @@ import (
 
 // ExecOpts for cautem sandbox exec.
 type ExecOpts struct {
-	Name         string
-	Argv         []string
-	TTY          bool
-	Env          []string
-	WorkDir      string
-	Timeout      time.Duration // zero leaves execution bounded only by the caller context
-	NoLoginShell bool
-	Stdin        io.Reader
+	Name              string
+	Argv              []string
+	TTY               bool
+	Env               []string
+	WorkDir           string
+	Timeout           time.Duration // zero leaves execution bounded only by the caller context
+	NoLoginShell      bool
+	AttachMainProcess bool
+	Stdin             io.Reader
 }
 
 // Exec runs a command in a sandbox.
@@ -84,7 +85,7 @@ func writeExecResult(result driver.ExecResult) error {
 }
 
 func (a *App) execGateway(ctx context.Context, client *klorq.Client, opt ExecOpts, log *slogx.Logger) error {
-	options := klorq.SandboxExecOptions{WorkDir: opt.WorkDir, NoLoginShell: opt.NoLoginShell, Env: execEnvMap(opt.Env)}
+	options := klorq.SandboxExecOptions{WorkDir: opt.WorkDir, NoLoginShell: opt.NoLoginShell, Env: execEnvMap(opt.Env), AttachMainProcess: opt.AttachMainProcess}
 	a.emitProc(opt.Name, "LAUNCH", strings.Join(opt.Argv, " "), 0)
 	var code int
 	var err error

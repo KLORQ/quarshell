@@ -1,5 +1,23 @@
 # VM Hypervisor.framework local acceptance
 
+## Full VM transfer follow-up: Gateway main-process TTY attach
+
+- Reverified: 2026-10-23 (current workspace snapshot)
+- Checks: `task vm:live-darwin`, `task test`, `task fmt:check`,
+  `task docs:strict`, `task compat:proto`, `task vm:parity-check`: PASS
+- Hosted KVM run: [39882558616](https://github.com/KLORQ/quarshell/actions/runs/39882558616)
+  failed live supervisor readiness because the mTLS control vsock handshake
+  timed out; runtime build and host setup succeeded.
+
+Foreground sandbox creation now carries the workload command into the
+canonical main process and, when TTY is requested, attaches the CLI through a
+Quarshell Gateway extension to that retained PTY. The attach stream forwards
+stdin and resize events and returns the canonical process exit code. Focused
+CLI, SDK, and Gateway RPC tests plus the full workspace test suite pass. The
+pinned OpenShell Gateway descriptors remain unchanged. The next hosted KVM run
+will report client-side TLS handshake errors from the supervisor readiness
+probe to narrow down the live control-channel timeout.
+
 ## Rootfs archive staging flow
 
 - Reverified: 2026-10-22

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"sort"
 	"strconv"
@@ -326,6 +327,51 @@ func (s *Service) OpenExecStream(ctx context.Context, ref domain.SandboxRef, req
 		return nil, domain.New(domain.CodeUnavailable, "sandbox.exec_stream", "runtime does not support interactive non-TTY execution")
 	}
 	return executor.OpenExecStream(ctx, runtimeInput(current), request)
+}
+
+// OpenMainProcessTTY attaches to the canonical workload PTY.
+func (s *Service) OpenMainProcessTTY(ctx context.Context, ref domain.SandboxRef, columns, rows uint32) (io.ReadWriteCloser, error) {
+	current, err := s.Get(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	pty, ok := s.Runtime.(interface {
+		PTY(context.Context, sandboxruntime.Sandbox, uint32, uint32) (io.ReadWriteCloser, error)
+	})
+	if !ok {
+		return nil, domain.New(domain.CodeUnavailable, "sandbox.main_process.pty", "runtime does not support main-process PTY attachment")
+	}
+	return pty.PTY(ctx, runtimeInput(current), columns, rows)
+}
+
+// ResizeMainProcessTTY resizes the canonical workload PTY.
+func (s *Service) ResizeMainProcessTTY(ctx context.Context, ref domain.SandboxRef, columns, rows uint32) error {
+	current, err := s.Get(ctx, ref)
+	if err != nil {
+		return err
+	}
+	pty, ok := s.Runtime.(interface {
+		ResizePTY(context.Context, sandboxruntime.Sandbox, uint32, uint32) error
+	})
+	if !ok {
+		return domain.New(domain.CodeUnavailable, "sandbox.main_process.pty.resize", "runtime does not support main-process PTY resize")
+	}
+	return pty.ResizePTY(ctx, runtimeInput(current), columns, rows)
+}
+
+// WaitMainProcess waits for the canonical workload exit status.
+func (s *Service) WaitMainProcess(ctx context.Context, ref domain.SandboxRef) (int, error) {
+	current, err := s.Get(ctx, ref)
+	if err != nil {
+		return 0, err
+	}
+	waiter, ok := s.Runtime.(interface {
+		WaitMainProcess(context.Context, sandboxruntime.Sandbox) (int, error)
+	})
+	if !ok {
+		return 0, domain.New(domain.CodeUnavailable, "sandbox.main_process.wait", "runtime cannot observe main-process exit")
+	}
+	return waiter.WaitMainProcess(ctx, runtimeInput(current))
 }
 
 // List returns sandboxes for one workspace sorted by sandbox ID.

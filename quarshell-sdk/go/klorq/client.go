@@ -189,9 +189,10 @@ type (
 
 // SandboxExecOptions configures streamed and interactive sandbox execution.
 type SandboxExecOptions struct {
-	Env          map[string]string
-	WorkDir      string
-	NoLoginShell bool
+	Env               map[string]string
+	WorkDir           string
+	NoLoginShell      bool
+	AttachMainProcess bool
 }
 
 // SandboxExecChunk is one stdout or stderr frame from streamed execution.

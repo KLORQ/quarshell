@@ -95,10 +95,11 @@ sandbox token. Run `cautem ssh-proxy --help` for the exact forms.
 
 Host bind mounts, local image builds, display, and local runtime toggles are not
 part of the OpenShell Gateway create contract. `--upload` streams files through
-the native OpenShell interactive execution RPC. A foreground trailing command
-also runs through native interactive exec after provisioning because this
-Gateway does not implement OpenShell's initial main process attachment
-handshake yet; detached commands are sent in the create request.
+the native OpenShell interactive execution RPC. A foreground TTY command is
+started as the canonical main process in the create request and the CLI
+attaches to its retained PTY. A foreground command without a TTY uses native
+interactive exec after provisioning; detached commands are sent in the create
+request.
 
 Add `--gateway` to a `sandbox template` command to manage the template in the
 selected Gateway workspace. Gateway template creation also accepts repeatable

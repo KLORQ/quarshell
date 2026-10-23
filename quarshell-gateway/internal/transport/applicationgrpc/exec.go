@@ -286,6 +286,90 @@ func (s *Server) ExecSandboxInteractive(stream gatewayv1.OpenShell_ExecSandboxIn
 	return stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Exit{Exit: &gatewayv1.ExecSandboxExit{ExitCode: int32(exitCode)}}})
 }
 
+type mainProcessTTYStream interface {
+	Context() context.Context
+	Send(*gatewayv1.ExecSandboxEvent) error
+	Recv() (*gatewayv1.ExecSandboxInput, error)
+}
+
+func (s *Server) attachMainProcessTTY(ctx context.Context, ref domain.SandboxRef, columns, rows uint32, stream mainProcessTTYStream) error {
+	terminal, err := s.Sandboxes.OpenMainProcessTTY(ctx, ref, columns, rows)
+	if err != nil {
+		return grpcError(err)
+	}
+	defer terminal.Close()
+	inputErrors := make(chan error, 1)
+	go func() {
+		failInput := func(inputErr error) {
+			inputErrors <- inputErr
+			_ = terminal.Close()
+		}
+		for {
+			input, recvErr := stream.Recv()
+			if recvErr != nil {
+				if recvErr != io.EOF {
+					failInput(recvErr)
+					return
+				}
+				inputErrors <- recvErr
+				return
+			}
+			switch payload := input.GetPayload().(type) {
+			case *gatewayv1.ExecSandboxInput_Stdin:
+				if _, writeErr := terminal.Write(payload.Stdin); writeErr != nil {
+					failInput(writeErr)
+					return
+				}
+			case *gatewayv1.ExecSandboxInput_Resize:
+				if payload.Resize == nil || payload.Resize.GetCols() == 0 || payload.Resize.GetRows() == 0 || payload.Resize.GetCols() > 65535 || payload.Resize.GetRows() > 65535 {
+					failInput(status.Error(codes.InvalidArgument, "terminal resize dimensions must be between 1 and 65535"))
+					return
+				}
+				if resizeErr := s.Sandboxes.ResizeMainProcessTTY(ctx, ref, payload.Resize.GetCols(), payload.Resize.GetRows()); resizeErr != nil {
+					failInput(grpcError(resizeErr))
+					return
+				}
+			default:
+				failInput(status.Error(codes.InvalidArgument, "main-process attachment accepts only stdin and resize after start"))
+				return
+			}
+		}
+	}()
+	buffer := make([]byte, execOutputChunkBytes)
+	for {
+		count, readErr := terminal.Read(buffer)
+		if count > 0 {
+			if sendErr := stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Stdout{Stdout: &gatewayv1.ExecSandboxStdout{Data: append([]byte(nil), buffer[:count]...)}}}); sendErr != nil {
+				return sendErr
+			}
+		}
+		if readErr == io.EOF {
+			select {
+			case inputErr := <-inputErrors:
+				if inputErr != nil && inputErr != io.EOF {
+					return grpcError(inputErr)
+				}
+			default:
+			}
+			code, waitErr := s.Sandboxes.WaitMainProcess(ctx, ref)
+			if waitErr != nil {
+				return grpcError(waitErr)
+			}
+			return stream.Send(&gatewayv1.ExecSandboxEvent{Payload: &gatewayv1.ExecSandboxEvent_Exit{Exit: &gatewayv1.ExecSandboxExit{ExitCode: int32(code)}}})
+		}
+		if readErr != nil {
+			select {
+			case inputErr := <-inputErrors:
+				if inputErr != nil && inputErr != io.EOF {
+					return grpcError(inputErr)
+				}
+			default:
+			}
+			return grpcError(readErr)
+		}
+	}
+}
+
 func (s *Server) execSandboxInteractiveStream(ctx context.Context, ref domain.SandboxRef, request *gatewayv1.ExecSandboxRequest, environment []string, stream gatewayv1.OpenShell_ExecSandboxInteractiveServer) error {
 	session, err := s.Sandboxes.OpenExecStream(ctx, ref, driver.ExecTerminalRequest{
 		Argv: append([]string(nil), request.GetCommand()...), Env: environment,

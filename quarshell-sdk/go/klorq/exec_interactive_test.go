@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
 	pb "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,11 +17,35 @@ import (
 
 type interactiveExecServer struct {
 	pb.UnimplementedOpenShellServer
-	mu      sync.Mutex
-	request *pb.ExecSandboxRequest
-	stdin   []byte
-	cols    uint32
-	rows    uint32
+	runtimev1.UnimplementedMainProcessServiceServer
+	mu        sync.Mutex
+	request   *pb.ExecSandboxRequest
+	mainStart *runtimev1.MainProcessTTYStart
+	stdin     []byte
+	cols      uint32
+	rows      uint32
+}
+
+func (s *interactiveExecServer) AttachTTY(stream grpc.BidiStreamingServer[runtimev1.MainProcessServiceAttachTTYRequest, runtimev1.MainProcessServiceAttachTTYResponse]) error {
+	first, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.mainStart = first.GetStart()
+	s.mu.Unlock()
+	for {
+		if _, err := stream.Recv(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+	}
+	if err := stream.Send(&runtimev1.MainProcessServiceAttachTTYResponse{Payload: &runtimev1.MainProcessServiceAttachTTYResponse_Stdout{Stdout: []byte("main-output")}}); err != nil {
+		return err
+	}
+	return stream.Send(&runtimev1.MainProcessServiceAttachTTYResponse{Payload: &runtimev1.MainProcessServiceAttachTTYResponse_ExitCode{ExitCode: 7}})
 }
 
 type stalledInteractiveExecServer struct {
@@ -92,6 +117,7 @@ func TestExecInteractiveWithTTYStreamsNonTTYInputAndWorkspace(t *testing.T) {
 	server := grpc.NewServer()
 	backend := &interactiveExecServer{}
 	pb.RegisterOpenShellServer(server, backend)
+	runtimev1.RegisterMainProcessServiceServer(server, backend)
 	go func() { _ = server.Serve(listener) }()
 	t.Cleanup(server.Stop)
 	connection, err := grpc.NewClient("passthrough:///bufnet", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
@@ -155,9 +181,28 @@ func TestExecInteractiveWithTTYStreamsNonTTYInputAndWorkspace(t *testing.T) {
 	}
 	_ = ttySession.Close()
 	backend.mu.Lock()
-	defer backend.mu.Unlock()
 	if backend.request == nil || !backend.request.GetTty() || backend.request.GetCols() != 113 || backend.request.GetRows() != 41 || backend.cols != 120 || backend.rows != 43 {
 		t.Fatalf("TTY dimensions not preserved: %+v", backend.request)
+	}
+	backend.mu.Unlock()
+	mainSession, err := client.ExecInteractiveWithTTY(context.Background(), "team", "shared", nil, true, 80, 24, SandboxExecOptions{AttachMainProcess: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := CloseSandboxExecInput(mainSession); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(io.Discard, mainSession); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mainSession.ExitCode(); err != nil {
+		t.Fatal(err)
+	}
+	_ = mainSession.Close()
+	backend.mu.Lock()
+	defer backend.mu.Unlock()
+	if backend.mainStart == nil || backend.mainStart.GetWorkspace() != "team" || backend.mainStart.GetSandbox() != "shared" || backend.mainStart.GetCols() != 80 || backend.mainStart.GetRows() != 24 {
+		t.Fatalf("main-process attachment not preserved: %+v", backend.mainStart)
 	}
 }
 

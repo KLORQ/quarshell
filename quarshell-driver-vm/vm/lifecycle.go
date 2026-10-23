@@ -734,6 +734,40 @@ func (d *Driver) RecordMainProcessExit(ctx context.Context, id core.ID, instance
 	return store.save(state)
 }
 
+// WaitMainProcess waits for the authenticated supervisor's durable canonical
+// process result. The VM worker may already have powered off by the time the
+// Gateway finishes delivering retained terminal output.
+func (d *Driver) WaitMainProcess(ctx context.Context, id core.ID) (int, error) {
+	if d == nil || ctx == nil {
+		return 0, fmt.Errorf("vm driver: WaitMainProcess requires a driver and context")
+	}
+	store, err := openStateStore(d.host.StateDir)
+	if err != nil {
+		return 0, err
+	}
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		state, loadErr := store.load(string(id))
+		if loadErr != nil {
+			return 0, loadErr
+		}
+		if state.MainProcessExitCode != nil {
+			return int(*state.MainProcessExitCode), nil
+		}
+		if state.Status == "stopped" || state.Status == "deleted" {
+			return 0, fmt.Errorf("vm driver: sandbox stopped before the main process reported an exit status")
+		}
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+var _ driver.MainProcessWaiter = (*Driver)(nil)
+
 func (d *Driver) installGuestRuntimeAssets(ctx context.Context, id, guestSocket string, spec vmLaunchSpec, controlIdentity *vmControlIdentity) error {
 	assets := make([]struct {
 		host  string

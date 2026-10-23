@@ -42,6 +42,7 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/sshrelay"
 	applicationgrpc "github.com/KLORQ/quarshell-gateway/internal/transport/applicationgrpc"
 	applicationhttp "github.com/KLORQ/quarshell-gateway/internal/transport/applicationhttp"
+	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc"
 	grpcCredentials "google.golang.org/grpc/credentials"
@@ -379,6 +380,7 @@ func main() {
 			grpcApplication.RootfsStaging = dockerRuntime.RootfsStaging
 		}
 		gatewayv1.RegisterOpenShellServer(grpcServer, grpcApplication)
+		runtimev1.RegisterMainProcessServiceServer(grpcServer, grpcApplication)
 		go func() {
 			if err := grpcServer.Serve(grpcListener); err != nil {
 				log.Printf("grpc serve: %v", err)

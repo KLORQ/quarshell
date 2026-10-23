@@ -445,6 +445,14 @@ func serveSupervisorControlTestHelper(listener net.Listener, eventPath, expected
 		go func() {
 			defer connection.Close()
 			_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
+			if tlsConnection, ok := connection.(*tls.Conn); ok {
+				if handshakeErr := tlsConnection.Handshake(); handshakeErr != nil {
+					if handshakeErr != io.EOF {
+						fmt.Fprintf(os.Stderr, "supervisor control test TLS handshake failed: %v\n", handshakeErr)
+					}
+					return
+				}
+			}
 			line, err := bufio.NewReader(io.LimitReader(connection, 8<<10)).ReadBytes('\n')
 			if err != nil {
 				_ = json.NewEncoder(connection).Encode(supervisorControlTestResponse{Error: "invalid supervisor control request"})

@@ -363,7 +363,7 @@ tasks:
       - python3 tools/check-backend-config-fields.py
 
   "compat:proto":
-    desc: Verify generated related OpenShell protocol stubs match the pinned source
+    desc: Verify generated OpenShell protocol descriptors match the pinned wire contract
     cmds:
       - bash tools/check-related-proto-drift.sh
 
