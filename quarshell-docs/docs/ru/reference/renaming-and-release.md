@@ -1,23 +1,23 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Продуктовый и релизный контракт Quarshell
 
-Имя продукта — Quarshell. Владелец GitHub остаётся `cautem`; поддерживаемые
+Имя продукта — Quarshell. Владелец GitHub остаётся `quarshell`; поддерживаемые
 репозитории продукта и Go-модули используют имена `quarshell-*`. OpenShell —
 цель совместимости, а не псевдоним продукта Quarshell.
 
 ## Политика совместимости
 
 До этого переключения Quarshell не обещает обратную совместимость с прежними
-релизами Cautem или Quarshell. В бете будет одна актуальная версия CLI,
+релизами Quarshell или Quarshell. В бете будет одна актуальная версия CLI,
 API/schema, пакетов, расположения конфигурации, пространства имён переменных
 среды и идентичности runtime-ресурсов. Старые module paths, binary aliases,
 имена конфигурации, API routes, форматы БД и adoption старых ресурсов не
 поддерживаются. Мы не будем выпускать dual readers, fallback paths,
-compatibility adapters или migration tool Cautem-to-Quarshell. Для установки
+compatibility adapters или migration tool Quarshell-to-Quarshell. Для установки
 новой версии потребуется чистая установка; до замены старой сборки пользователь
 самостоятельно сохраняет нужные данные вне Quarshell. Новый релиз не должен
 молча удалять не принадлежащие ему старые ресурсы хоста.
@@ -56,7 +56,7 @@ Quarshell и проходящий black-box/conformance test. Отсутству
   images и новые runtime-ресурсы используют только имена Quarshell.
 - Имена OpenShell wire остаются неизменными там, где это требуется для точного
   соответствия upstream-протоколу.
-- Из поддерживаемого пути удаляются старые Cautem aliases, импорты старых путей,
+- Из поддерживаемого пути удаляются старые Quarshell aliases, импорты старых путей,
   двойная обработка имён переменных, legacy readers конфигурации/БД и adoption
   старых ресурсов. Идентификаторы протокола, принадлежащие upstream, не
   переименовываются.

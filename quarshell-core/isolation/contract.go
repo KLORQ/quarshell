@@ -387,7 +387,7 @@ func validateContext(d Descriptor, admitted string, s SandboxContext) error {
 // EvidenceDigest returns the canonical digest commitment for backend evidence.
 func EvidenceDigest(generation string, evidence []byte) string {
 	h := sha256.New()
-	_, _ = io.WriteString(h, "cautem-isolation-evidence-v1\x00")
+	_, _ = io.WriteString(h, "quarshell-isolation-evidence-v1\x00")
 	_, _ = io.WriteString(h, generation)
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write(evidence)

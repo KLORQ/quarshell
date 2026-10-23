@@ -1,23 +1,23 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Quarshell product and release contract
 
-Quarshell is the product name. The GitHub owner remains `cautem`; the supported
+Quarshell is the product name. The GitHub owner remains `quarshell`; the supported
 product repositories and Go modules use the `quarshell-*` names. OpenShell is an
 upstream compatibility target, not a Quarshell product alias.
 
 ## Compatibility policy
 
-Quarshell makes no backward-compatibility promise for earlier Cautem or
+Quarshell makes no backward-compatibility promise for earlier Quarshell or
 Quarshell releases during this pre-beta cutover. The beta will have one current
 CLI, API/schema, package set, configuration layout, environment-variable
 namespace and runtime resource identity. Old module paths, binary aliases,
 configuration names, API routes, database formats, labels and resource
 adoption are not supported. We will not ship dual readers, fallback paths,
-compatibility adapters or a Cautem-to-Quarshell migration tool. Existing
+compatibility adapters or a Quarshell-to-Quarshell migration tool. Existing
 installations require a clean install; users must back up any data they need
 outside Quarshell before replacing an older build. The new release must not
 silently delete unrelated old host resources.
@@ -55,7 +55,7 @@ unpinned branch or silently combine contracts from multiple upstream versions.
   labels, images and newly created runtime resources use Quarshell names only.
 - OpenShell wire names remain unchanged where exact upstream protocol
   compatibility requires them.
-- Remove old Cautem aliases, old-path imports, dual-name environment handling,
+- Remove old Quarshell aliases, old-path imports, dual-name environment handling,
   legacy config/database readers and old-resource adoption from the supported
   product path. Do not rename upstream-owned protocol identifiers.
 - The release candidate is built from one immutable 15-repository source lock.

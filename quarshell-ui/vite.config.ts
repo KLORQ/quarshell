@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const gateway = process.env.CAUTEM_GATEWAY_TARGET ?? "https://127.0.0.1:7443";
+const gateway = process.env.QUARSHELL_GATEWAY_TARGET ?? "https://127.0.0.1:17670";
 
 export default defineConfig({
   plugins: [react()],

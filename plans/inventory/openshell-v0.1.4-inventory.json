@@ -39,11 +39,6 @@
         "source": "quarshell-core/LICENSE"
       },
       {
-        "directory": "quarshell-display",
-        "license": "Apache-2.0",
-        "source": "quarshell-display/LICENSE"
-      },
-      {
         "directory": "quarshell-docs",
         "license": "Apache-2.0",
         "source": "quarshell-docs/LICENSE"
@@ -52,6 +47,11 @@
         "directory": "quarshell-driver",
         "license": "Apache-2.0",
         "source": "quarshell-driver/LICENSE"
+      },
+      {
+        "directory": "quarshell-driver-vm",
+        "license": "Apache-2.0",
+        "source": "quarshell-driver-vm/LICENSE"
       },
       {
         "directory": "quarshell-gateway",
@@ -64,14 +64,14 @@
         "source": null
       },
       {
+        "directory": "quarshell-policy",
+        "license": "Apache-2.0",
+        "source": "quarshell-policy/LICENSE"
+      },
+      {
         "directory": "quarshell-proto",
         "license": "Apache-2.0",
         "source": "quarshell-proto/LICENSE"
-      },
-      {
-        "directory": "quarshell-providers",
-        "license": "Apache-2.0",
-        "source": "quarshell-providers/LICENSE"
       },
       {
         "directory": "quarshell-proxy",
@@ -92,11 +92,6 @@
         "directory": "quarshell-sdk",
         "license": "Apache-2.0",
         "source": "quarshell-sdk/LICENSE"
-      },
-      {
-        "directory": "quarshell-slogx",
-        "license": "MIT",
-        "source": "quarshell-slogx/LICENSE"
       },
       {
         "directory": "quarshell-ui",
@@ -772,8 +767,8 @@
     "installer_candidates": 135,
     "config_source_candidates": 29,
     "config_types": 123,
-    "current_repositories": 15,
-    "current_go_modules": 11,
+    "current_repositories": 14,
+    "current_go_modules": 10,
     "source_files": 1972
   },
   "workspace_members": [
@@ -838,7 +833,7 @@
       "id": "OS-CRED-API",
       "scope": "5 RPC, backend storage, refresh/revoke",
       "acceptance": "Secret lifecycle без утечки материалов refresh",
-      "owner": "credentials",
+      "owner": "core + gateway",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -847,7 +842,7 @@
       "id": "OS-MIDDLEWARE",
       "scope": "4 RPC SupervisorMiddleware + 1 response service",
       "acceptance": "HTTP/WS ordering, cancellation, failure semantics",
-      "owner": "proxy + extensions",
+      "owner": "proxy + core",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -856,7 +851,7 @@
       "id": "OS-INTERCEPTORS",
       "scope": "3 RPC GatewayInterceptor",
       "acceptance": "Authenticated transformation и повторная проверка результата",
-      "owner": "gateway + extensions",
+      "owner": "gateway + core",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -865,7 +860,7 @@
       "id": "OS-ISOLATION-PROTO",
       "scope": "Exchange/Mediate, framing, identity, FD/network operations",
       "acceptance": "Authenticated boundary, replay/size/loss tests",
-      "owner": "isolation + supervisor",
+      "owner": "driver + runtime",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -892,7 +887,7 @@
       "id": "OS-MAIN",
       "scope": "exit finalization, restart policy, foreground attach",
       "acceptance": "Один terminal result на generation, restart semantics",
-      "owner": "supervisor + isolation",
+      "owner": "runtime + driver",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -901,7 +896,7 @@
       "id": "OS-EXEC",
       "scope": "exec/PTY, resize, signals, stdin EOF, stdout/stderr, SSH/relay",
       "acceptance": "Интерактивные и non-TTY сценарии всех backend",
-      "owner": "supervisor + SDK",
+      "owner": "runtime + SDK",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -928,7 +923,7 @@
       "id": "OS-POLICY-LIFECYCLE",
       "scope": "global/sandbox, versions, ACK, draft/approve/edit/undo/history",
       "acceptance": "Активная policy подтверждена runtime generation",
-      "owner": "gateway + supervisor",
+      "owner": "gateway + runtime",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -937,7 +932,7 @@
       "id": "OS-FS",
       "scope": "read/write/exec grants, workdir, identities, Landlock",
       "acceptance": "Kernel-enforced ограничения и capability evidence",
-      "owner": "isolation",
+      "owner": "driver",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -946,7 +941,7 @@
       "id": "OS-NET",
       "scope": "socket mediation, bypass denial, DNS/IPv4/IPv6/UDS",
       "acceptance": "Raw socket/direct-connect probes не обходят policy",
-      "owner": "isolation + proxy",
+      "owner": "driver + proxy",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -964,7 +959,7 @@
       "id": "OS-CREDENTIALS",
       "scope": "endpoint binding, stable placeholders, refresh, managed files",
       "acceptance": "Secret доступен только нужной операции/endpoint",
-      "owner": "credentials + supervisor + proxy",
+      "owner": "core + gateway + proxy",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -973,7 +968,7 @@
       "id": "OS-TOKEN",
       "scope": "OAuth grants and SPIFFE/subject identity, cache/expiry",
       "acceptance": "Binding к workspace/sandbox/provider/revision",
-      "owner": "credentials",
+      "owner": "gateway",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -982,7 +977,7 @@
       "id": "OS-PROVIDERS",
       "scope": "Profiles, inheritance, label filtering, discovery, builtins",
       "acceptance": "Всё содержимое upstream providers/ покрыто fixtures",
-      "owner": "providers",
+      "owner": "policy",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -991,7 +986,7 @@
       "id": "OS-BACKENDS",
       "scope": "Docker, Podman, Kubernetes, VM, Windows MXC",
       "acceptance": "Отдельный живой lane для каждого поддержанного профиля",
-      "owner": "driver / driver-vm / driver-mxc",
+      "owner": "driver / driver-vm (MXC behavior pending)",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -1009,7 +1004,7 @@
       "id": "OS-CRED-DRIVERS",
       "scope": "Database, Kubernetes Secrets, Vault-compatible",
       "acceptance": "Durable CRUD, auth, rotation и outage",
-      "owner": "credentials",
+      "owner": "gateway",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -1027,7 +1022,7 @@
       "id": "OS-PROVER",
       "scope": "Policy containment, risk queries, counterexample, coverage, timeout",
       "acceptance": "Within/Exceeds/Unsupported/Inconclusive без ложного allow",
-      "owner": "prover",
+      "owner": "policy",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -1036,7 +1031,7 @@
       "id": "OS-OBS",
       "scope": "OCSF, logs, events, traces, metrics, redaction",
       "acceptance": "Consistent schema и доказанный bounded buffering",
-      "owner": "telemetry + владельцы событий",
+      "owner": "core + runtime + event owners",
       "status": "not_started",
       "baseline": "OpenShell v0.1.4",
       "source": "PLAN.md section 2"
@@ -1093,7 +1088,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS"
@@ -1104,7 +1099,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-isolation; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0002",
@@ -1250,7 +1245,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -1273,7 +1268,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-credentials; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-gateway; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0007",
@@ -1362,7 +1357,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -1386,7 +1381,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-credentials; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-gateway; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0010",
@@ -1405,7 +1400,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -1425,7 +1420,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-driver-mxc; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0011",
@@ -1478,7 +1473,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -1501,7 +1496,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-credentials; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-gateway; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0013",
@@ -1554,7 +1549,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-INTERCEPTORS",
         "OS-MIDDLEWARE"
@@ -1565,7 +1560,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-spi; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0015",
@@ -1647,7 +1642,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -1658,7 +1653,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-spi; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0018",
@@ -1673,7 +1668,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -1683,7 +1678,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-telemetry; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0019",
@@ -1698,7 +1693,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -1708,7 +1703,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-telemetry; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0020",
@@ -1723,7 +1718,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -1733,7 +1728,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-telemetry; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0021",
@@ -1816,7 +1811,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -1826,7 +1821,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-prover; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-policy/prover; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0024",
@@ -1841,7 +1836,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -1851,7 +1846,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-prover; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-policy/prover; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0025",
@@ -1867,7 +1862,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -1880,7 +1875,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-providers; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-policy; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0026",
@@ -1897,7 +1892,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -1909,7 +1904,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-isolation; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0027",
@@ -1926,7 +1921,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -1937,7 +1932,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-isolation; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0028",
@@ -2044,7 +2039,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -2057,7 +2052,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-supervisor; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0032",
@@ -2159,7 +2154,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -2171,7 +2166,7 @@
       ],
       "acceptance": "Owning OS-* acceptance matrix and explicit port/exclusion decision (B4).",
       "status": "mapped",
-      "decision": "port baseline responsibilities into quarshell-supervisor; no crate excluded at B0"
+      "decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0"
     },
     {
       "id": "OS-CRATE-0036",
@@ -2236,7 +2231,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2265,7 +2260,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2294,7 +2289,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2323,7 +2318,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2352,7 +2347,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2381,7 +2376,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2410,7 +2405,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2439,7 +2434,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2468,7 +2463,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2497,7 +2492,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2526,7 +2521,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2555,7 +2550,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -2584,7 +2579,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-CRED-API"
       ],
@@ -2609,7 +2604,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-CRED-API"
       ],
@@ -2634,7 +2629,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-CRED-API"
       ],
@@ -2659,7 +2654,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-CRED-API"
       ],
@@ -2684,7 +2679,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-CRED-API"
       ],
@@ -5067,7 +5062,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-ISOLATION-PROTO"
       ],
@@ -5091,7 +5086,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-ISOLATION-PROTO"
       ],
@@ -5117,7 +5112,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -5148,7 +5143,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -5179,7 +5174,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -5210,7 +5205,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-COMPUTE"
       ],
@@ -7356,7 +7351,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-ISOLATION-PROTO"
       ],
@@ -7382,7 +7377,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-ISOLATION-PROTO"
       ],
@@ -7408,7 +7403,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-ISOLATION-PROTO"
       ],
@@ -7434,7 +7429,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-ISOLATION-PROTO"
       ],
@@ -7459,7 +7454,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7488,7 +7483,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7517,7 +7512,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7546,7 +7541,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7575,7 +7570,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7604,7 +7599,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7633,7 +7628,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7662,7 +7657,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7691,7 +7686,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7720,7 +7715,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7749,7 +7744,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7778,7 +7773,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7807,7 +7802,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7836,7 +7831,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7865,7 +7860,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7894,7 +7889,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -7923,7 +7918,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -26920,7 +26915,7 @@
         ]
       },
       "line": 109,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -26970,7 +26965,7 @@
         ]
       },
       "line": 110,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -27022,7 +27017,7 @@
         ]
       },
       "line": 123,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -27074,7 +27069,7 @@
         ]
       },
       "line": 124,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -31899,7 +31894,7 @@
         ]
       },
       "line": 54,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -31953,7 +31948,7 @@
         ]
       },
       "line": 78,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -32007,7 +32002,7 @@
         ]
       },
       "line": 64,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32057,7 +32052,7 @@
         ]
       },
       "line": 66,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32107,7 +32102,7 @@
         ]
       },
       "line": 68,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32157,7 +32152,7 @@
         ]
       },
       "line": 70,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32207,7 +32202,7 @@
         ]
       },
       "line": 72,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32257,7 +32252,7 @@
         ]
       },
       "line": 74,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32307,7 +32302,7 @@
         ]
       },
       "line": 77,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32357,7 +32352,7 @@
         ]
       },
       "line": 81,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32407,7 +32402,7 @@
         ]
       },
       "line": 85,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32457,7 +32452,7 @@
         ]
       },
       "line": 88,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32507,7 +32502,7 @@
         ]
       },
       "line": 92,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32557,7 +32552,7 @@
         ]
       },
       "line": 120,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32609,7 +32604,7 @@
         ]
       },
       "line": 122,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32657,7 +32652,7 @@
         ]
       },
       "line": 33,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32705,7 +32700,7 @@
         ]
       },
       "line": 35,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32753,7 +32748,7 @@
         ]
       },
       "line": 38,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32801,7 +32796,7 @@
         ]
       },
       "line": 41,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32849,7 +32844,7 @@
         ]
       },
       "line": 29,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32897,7 +32892,7 @@
         ]
       },
       "line": 31,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32945,7 +32940,7 @@
         ]
       },
       "line": 33,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -32993,7 +32988,7 @@
         ]
       },
       "line": 35,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -33041,7 +33036,7 @@
         ]
       },
       "line": 37,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -33089,7 +33084,7 @@
         ]
       },
       "line": 39,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -33137,7 +33132,7 @@
         ]
       },
       "line": 41,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -33185,7 +33180,7 @@
         ]
       },
       "line": 43,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -33233,7 +33228,7 @@
         ]
       },
       "line": 46,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -35418,7 +35413,7 @@
         ]
       },
       "line": 61,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35468,7 +35463,7 @@
         ]
       },
       "line": 62,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35518,7 +35513,7 @@
         ]
       },
       "line": 63,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35568,7 +35563,7 @@
         ]
       },
       "line": 64,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35618,7 +35613,7 @@
         ]
       },
       "line": 65,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35670,7 +35665,7 @@
         ]
       },
       "line": 89,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35722,7 +35717,7 @@
         ]
       },
       "line": 90,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35774,7 +35769,7 @@
         ]
       },
       "line": 91,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35826,7 +35821,7 @@
         ]
       },
       "line": 92,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35878,7 +35873,7 @@
         ]
       },
       "line": 93,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35930,7 +35925,7 @@
         ]
       },
       "line": 94,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -35982,7 +35977,7 @@
         ]
       },
       "line": 95,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -36034,7 +36029,7 @@
         ]
       },
       "line": 96,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -36086,7 +36081,7 @@
         ]
       },
       "line": 97,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -36138,7 +36133,7 @@
         ]
       },
       "line": 98,
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -38334,7 +38329,7 @@
         ]
       },
       "line": 51,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-INTERCEPTORS",
         "OS-MIDDLEWARE"
@@ -38370,7 +38365,7 @@
         ]
       },
       "line": 52,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-INTERCEPTORS",
         "OS-MIDDLEWARE"
@@ -39618,7 +39613,7 @@
         ]
       },
       "line": 14,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39652,7 +39647,7 @@
         ]
       },
       "line": 15,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39686,7 +39681,7 @@
         ]
       },
       "line": 16,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39720,7 +39715,7 @@
         ]
       },
       "line": 17,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39754,7 +39749,7 @@
         ]
       },
       "line": 18,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39788,7 +39783,7 @@
         ]
       },
       "line": 19,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39822,7 +39817,7 @@
         ]
       },
       "line": 20,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39856,7 +39851,7 @@
         ]
       },
       "line": 21,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39890,7 +39885,7 @@
         ]
       },
       "line": 22,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39926,7 +39921,7 @@
         ]
       },
       "line": 19,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39962,7 +39957,7 @@
         ]
       },
       "line": 22,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -39998,7 +39993,7 @@
         ]
       },
       "line": 26,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40034,7 +40029,7 @@
         ]
       },
       "line": 33,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40070,7 +40065,7 @@
         ]
       },
       "line": 40,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40104,7 +40099,7 @@
         ]
       },
       "line": 190,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40138,7 +40133,7 @@
         ]
       },
       "line": 191,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40172,7 +40167,7 @@
         ]
       },
       "line": 192,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40206,7 +40201,7 @@
         ]
       },
       "line": 193,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40240,7 +40235,7 @@
         ]
       },
       "line": 125,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40274,7 +40269,7 @@
         ]
       },
       "line": 126,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40308,7 +40303,7 @@
         ]
       },
       "line": 127,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40342,7 +40337,7 @@
         ]
       },
       "line": 128,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -40611,7 +40606,7 @@
         ]
       },
       "line": 141,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -40650,7 +40645,7 @@
         ]
       },
       "line": 473,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -40692,7 +40687,7 @@
         ]
       },
       "line": 476,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -40734,7 +40729,7 @@
         ]
       },
       "line": 479,
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
@@ -40773,7 +40768,7 @@
         ]
       },
       "line": 60,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -40811,7 +40806,7 @@
         ]
       },
       "line": 61,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -40849,7 +40844,7 @@
         ]
       },
       "line": 62,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -40887,7 +40882,7 @@
         ]
       },
       "line": 63,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -40925,7 +40920,7 @@
         ]
       },
       "line": 64,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -40963,7 +40958,7 @@
         ]
       },
       "line": 65,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41001,7 +40996,7 @@
         ]
       },
       "line": 315,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41039,7 +41034,7 @@
         ]
       },
       "line": 316,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41077,7 +41072,7 @@
         ]
       },
       "line": 317,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41115,7 +41110,7 @@
         ]
       },
       "line": 318,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41153,7 +41148,7 @@
         ]
       },
       "line": 319,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41191,7 +41186,7 @@
         ]
       },
       "line": 320,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -41231,7 +41226,7 @@
         ]
       },
       "line": 304,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41270,7 +41265,7 @@
         ]
       },
       "line": 305,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41309,7 +41304,7 @@
         ]
       },
       "line": 322,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41348,7 +41343,7 @@
         ]
       },
       "line": 323,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41387,7 +41382,7 @@
         ]
       },
       "line": 486,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41426,7 +41421,7 @@
         ]
       },
       "line": 488,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41465,7 +41460,7 @@
         ]
       },
       "line": 490,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41504,7 +41499,7 @@
         ]
       },
       "line": 492,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41543,7 +41538,7 @@
         ]
       },
       "line": 494,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41582,7 +41577,7 @@
         ]
       },
       "line": 496,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41621,7 +41616,7 @@
         ]
       },
       "line": 498,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41660,7 +41655,7 @@
         ]
       },
       "line": 500,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41701,7 +41696,7 @@
         ]
       },
       "line": 504,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41742,7 +41737,7 @@
         ]
       },
       "line": 513,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41781,7 +41776,7 @@
         ]
       },
       "line": 515,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41820,7 +41815,7 @@
         ]
       },
       "line": 517,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -41861,7 +41856,7 @@
         ]
       },
       "line": 520,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -48248,7 +48243,7 @@
         ]
       },
       "line": 691,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48288,7 +48283,7 @@
         ]
       },
       "line": 692,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48328,7 +48323,7 @@
         ]
       },
       "line": 693,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48368,7 +48363,7 @@
         ]
       },
       "line": 694,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48408,7 +48403,7 @@
         ]
       },
       "line": 695,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48448,7 +48443,7 @@
         ]
       },
       "line": 696,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48488,7 +48483,7 @@
         ]
       },
       "line": 697,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48528,7 +48523,7 @@
         ]
       },
       "line": 698,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48568,7 +48563,7 @@
         ]
       },
       "line": 699,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48608,7 +48603,7 @@
         ]
       },
       "line": 700,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48648,7 +48643,7 @@
         ]
       },
       "line": 701,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48688,7 +48683,7 @@
         ]
       },
       "line": 702,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48728,7 +48723,7 @@
         ]
       },
       "line": 703,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48768,7 +48763,7 @@
         ]
       },
       "line": 704,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48808,7 +48803,7 @@
         ]
       },
       "line": 705,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48848,7 +48843,7 @@
         ]
       },
       "line": 706,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48888,7 +48883,7 @@
         ]
       },
       "line": 707,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48928,7 +48923,7 @@
         ]
       },
       "line": 708,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -48968,7 +48963,7 @@
         ]
       },
       "line": 709,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -49008,7 +49003,7 @@
         ]
       },
       "line": 710,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -53365,7 +53360,7 @@
         ]
       },
       "line": 344,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53403,7 +53398,7 @@
         ]
       },
       "line": 345,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53441,7 +53436,7 @@
         ]
       },
       "line": 346,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53479,7 +53474,7 @@
         ]
       },
       "line": 347,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53517,7 +53512,7 @@
         ]
       },
       "line": 348,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53555,7 +53550,7 @@
         ]
       },
       "line": 349,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53593,7 +53588,7 @@
         ]
       },
       "line": 350,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53631,7 +53626,7 @@
         ]
       },
       "line": 352,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -53669,7 +53664,7 @@
         ]
       },
       "line": 353,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -59353,7 +59348,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -59441,7 +59436,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -59501,7 +59496,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -59775,7 +59770,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -59813,7 +59808,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -59853,7 +59848,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -59895,7 +59890,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-API",
         "OS-OBS"
@@ -59941,7 +59936,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
@@ -59997,7 +59992,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60028,7 +60023,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60060,7 +60055,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-EXEC",
         "OS-PROVER"
@@ -60094,7 +60089,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60125,7 +60120,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60156,7 +60151,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60187,7 +60182,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60218,7 +60213,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60250,7 +60245,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-FS",
         "OS-PROVER"
@@ -60283,7 +60278,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60314,7 +60309,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60345,7 +60340,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60376,7 +60371,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60407,7 +60402,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60443,7 +60438,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60488,7 +60483,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
@@ -60529,7 +60524,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-FS",
@@ -60573,7 +60568,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -60621,7 +60616,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -60662,7 +60657,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -61891,7 +61886,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -61941,7 +61936,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -61988,7 +61983,7 @@
         ]
       },
       "line": null,
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -80850,14 +80845,14 @@
       "id": "OS-CRATE-BINARY-IDENTITY",
       "upstream_name": "openshell-binary-identity",
       "source": "crates/openshell-binary-identity/Cargo.toml",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-isolation; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -80924,7 +80919,7 @@
       "id": "OS-CRATE-DRIVER-DB-CREDSTORE",
       "upstream_name": "openshell-driver-db-credstore",
       "source": "crates/openshell-driver-db-credstore/Cargo.toml",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -80933,7 +80928,7 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-credentials; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-gateway; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -80970,7 +80965,7 @@
       "id": "OS-CRATE-DRIVER-KUBERNETES-SECRETS",
       "upstream_name": "openshell-driver-kubernetes-secrets",
       "source": "crates/openshell-driver-kubernetes-secrets/Cargo.toml",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -80980,14 +80975,14 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-credentials; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-gateway; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-DRIVER-MXC",
       "upstream_name": "openshell-driver-mxc",
       "source": "crates/openshell-driver-mxc/Cargo.toml",
-      "owner": "quarshell-driver-mxc",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-EXEC",
@@ -80997,7 +80992,7 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-driver-mxc; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -81019,7 +81014,7 @@
       "id": "OS-CRATE-DRIVER-VAULT",
       "upstream_name": "openshell-driver-vault",
       "source": "crates/openshell-driver-vault/Cargo.toml",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_ids": [
         "OS-BACKENDS",
         "OS-CRED-DRIVERS",
@@ -81028,7 +81023,7 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-credentials; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-gateway; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -81051,14 +81046,14 @@
       "id": "OS-CRATE-EXTENSION-CORE",
       "upstream_name": "openshell-extension-core",
       "source": "crates/openshell-extension-core/Cargo.toml",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-INTERCEPTORS",
         "OS-MIDDLEWARE"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-spi; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -81096,7 +81091,7 @@
       "id": "OS-CRATE-ISOLATION-INTERFACE",
       "upstream_name": "openshell-isolation-interface",
       "source": "crates/openshell-isolation-interface/Cargo.toml",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -81104,46 +81099,46 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-spi; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-OCSF",
       "upstream_name": "openshell-ocsf",
       "source": "crates/openshell-ocsf/Cargo.toml",
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-telemetry; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-OTEL",
       "upstream_name": "openshell-otel",
       "source": "crates/openshell-otel/Cargo.toml",
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-telemetry; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-OTEL-TEST-SUPPORT",
       "upstream_name": "openshell-otel-test-support",
       "source": "crates/openshell-otel-test-support/Cargo.toml",
-      "owner": "quarshell-telemetry",
+      "owner": "quarshell-core",
       "feature_ids": [
         "OS-OBS"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-telemetry; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-core; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -81184,47 +81179,47 @@
       "id": "OS-CRATE-PROVER",
       "upstream_name": "openshell-prover",
       "source": "crates/openshell-prover/Cargo.toml",
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-prover; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-policy/prover; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-PROVER-CLI",
       "upstream_name": "openshell-prover-cli",
       "source": "crates/openshell-prover-cli/Cargo.toml",
-      "owner": "quarshell-prover",
+      "owner": "quarshell-policy/prover",
       "feature_ids": [
         "OS-PROVER"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-prover; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-policy/prover; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-PROVIDERS",
       "upstream_name": "openshell-providers",
       "source": "crates/openshell-providers/Cargo.toml",
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "feature_ids": [
         "OS-CREDENTIALS",
         "OS-PROVIDERS"
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-providers; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-policy; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-SANDBOX",
       "upstream_name": "openshell-sandbox",
       "source": "crates/openshell-sandbox/Cargo.toml",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -81232,14 +81227,14 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-isolation; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
       "id": "OS-CRATE-SANDBOX-BACKEND",
       "upstream_name": "openshell-sandbox-backend",
       "source": "crates/openshell-sandbox-backend/Cargo.toml",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-FS",
         "OS-ISOLATION-PROTO",
@@ -81247,7 +81242,7 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-isolation; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -81297,7 +81292,7 @@
       "id": "OS-CRATE-SUPERVISOR",
       "upstream_name": "openshell-supervisor",
       "source": "crates/openshell-supervisor/Cargo.toml",
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-ISOLATION-PROTO",
@@ -81306,7 +81301,7 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-supervisor; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -81356,7 +81351,7 @@
       "id": "OS-CRATE-SUPERVISOR-PROCESS",
       "upstream_name": "openshell-supervisor-process",
       "source": "crates/openshell-supervisor-process/Cargo.toml",
-      "owner": "quarshell-supervisor",
+      "owner": "quarshell-driver",
       "feature_ids": [
         "OS-EXEC",
         "OS-FS",
@@ -81364,7 +81359,7 @@
       ],
       "status": "mapped",
       "decision": "port applicable behavior; assess each capability during the owning feature stage",
-      "port_decision": "port baseline responsibilities into quarshell-supervisor; no crate excluded at B0",
+      "port_decision": "port baseline responsibilities into quarshell-driver; no crate excluded at B0",
       "acceptance": "owning OS-* acceptance matrix from plan section 4"
     },
     {
@@ -82039,13 +82034,13 @@
     {
       "name": "ComputeDriver",
       "source": "proto/compute_driver.proto:25",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE"
     },
     {
       "name": "CredentialDriver",
       "source": "proto/credential_driver.proto:18",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_id": "OS-CRED-API"
     },
     {
@@ -82075,7 +82070,7 @@
     {
       "name": "IsolationBoundary",
       "source": "crates/openshell-sandbox-backend/proto/openshell_sandbox.proto:11",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO"
     }
   ],
@@ -82089,7 +82084,7 @@
       "response_stream": false,
       "request_type": "GetCapabilitiesRequest",
       "response_type": "GetCapabilitiesResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82103,7 +82098,7 @@
       "response_stream": false,
       "request_type": "AuthenticateSandboxRequest",
       "response_type": "AuthenticateSandboxResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82117,7 +82112,7 @@
       "response_stream": false,
       "request_type": "ValidateSandboxCreateRequest",
       "response_type": "ValidateSandboxCreateResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82131,7 +82126,7 @@
       "response_stream": false,
       "request_type": "GetSandboxRequest",
       "response_type": "GetSandboxResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82145,7 +82140,7 @@
       "response_stream": false,
       "request_type": "ListSandboxesRequest",
       "response_type": "ListSandboxesResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82159,7 +82154,7 @@
       "response_stream": false,
       "request_type": "CreateSandboxRequest",
       "response_type": "CreateSandboxResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82173,7 +82168,7 @@
       "response_stream": false,
       "request_type": "StopSandboxRequest",
       "response_type": "StopSandboxResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82187,7 +82182,7 @@
       "response_stream": false,
       "request_type": "StartSandboxRequest",
       "response_type": "StartSandboxResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82201,7 +82196,7 @@
       "response_stream": false,
       "request_type": "DeleteSandboxRequest",
       "response_type": "DeleteSandboxResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82215,7 +82210,7 @@
       "response_stream": true,
       "request_type": "WatchSandboxesRequest",
       "response_type": "WatchSandboxesEvent",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82229,7 +82224,7 @@
       "response_stream": false,
       "request_type": "EnsureWorkspaceRequest",
       "response_type": "EnsureWorkspaceResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82243,7 +82238,7 @@
       "response_stream": false,
       "request_type": "DeleteWorkspaceRequest",
       "response_type": "DeleteWorkspaceResponse",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82257,7 +82252,7 @@
       "response_stream": false,
       "request_type": "GetCredentialDriverCapabilitiesRequest",
       "response_type": "GetCredentialDriverCapabilitiesResponse",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_id": "OS-CRED-API",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82271,7 +82266,7 @@
       "response_stream": false,
       "request_type": "StoreCredentialRequest",
       "response_type": "StoreCredentialResponse",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_id": "OS-CRED-API",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82285,7 +82280,7 @@
       "response_stream": false,
       "request_type": "DeleteCredentialRequest",
       "response_type": "DeleteCredentialResponse",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_id": "OS-CRED-API",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82299,7 +82294,7 @@
       "response_stream": false,
       "request_type": "ResolveCredentialsRequest",
       "response_type": "ResolveCredentialsResponse",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_id": "OS-CRED-API",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -82313,7 +82308,7 @@
       "response_stream": false,
       "request_type": "ListCredentialsRequest",
       "response_type": "ListCredentialsResponse",
-      "owner": "quarshell-credentials",
+      "owner": "quarshell-gateway",
       "feature_id": "OS-CRED-API",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -83601,7 +83596,7 @@
       "response_stream": true,
       "request_type": "BoundaryChunk",
       "response_type": "BoundaryChunk",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -83615,7 +83610,7 @@
       "response_stream": true,
       "request_type": "BoundaryChunk",
       "response_type": "BoundaryChunk",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO",
       "status": "mapped",
       "acceptance": "proto wire golden + unary/stream conformance (B1)"
@@ -83632,7 +83627,7 @@
       "type": null,
       "oneof": null,
       "source": "proto/compute_driver.proto:449",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "no_variants"
     },
@@ -83647,7 +83642,7 @@
       "oneof": "payload",
       "source": "proto/compute_driver.proto:468",
       "name": "ComputeDriver.WatchSandboxes:response:sandbox",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped"
     },
@@ -83662,7 +83657,7 @@
       "oneof": "payload",
       "source": "proto/compute_driver.proto:468",
       "name": "ComputeDriver.WatchSandboxes:response:deleted",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped"
     },
@@ -83677,7 +83672,7 @@
       "oneof": "payload",
       "source": "proto/compute_driver.proto:468",
       "name": "ComputeDriver.WatchSandboxes:response:platform_event",
-      "owner": "quarshell-spi",
+      "owner": "quarshell-core",
       "feature_id": "OS-COMPUTE",
       "status": "mapped"
     },
@@ -84831,7 +84826,7 @@
       "oneof": null,
       "source": "crates/openshell-sandbox-backend/proto/openshell_sandbox.proto:18",
       "name": "IsolationBoundary.Exchange:request:data",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO",
       "status": "mapped"
     },
@@ -84846,7 +84841,7 @@
       "oneof": null,
       "source": "crates/openshell-sandbox-backend/proto/openshell_sandbox.proto:18",
       "name": "IsolationBoundary.Exchange:response:data",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO",
       "status": "mapped"
     },
@@ -84861,7 +84856,7 @@
       "oneof": null,
       "source": "crates/openshell-sandbox-backend/proto/openshell_sandbox.proto:18",
       "name": "IsolationBoundary.Mediate:request:data",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO",
       "status": "mapped"
     },
@@ -84876,7 +84871,7 @@
       "oneof": null,
       "source": "crates/openshell-sandbox-backend/proto/openshell_sandbox.proto:18",
       "name": "IsolationBoundary.Mediate:response:data",
-      "owner": "quarshell-isolation",
+      "owner": "quarshell-driver",
       "feature_id": "OS-ISOLATION-PROTO",
       "status": "mapped"
     }
@@ -84917,7 +84912,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -84949,7 +84944,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85032,7 +85027,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85063,7 +85058,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85116,7 +85111,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85180,7 +85175,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85262,7 +85257,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85323,7 +85318,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85361,7 +85356,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85416,7 +85411,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85448,7 +85443,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85513,7 +85508,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85551,7 +85546,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85589,7 +85584,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85627,7 +85622,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85664,7 +85659,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     },
     {
@@ -85735,7 +85730,7 @@
         "OS-PROVIDERS",
         "OS-CREDENTIALS"
       ],
-      "owner": "quarshell-providers",
+      "owner": "quarshell-policy",
       "status": "profile_schema_indexed; behavior and credential lifecycle unverified"
     }
   ],
@@ -99531,7 +99526,7 @@
           "OS-POLICY-SCHEMA",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-driver-mxc",
+        "owner": "quarshell-driver",
         "test_names": [
           "all_example_policies_map_with_invariants",
           "all_example_policies_split_with_expected_invariants",
@@ -99562,7 +99557,7 @@
           "OS-POLICY-SCHEMA",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-driver-mxc",
+        "owner": "quarshell-driver",
         "test_names": [
           "a_rw_paths_verbatim",
           "a_ro_paths_verbatim",
@@ -99620,7 +99615,7 @@
           "OS-NET",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-driver-mxc",
+        "owner": "quarshell-driver",
         "test_names": [
           "dryrun_accepts_minimal_processcontainer_config",
           "dryrun_accepts_network_block_without_proxy",
@@ -99745,7 +99740,7 @@
           "OS-ISOLATION-PROTO",
           "OS-NET"
         ],
-        "owner": "quarshell-spi",
+        "owner": "quarshell-core",
         "test_names": [
           "outer_fence_guarantees_are_backend_neutral_and_fail_closed",
           "registry_selects_correct_backend",
@@ -99787,7 +99782,7 @@
         "feature_ids": [
           "OS-OBS"
         ],
-        "owner": "quarshell-telemetry",
+        "owner": "quarshell-core",
         "test_names": [
           "console_json_toggles_and_downgrades_without_changing_event_identity",
           "concurrent_console_formats_submit_complete_records",
@@ -99806,7 +99801,7 @@
         "feature_ids": [
           "OS-OBS"
         ],
-        "owner": "quarshell-telemetry",
+        "owner": "quarshell-core",
         "test_names": [
           "each_event_gets_its_own_metadata_uid",
           "metadata_uid_is_no_longer_the_sandbox_id",
@@ -99829,7 +99824,7 @@
           "OS-API",
           "OS-OBS"
         ],
-        "owner": "quarshell-telemetry",
+        "owner": "quarshell-core",
         "test_names": [
           "gateway_events_report_the_gateway_os",
           "supervisor_events_preserve_platform_os",
@@ -99852,7 +99847,7 @@
         "feature_ids": [
           "OS-OBS"
         ],
-        "owner": "quarshell-telemetry",
+        "owner": "quarshell-core",
         "test_names": [
           "network_activity_round_trips",
           "http_activity_round_trips",
@@ -99877,7 +99872,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [
           "help_and_version_succeed",
           "bare_invocation_shows_help",
@@ -99915,7 +99910,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -99929,7 +99924,7 @@
           "OS-EXEC",
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -99942,7 +99937,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -99955,7 +99950,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -99968,7 +99963,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -99981,7 +99976,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -99994,7 +99989,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100008,7 +100003,7 @@
           "OS-FS",
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100021,7 +100016,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100034,7 +100029,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100047,7 +100042,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100060,7 +100055,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100073,7 +100068,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [],
         "test_count": 0,
         "assertion_count": 0,
@@ -100086,7 +100081,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [
           "external_callers_use_extensible_construction_and_matching_patterns",
           "external_callers_read_reason_evidence_and_authorize_only_within"
@@ -100104,7 +100099,7 @@
         "feature_ids": [
           "OS-PROVER"
         ],
-        "owner": "quarshell-prover",
+        "owner": "quarshell-policy/prover",
         "test_names": [
           "endpoint_selector_single_star_crosses_path_separators",
           "endpoint_selector_subtree_includes_the_prefix_itself",
@@ -100135,7 +100130,7 @@
           "OS-NET",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-isolation",
+        "owner": "quarshell-driver",
         "test_names": [
           "same_epoch_renewal_reauthenticates_without_closing_pending_stream",
           "failed_renewal_keeps_authenticated_fingerprint_and_retries",
@@ -100157,7 +100152,7 @@
           "OS-NET",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-isolation",
+        "owner": "quarshell-driver",
         "test_names": [
           "stalled_relays_cannot_starve_other_streams"
         ],
@@ -100177,7 +100172,7 @@
           "OS-NET",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-isolation",
+        "owner": "quarshell-driver",
         "test_names": [
           "tcp_accept_recovers_a_lost_tls_connection",
           "concurrent_tcp_accepts_recover_a_lost_tls_connection",
@@ -100204,7 +100199,7 @@
           "OS-NET",
           "OS-SANDBOX"
         ],
-        "owner": "quarshell-isolation",
+        "owner": "quarshell-driver",
         "test_names": [
           "startup_logs_go_to_stderr_not_stdout"
         ],
@@ -100854,7 +100849,7 @@
           "OS-FS",
           "OS-MAIN"
         ],
-        "owner": "quarshell-supervisor",
+        "owner": "quarshell-driver",
         "test_names": [
           "exec_start_failure_keeps_ssh_session_usable",
           "full_input_allows_output_signals_and_channel_close",
@@ -100880,7 +100875,7 @@
           "OS-FS",
           "OS-MAIN"
         ],
-        "owner": "quarshell-supervisor",
+        "owner": "quarshell-driver",
         "test_names": [
           "silent_half_open_relay_releases_canonical_input",
           "output_does_not_keep_a_half_open_relay_alive",
@@ -100910,7 +100905,7 @@
           "OS-FS",
           "OS-MAIN"
         ],
-        "owner": "quarshell-supervisor",
+        "owner": "quarshell-driver",
         "test_names": [
           "stalled_upload_preserves_controls_then_resumes_beyond_four_mib",
           "small_upload_in_one_packet_reports_final_total",
@@ -110140,7 +110135,7 @@
     {
       "directory": "quarshell-cli",
       "target_repository": "quarshell-cli",
-      "origin": "https://github.com/KLORQ/quarshell-cli.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110154,7 +110149,7 @@
     {
       "directory": "quarshell-core",
       "target_repository": "quarshell-core",
-      "origin": "https://github.com/KLORQ/quarshell-core.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110166,23 +110161,9 @@
       "license": "Apache-2.0"
     },
     {
-      "directory": "quarshell-display",
-      "target_repository": "quarshell-display",
-      "origin": "https://github.com/KLORQ/quarshell-display.git",
-      "packages": [
-        {
-          "ecosystem": "go",
-          "coordinate": "github.com/KLORQ/quarshell-display",
-          "source": "quarshell-display/go.mod:1"
-        }
-      ],
-      "license_file": "quarshell-display/LICENSE",
-      "license": "Apache-2.0"
-    },
-    {
       "directory": "quarshell-docs",
       "target_repository": "quarshell-docs",
-      "origin": "https://github.com/KLORQ/quarshell-docs.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [],
       "license_file": "quarshell-docs/LICENSE",
       "license": "Apache-2.0"
@@ -110190,7 +110171,7 @@
     {
       "directory": "quarshell-driver",
       "target_repository": "quarshell-driver",
-      "origin": "https://github.com/KLORQ/quarshell-driver.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110202,9 +110183,23 @@
       "license": "Apache-2.0"
     },
     {
+      "directory": "quarshell-driver-vm",
+      "target_repository": "quarshell-driver-vm",
+      "origin": "https://github.com/KLORQ/quarshell.git",
+      "packages": [
+        {
+          "ecosystem": "go",
+          "coordinate": "github.com/KLORQ/quarshell-driver-vm",
+          "source": "quarshell-driver-vm/go.mod:1"
+        }
+      ],
+      "license_file": "quarshell-driver-vm/LICENSE",
+      "license": "Apache-2.0"
+    },
+    {
       "directory": "quarshell-gateway",
       "target_repository": "quarshell-gateway",
-      "origin": "https://github.com/KLORQ/quarshell-gateway.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110218,13 +110213,27 @@
     {
       "directory": "quarshell-org-profile",
       "target_repository": "quarshell-org-profile",
-      "origin": "https://github.com/KLORQ/.github.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": []
+    },
+    {
+      "directory": "quarshell-policy",
+      "target_repository": "quarshell-policy",
+      "origin": "https://github.com/KLORQ/quarshell.git",
+      "packages": [
+        {
+          "ecosystem": "go",
+          "coordinate": "github.com/KLORQ/quarshell-policy",
+          "source": "quarshell-policy/go.mod:1"
+        }
+      ],
+      "license_file": "quarshell-policy/LICENSE",
+      "license": "Apache-2.0"
     },
     {
       "directory": "quarshell-proto",
       "target_repository": "quarshell-proto",
-      "origin": "https://github.com/KLORQ/quarshell-proto.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110236,23 +110245,9 @@
       "license": "Apache-2.0"
     },
     {
-      "directory": "quarshell-providers",
-      "target_repository": "quarshell-providers",
-      "origin": "https://github.com/KLORQ/quarshell-providers.git",
-      "packages": [
-        {
-          "ecosystem": "go",
-          "coordinate": "github.com/KLORQ/quarshell-providers",
-          "source": "quarshell-providers/go.mod:1"
-        }
-      ],
-      "license_file": "quarshell-providers/LICENSE",
-      "license": "Apache-2.0"
-    },
-    {
       "directory": "quarshell-proxy",
       "target_repository": "quarshell-proxy",
-      "origin": "https://github.com/KLORQ/quarshell-proxy.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110266,7 +110261,7 @@
     {
       "directory": "quarshell-python",
       "target_repository": "quarshell-python",
-      "origin": "https://github.com/KLORQ/quarshell-python.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "python",
@@ -110281,7 +110276,7 @@
     {
       "directory": "quarshell-runtime",
       "target_repository": "quarshell-runtime",
-      "origin": "https://github.com/KLORQ/quarshell-runtime.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110295,7 +110290,7 @@
     {
       "directory": "quarshell-sdk",
       "target_repository": "quarshell-sdk",
-      "origin": "https://github.com/KLORQ/quarshell-sdk.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "go",
@@ -110307,23 +110302,9 @@
       "license": "Apache-2.0"
     },
     {
-      "directory": "quarshell-slogx",
-      "target_repository": "quarshell-slogx",
-      "origin": "https://github.com/KLORQ/quarshell-slogx.git",
-      "packages": [
-        {
-          "ecosystem": "go",
-          "coordinate": "github.com/KLORQ/quarshell-slogx",
-          "source": "quarshell-slogx/go.mod:1"
-        }
-      ],
-      "license_file": "quarshell-slogx/LICENSE",
-      "license": "MIT"
-    },
-    {
       "directory": "quarshell-ui",
       "target_repository": "quarshell-ui",
-      "origin": "https://github.com/KLORQ/quarshell-ui.git",
+      "origin": "https://github.com/KLORQ/quarshell.git",
       "packages": [
         {
           "ecosystem": "npm",
@@ -110340,66 +110321,56 @@
     "go_modules": {
       "github.com/KLORQ/quarshell-cli": "quarshell-cli",
       "github.com/KLORQ/quarshell-core": "quarshell-core",
-      "github.com/KLORQ/quarshell-display": "quarshell-display",
       "github.com/KLORQ/quarshell-driver": "quarshell-driver",
+      "github.com/KLORQ/quarshell-driver-vm": "quarshell-driver-vm",
       "github.com/KLORQ/quarshell-gateway": "quarshell-gateway",
+      "github.com/KLORQ/quarshell-policy": "quarshell-policy",
       "github.com/KLORQ/quarshell-proto": "quarshell-proto",
-      "github.com/KLORQ/quarshell-providers": "quarshell-providers",
       "github.com/KLORQ/quarshell-proxy": "quarshell-proxy",
       "github.com/KLORQ/quarshell-runtime": "quarshell-runtime",
-      "github.com/KLORQ/quarshell-sdk": "quarshell-sdk",
-      "github.com/KLORQ/quarshell-slogx": "quarshell-slogx"
+      "github.com/KLORQ/quarshell-sdk": "quarshell-sdk"
     },
     "edges": {
-      "github.com/KLORQ/quarshell-cli": [
-        "github.com/KLORQ/quarshell-core",
-        "github.com/KLORQ/quarshell-display",
-        "github.com/KLORQ/quarshell-driver",
-        "github.com/KLORQ/quarshell-proto",
-        "github.com/KLORQ/quarshell-providers",
-        "github.com/KLORQ/quarshell-proxy",
-        "github.com/KLORQ/quarshell-runtime",
-        "github.com/KLORQ/quarshell-sdk",
-        "github.com/KLORQ/quarshell-slogx"
+      "quarshell-cli": [
+        "quarshell-core",
+        "quarshell-driver",
+        "quarshell-policy",
+        "quarshell-proto",
+        "quarshell-proxy",
+        "quarshell-runtime",
+        "quarshell-sdk"
       ],
-      "github.com/KLORQ/quarshell-core": [
-        "github.com/KLORQ/quarshell-proto"
+      "quarshell-driver": [
+        "quarshell-core"
       ],
-      "github.com/KLORQ/quarshell-display": [
-        "github.com/KLORQ/quarshell-core"
+      "quarshell-driver-vm": [
+        "quarshell-core",
+        "quarshell-driver",
+        "quarshell-policy"
       ],
-      "github.com/KLORQ/quarshell-driver": [
-        "github.com/KLORQ/quarshell-core",
-        "github.com/KLORQ/quarshell-proxy",
-        "github.com/KLORQ/quarshell-slogx"
+      "quarshell-gateway": [
+        "quarshell-core",
+        "quarshell-driver",
+        "quarshell-driver-vm",
+        "quarshell-policy",
+        "quarshell-proto"
       ],
-      "github.com/KLORQ/quarshell-gateway": [
-        "github.com/KLORQ/quarshell-core",
-        "github.com/KLORQ/quarshell-driver",
-        "github.com/KLORQ/quarshell-proto",
-        "github.com/KLORQ/quarshell-providers",
-        "github.com/KLORQ/quarshell-runtime",
-        "github.com/KLORQ/quarshell-slogx"
+      "quarshell-policy": [
+        "quarshell-core"
       ],
-      "github.com/KLORQ/quarshell-proto": [],
-      "github.com/KLORQ/quarshell-providers": [
-        "github.com/KLORQ/quarshell-core"
+      "quarshell-proxy": [
+        "quarshell-core",
+        "quarshell-policy",
+        "quarshell-proto"
       ],
-      "github.com/KLORQ/quarshell-proxy": [
-        "github.com/KLORQ/quarshell-core",
-        "github.com/KLORQ/quarshell-proto",
-        "github.com/KLORQ/quarshell-slogx"
+      "quarshell-runtime": [
+        "quarshell-core",
+        "quarshell-policy",
+        "quarshell-proto"
       ],
-      "github.com/KLORQ/quarshell-runtime": [
-        "github.com/KLORQ/quarshell-core",
-        "github.com/KLORQ/quarshell-driver",
-        "github.com/KLORQ/quarshell-proto",
-        "github.com/KLORQ/quarshell-slogx"
-      ],
-      "github.com/KLORQ/quarshell-sdk": [
-        "github.com/KLORQ/quarshell-proto"
-      ],
-      "github.com/KLORQ/quarshell-slogx": []
+      "quarshell-sdk": [
+        "quarshell-proto"
+      ]
     },
     "cycles": [],
     "architecture_findings": [

@@ -3,7 +3,7 @@ package proxy
 import (
 	"io"
 
-	"github.com/KLORQ/quarshell-core/engine"
+	"github.com/KLORQ/quarshell-policy/engine"
 )
 
 // NewServerForTests enables loopback only in test binaries.

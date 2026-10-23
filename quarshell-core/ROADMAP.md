@@ -1,6 +1,6 @@
 # Roadmap — quarshell-core
 
-Status: **v0.3.0** (release prepared) · Part of [cautem/cautem](https://github.com/KLORQ)
+Status: pre-stable API · Current module tag: `v0.4.2` · Dependencies are listed in `go.mod`.
 
 Shared policy schema and egress engine.
 
@@ -17,6 +17,9 @@ Shared policy schema and egress engine.
 
 - Embedding a full OPA SDK as the primary path; policy schema does not claim Rego support
 
+
 ## Release
 
-Cascade: tag **this repo before its dependents**; downstream modules pin `v0.3.0`.
+This module follows its own pre-stable 0.x version sequence. Publish dependencies
+first, update consumers to the published tags, and verify with `GOWORK=off`. Never
+rewrite a published tag.

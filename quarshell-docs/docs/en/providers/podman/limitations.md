@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 

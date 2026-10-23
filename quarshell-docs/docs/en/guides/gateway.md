@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -11,10 +11,10 @@ registry, observation log rings, and policy proposal workflow.
 ## Run
 
 ```bash
-cautem gateway ensure
-cautem gateway add https://127.0.0.1:17670 --local --name local
-cautem gateway select local
-cautem gateway info
+quarshell gateway ensure
+quarshell gateway add https://127.0.0.1:17670 --local --name local
+quarshell gateway select local
+quarshell gateway info
 ```
 
 Compose: `quarshell-gateway/compose/docker-compose.yml`.
@@ -43,14 +43,14 @@ trusted development environment.
 
 | Surface | Role |
 |---------|------|
-| Secrets | AES-GCM store; KEK via `CAUTEM_SECRETS_KEK` or `secrets.kek` |
+| Secrets | AES-GCM store; KEK via `QUARSHELL_SECRETS_KEK` or `secrets.kek` |
 | Providers | Named instances + profile composition metadata |
 | Sandboxes | Registry and lifecycle management through RPC; bounded log ring |
-| Sidecar | Resolves secrets over `host.cautem.internal` |
+| Sidecar | Resolves secrets over `host.quarshell.internal` |
 
 ## HTTP API reference
 
-The [OpenAPI document](https://github.com/KLORQ/quarshell-gateway/blob/main/api/openapi.yaml)
+The [OpenAPI document](https://github.com/KLORQ/quarshell/blob/main/quarshell-gateway/api/openapi.yaml)
 covers health and authentication bootstrap only. Management operations use
 the pinned OpenShell RPC contract. SSH byte streams and
 supervisor relays use the OpenShell `ForwardTcp`, `ConnectSupervisor`, and
@@ -87,7 +87,7 @@ mode for the browser console.
 
 ## Config
 
-Gateways are recorded in `~/.config/cautem/config.yaml`:
+Gateways are recorded in `~/.config/quarshell/config.yaml`:
 
 ```yaml
 current: local
@@ -96,7 +96,7 @@ gateways:
     url: https://127.0.0.1:17670
 ```
 
-OIDC and edge credentials are stored after `cautem gateway login`. Local
+OIDC and edge credentials are stored after `quarshell gateway login`. Local
 gateways read `auth_token` from the configured Gateway `data_dir`; the Gateway
 does not mint tokens through an HTTP login endpoint. OIDC gateways use browser
 PKCE. Edge-authenticated gateways use the `/auth/connect` confirmation flow and
@@ -177,7 +177,7 @@ The parser accepts the pinned v0.1.4 schema version 2 and its singular
 unknown field. Parsing an upstream fixture does not mean all
 of its driver settings are runnable: unsupported backend settings still fail
 closed during startup.
-Without an OpenShell file, the existing cautem defaults still apply.
+Without an OpenShell file, the existing quarshell defaults still apply.
 The optional `health_bind_address` and `metrics_bind_address` tables, plus
 `OPENSHELL_HEALTH_PORT` / `OPENSHELL_METRICS_PORT` and matching port flags,
 start separate listeners. `/healthz` is an empty-body liveness check; `/readyz`

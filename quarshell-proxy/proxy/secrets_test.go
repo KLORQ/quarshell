@@ -196,13 +196,13 @@ func stringsTrimBasic(v string) string {
 func TestLoadSecretsFromEnvironSkipsControlPlaneTokens(t *testing.T) {
 	store := proxy.LoadSecretsFromEnviron([]string{
 		"OPENAI_API_KEY=sk-real",
-		"CAUTEM_SANDBOX_TOKEN=supervisor-secret",
-		"CAUTEM_GATEWAY_TOKEN=operator-secret",
+		"QUARSHELL_SANDBOX_TOKEN=supervisor-secret",
+		"QUARSHELL_GATEWAY_TOKEN=operator-secret",
 	})
 	if store["OPENAI_API_KEY"] != "sk-real" {
 		t.Fatalf("credential missing: %v", store)
 	}
-	for _, k := range []string{"CAUTEM_SANDBOX_TOKEN", "CAUTEM_GATEWAY_TOKEN"} {
+	for _, k := range []string{"QUARSHELL_SANDBOX_TOKEN", "QUARSHELL_GATEWAY_TOKEN"} {
 		if _, ok := store[k]; ok {
 			t.Fatalf("%s must never be resolvable by sandbox placeholders", k)
 		}

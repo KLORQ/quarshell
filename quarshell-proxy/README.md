@@ -11,7 +11,7 @@
   <a href="https://github.com/KLORQ/quarshell-proxy"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go" alt="Go Version"></a>
 </p>
 <p align="center">
-  <sub>Part of the <a href="https://github.com/KLORQ">cautem / cautem</a> ecosystem</sub>
+  <sub>Part of the <a href="https://github.com/KLORQ">quarshell / quarshell</a> ecosystem</sub>
 </p>
 
 ---
@@ -20,7 +20,7 @@
 
 The [policy guide](https://klorq.github.io/sandbox.dev/guides/policy/) covers egress rules; the [security reference](https://klorq.github.io/sandbox.dev/concepts/security/) records current limits.
 
-**quarshell-proxy** is the mandatory egress sidecar for cautem sandboxes. It enforces policy at L4/L7, rewrites credential placeholders, emits OCSF audit lines, and exposes `policy.local` for in-sandbox proposals.
+**quarshell-proxy** is the mandatory egress sidecar for quarshell sandboxes. It enforces policy at L4/L7, rewrites credential placeholders, emits OCSF audit lines, and exposes `policy.local` for in-sandbox proposals.
 
 ### Key Features
 
@@ -48,11 +48,11 @@ Usually run as the sandbox sidecar (started by `quarshell-driver`), not as a sta
 
 ```bash
 # From the CLI (host-side debug proxy):
-cautem proxy --listen 127.0.0.1:3128 --policy ./policy.yaml
+quarshell proxy --listen 127.0.0.1:3128 --policy ./policy.yaml
 ```
 
 On Linux and macOS the listener can also use a private Unix socket, for example
-`--listen unix:///run/user/1000/cautem/proxy.sock`. The socket directory must
+`--listen unix:///run/user/1000/quarshell/proxy.sock`. The socket directory must
 already exist, belong to the current user, and have no group or other access;
 the proxy creates the socket with mode `0600` and removes it on shutdown. VM
 workers use this listener with a guest-initiated vsock mapping, keeping the
@@ -81,4 +81,4 @@ policy proxy off the guest's network interface.
 
 ## License
 
-[Apache-2.0](./LICENSE) © cautem
+[Apache-2.0](./LICENSE) © quarshell

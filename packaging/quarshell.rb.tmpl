@@ -16,7 +16,7 @@ class Quarshell < Formula
 
   def install
     arch = Hardware::CPU.arm? ? "arm64" : "amd64"
-    bin.install "quarshell-cli-darwin-#{arch}" => "cautem"
+    bin.install "quarshell-cli-darwin-#{arch}" => "quarshell"
     bin.install "quarshell-gateway-darwin-#{arch}" => "quarshell-gateway"
     bin.install "quarshell-prover-darwin-#{arch}" => "quarshell-prover"
   end
@@ -24,7 +24,7 @@ class Quarshell < Formula
   def caveats
     <<~EOS
       Start and register the local gateway with:
-        cautem gateway ensure
+        quarshell gateway ensure
       The gateway listens on https://127.0.0.1:17670.
     EOS
   end

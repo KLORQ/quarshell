@@ -1,6 +1,6 @@
 # Roadmap — quarshell-proxy
 
-Status: **v0.3.0** (release prepared) · Depends on core `v0.3.0`; slogx `v0.1.3`
+Status: pre-stable API · Current module tag: `v0.1.1` · Dependencies are listed in `go.mod`.
 
 ## This module
 
@@ -11,6 +11,9 @@ Status: **v0.3.0** (release prepared) · Depends on core `v0.3.0`; slogx `v0.1.3
 | X3 | **policy.local ↔ gateway** | Reliable proposal sync when gateway is present |
 | X4 | **MCP terminate** | Policy-aware MCP frames |
 
+
 ## Release
 
-Requires quarshell-core `v0.3.0` · tagged after core in the release cascade.
+This module follows its own pre-stable 0.x version sequence. Publish dependencies
+first, update consumers to the published tags, and verify with `GOWORK=off`. Never
+rewrite a published tag.

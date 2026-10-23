@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KLORQ/quarshell-core/credentials"
 	"github.com/KLORQ/quarshell-core/domain"
-	"github.com/KLORQ/quarshell-credentials"
 	"github.com/KLORQ/quarshell-proxy/internal/application/mediation"
 )
 

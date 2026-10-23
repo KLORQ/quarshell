@@ -2,9 +2,9 @@
 set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 modules=(
-  quarshell-cli quarshell-core quarshell-display quarshell-docs quarshell-driver
-  quarshell-gateway quarshell-org-profile quarshell-proto quarshell-providers quarshell-proxy
-  quarshell-python quarshell-runtime quarshell-sdk quarshell-slogx quarshell-ui
+  quarshell-cli quarshell-core quarshell-docs quarshell-driver
+  quarshell-gateway quarshell-org-profile quarshell-proto quarshell-policy quarshell-proxy
+  quarshell-python quarshell-runtime quarshell-sdk quarshell-ui
 )
 if (($#)); then
   modules=("$@")

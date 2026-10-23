@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+// SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 // SPDX-License-Identifier: Apache-2.0
 
 package proxy
@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/KLORQ/quarshell-core/engine"
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
+	"github.com/KLORQ/quarshell-policy/engine"
 )
 
 func TestServePolicyLocalRoutes(t *testing.T) {

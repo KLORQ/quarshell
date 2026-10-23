@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -13,11 +13,11 @@ Docker.
 ## Активация
 
 ```bash
-export CAUTEM_DRIVER=podman
+export QUARSHELL_DRIVER=podman
 # опционально:
-# export CAUTEM_PODMAN_SOCKET=$XDG_RUNTIME_DIR/podman/podman.sock
+# export QUARSHELL_PODMAN_SOCKET=$XDG_RUNTIME_DIR/podman/podman.sock
 
-cautem status    # driver: podman
+quarshell status    # driver: podman
 ```
 
 ## Приватные registry
@@ -26,7 +26,7 @@ cautem status    # driver: podman
 образа сначала используется подходящая запись из `REGISTRY_AUTH_FILE`,
 `$XDG_RUNTIME_DIR/containers/auth.json` или `~/.config/containers/auth.json` —
 в таком порядке. Для другого authfile задайте `registry_auth_file` в конфигурации
-compute-драйвера Podman. Если записи для registry нет, cautem использует Docker
+compute-драйвера Podman. Если записи для registry нет, quarshell использует Docker
 CLI credential config. Credentials передаются только в запросе загрузки образа
 и не копируются в sandbox.
 
@@ -38,7 +38,7 @@ CLI credential config. Credentials передаются только в запр
 Если в rootless Podman может измениться UID/GID mapping, настройку
 `reconcile_data_ownership` можно включить в конфигурации compute-драйвера. Для
 sandbox с persistent data при запуске тогда переназначаются файлы отдельного
-volume `/cautem/data` на пользователя sandbox. По умолчанию настройка выключена,
+volume `/quarshell/data` на пользователя sandbox. По умолчанию настройка выключена,
 на больших volume операция может занять время; bind mount workspace не меняется.
 
 Флаги ресурсов, ротация логов, slim proxy и soft defaults — как у Docker:

@@ -125,7 +125,7 @@ func ResolveAndFilter(ctx context.Context, host string, opts SSRFOptions) ([]net
 // DialSSRF resolves host once, applies SSRF filters, then dials only the
 // filtered addresses (no second local lookup). When HTTP_PROXY/HTTPS_PROXY is
 // set, it opens a CONNECT tunnel through the corp proxy to a filtered IP by
-// default. The operator-only CAUTEM_PROXY_CONNECT_BY_HOSTNAME opt-in sends the
+// default. The operator-only QUARSHELL_PROXY_CONNECT_BY_HOSTNAME opt-in sends the
 // hostname instead for corporate proxy ACLs; the proxy then resolves it again,
 // matching the explicitly accepted upstream-proxy behavior.
 func DialSSRF(ctx context.Context, host, port string, opts SSRFOptions) (net.Conn, error) {
@@ -136,7 +136,7 @@ func DialSSRF(ctx context.Context, host, port string, opts SSRFOptions) (net.Con
 	proxyURL, bypass := upstreamProxyURL(host, port, addrs)
 	if proxyURL != nil {
 		target := net.JoinHostPort(addrs[0].String(), port)
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("CAUTEM_PROXY_CONNECT_BY_HOSTNAME")), "true") {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("QUARSHELL_PROXY_CONNECT_BY_HOSTNAME")), "true") {
 			parsedPort, parseErr := strconv.ParseUint(port, 10, 16)
 			if parseErr != nil || parsedPort == 0 {
 				return nil, fmt.Errorf("ssrf: invalid port for hostname CONNECT")
@@ -215,7 +215,7 @@ func dialViaHTTPProxy(ctx context.Context, proxyURL *url.URL, target string) (ne
 	}
 	if strings.EqualFold(proxyURL.Scheme, "https") {
 		tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, ServerName: proxyURL.Hostname()}
-		if caPath := strings.TrimSpace(os.Getenv("CAUTEM_PROXY_CA_BUNDLE")); caPath != "" {
+		if caPath := strings.TrimSpace(os.Getenv("QUARSHELL_PROXY_CA_BUNDLE")); caPath != "" {
 			body, readErr := os.ReadFile(caPath)
 			if readErr != nil {
 				_ = conn.Close()
@@ -249,7 +249,7 @@ func dialViaHTTPProxy(ctx context.Context, proxyURL *url.URL, target string) (ne
 		pass, _ := proxyURL.User.Password()
 		token := base64.StdEncoding.EncodeToString([]byte(proxyURL.User.Username() + ":" + pass))
 		req.Header.Set("Proxy-Authorization", "Basic "+token)
-	} else if authPath := strings.TrimSpace(os.Getenv("CAUTEM_PROXY_AUTH_FILE")); authPath != "" {
+	} else if authPath := strings.TrimSpace(os.Getenv("QUARSHELL_PROXY_AUTH_FILE")); authPath != "" {
 		body, err := os.ReadFile(authPath)
 		if err != nil || len(body) > 64*1024 {
 			_ = conn.Close()

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -16,9 +16,9 @@ Sandbox and proxy containers use Docker `json-file` with rotation:
 | `max-file` | `3` |
 
 ```bash
-export CAUTEM_DOCKER_LOG_DRIVER=json-file   # or none
-export CAUTEM_DOCKER_LOG_MAX_SIZE=10m
-export CAUTEM_DOCKER_LOG_MAX_FILE=3
+export QUARSHELL_DOCKER_LOG_DRIVER=json-file   # or none
+export QUARSHELL_DOCKER_LOG_MAX_SIZE=10m
+export QUARSHELL_DOCKER_LOG_MAX_FILE=3
 ```
 
 `none` disables Engine container logs when you rely only on gateway observation.
@@ -42,7 +42,7 @@ they cannot be followed live. A new sandbox that reuses the name clears the
 older archive. Stream live logs with:
 
 ```bash
-cautem logs demo --tail --source proxy
+quarshell logs demo --tail --source proxy
 ```
 
 Process logs (CLI / gateway / proxy) use slogx.

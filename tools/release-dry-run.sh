@@ -34,8 +34,8 @@ build() {
 for target in "${TARGETS[@]}"; do
 	read -r os arch <<< "$target"
 	build "$os" "$arch" quarshell-gateway ./cmd/quarshell-gateway quarshell-gateway
-	build "$os" "$arch" quarshell-cli ./cmd/cautem quarshell-cli
-	build "$os" "$arch" quarshell-prover ./cmd/quarshell-prover quarshell-prover
+	build "$os" "$arch" quarshell-cli ./cmd/quarshell quarshell-cli
+	build "$os" "$arch" quarshell-policy ./cmd/prover quarshell-prover
 done
 
 for target in "${TARGETS[@]}"; do
@@ -49,15 +49,5 @@ for target in "${TARGETS[@]}"; do
 		"quarshell-prover-${os}-${arch}${extension}"
 done
 ( cd "$OUT" && shasum -a 256 quarshell-* quarshell_*.tar.gz > SHA256SUMS )
-python3 - "$OUT" <<'PY'
-import hashlib, json, sys
-from pathlib import Path
-out = Path(sys.argv[1])
-artifacts = []
-for path in sorted(out.glob("quarshell-*")):
-    if path.name == "SBOM.txt":
-        continue
-    artifacts.append({"name": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "size": path.stat().st_size})
-(out / "manifest.json").write_text(json.dumps({"artifacts": artifacts, "signed": False}, indent=2) + "\n")
-PY
+go run "$ROOT"/tools/cmd/quarshell-tools/*.go release-manifest "$OUT"
 echo "release dry-run: $OUT"

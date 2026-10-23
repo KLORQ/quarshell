@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository is the `cautem/.github` organization profile and shared GitHub
+This repository is the `KLORQ/.github` organization profile and shared GitHub
 metadata. The rendered organization README is `profile/README.md`.
 
 ## Working rules

@@ -2,12 +2,12 @@
 set -euo pipefail
 
 E2E_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-E2E_TMP="$(mktemp -d "${TMPDIR:-/tmp}/cautem-e2e.XXXXXX")"
+E2E_TMP="$(mktemp -d "${TMPDIR:-/tmp}/quarshell-e2e.XXXXXX")"
 E2E_ARCH="$(go env GOARCH)"
 E2E_HELPERS="$E2E_TMP/helpers"
 E2E_FIXTURES="$E2E_TMP/fixtures"
-E2E_SANDBOX_IMAGE="localhost/cautem-connect-e2e:$(basename "$E2E_TMP")"
-E2E_PROXY_IMAGE="localhost/cautem-connect-e2e-proxy:$(basename "$E2E_TMP")"
+E2E_SANDBOX_IMAGE="localhost/quarshell-connect-e2e:$(basename "$E2E_TMP")"
+E2E_PROXY_IMAGE="localhost/quarshell-connect-e2e-proxy:$(basename "$E2E_TMP")"
 E2E_SANDBOX_ARCHIVE="$E2E_TMP/sandbox-image.tar"
 E2E_HOST_IMAGE_CREATED=0
 mkdir -p "$E2E_HELPERS" "$E2E_FIXTURES/sandbox-image"
@@ -22,20 +22,20 @@ e2e_cleanup_tmp() {
 
 e2e_build_artifacts() {
 	echo "Building Linux runtime helpers and backend E2E fixtures ($E2E_ARCH)…"
-	(cd "$E2E_ROOT/quarshell-cli" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/cautem" ./cmd/cautem)
-	(cd "$E2E_ROOT/quarshell-runtime" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/cautem-init" ./cmd/cautem-init)
-	(cd "$E2E_ROOT/quarshell-runtime" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/cautem-sshd" ./cmd/cautem-sshd)
-	(cd "$E2E_ROOT/quarshell-runtime" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/cautem-supervisor" ./cmd/cautem-supervisor)
-	GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_FIXTURES/sandbox-image/cautem-tcp-echo" "$E2E_ROOT/tools/e2e/tcp-echo/main.go"
+	(cd "$E2E_ROOT/quarshell-cli" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/quarshell" ./cmd/quarshell)
+	(cd "$E2E_ROOT/quarshell-runtime" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/quarshell-init" ./cmd/quarshell-init)
+	(cd "$E2E_ROOT/quarshell-runtime" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/quarshell-sshd" ./cmd/quarshell-sshd)
+	(cd "$E2E_ROOT/quarshell-runtime" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_HELPERS/quarshell-supervisor" ./cmd/quarshell-supervisor)
+	GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go build -o "$E2E_FIXTURES/sandbox-image/quarshell-tcp-echo" "$E2E_ROOT/tools/e2e/tcp-echo/main.go"
 	(cd "$E2E_ROOT/quarshell-driver" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go test -c -o "$E2E_TMP/docker.test" ./tests/e2e/docker)
 	(cd "$E2E_ROOT/quarshell-driver" && GOOS=linux GOARCH="$E2E_ARCH" CGO_ENABLED=0 go test -c -o "$E2E_TMP/podman.test" ./tests/e2e/podman)
 	cat >"$E2E_FIXTURES/sandbox-image/Containerfile" <<'EOF'
 FROM docker.io/library/debian:bookworm-slim
-COPY cautem-tcp-echo /usr/local/bin/cautem-tcp-echo
-RUN chmod 0755 /usr/local/bin/cautem-tcp-echo && printf 'sandbox:x:1000:1000:Sandbox:/sandbox:/bin/sh\n' >> /etc/passwd && printf 'sandbox:x:1000:\n' >> /etc/group && mkdir -p /sandbox /workspace /cautem/data /openshell-volume && chown -R sandbox:sandbox /sandbox /workspace /cautem/data /openshell-volume
+COPY quarshell-tcp-echo /usr/local/bin/quarshell-tcp-echo
+RUN chmod 0755 /usr/local/bin/quarshell-tcp-echo && printf 'sandbox:x:1000:1000:Sandbox:/sandbox:/bin/sh\n' >> /etc/passwd && printf 'sandbox:x:1000:\n' >> /etc/group && mkdir -p /sandbox /workspace /quarshell/data /openshell-volume && chown -R sandbox:sandbox /sandbox /workspace /quarshell/data /openshell-volume
 WORKDIR /workspace
-ARG CAUTEM_E2E_USER=sandbox
-USER ${CAUTEM_E2E_USER}
+ARG QUARSHELL_E2E_USER=sandbox
+USER ${QUARSHELL_E2E_USER}
 EOF
 }
 
@@ -43,7 +43,7 @@ e2e_build_sandbox_image() {
 	echo "Building the shared sandbox fixture with the host Docker daemon…"
 	docker build -t "$E2E_SANDBOX_IMAGE" -f "$E2E_FIXTURES/sandbox-image/Containerfile" "$E2E_FIXTURES/sandbox-image"
 	E2E_HOST_IMAGE_CREATED=1
-	docker build --build-arg CAUTEM_E2E_USER=root -t "$E2E_PROXY_IMAGE" -f "$E2E_FIXTURES/sandbox-image/Containerfile" "$E2E_FIXTURES/sandbox-image"
+	docker build --build-arg QUARSHELL_E2E_USER=root -t "$E2E_PROXY_IMAGE" -f "$E2E_FIXTURES/sandbox-image/Containerfile" "$E2E_FIXTURES/sandbox-image"
 	docker save -o "$E2E_SANDBOX_ARCHIVE" "$E2E_SANDBOX_IMAGE" "$E2E_PROXY_IMAGE"
 }
 

@@ -72,10 +72,10 @@ The main Podman lane pins Podman 6.1.4 and requires its Gateway/proxy scenarios
 to pass. A separate legacy-version run may record an expected fail-closed
 capability error, but it does not satisfy this required lane.
 
-The Docker lane can use a different daemon image with `CAUTEM_DOCKER_E2E_IMAGE`.
+The Docker lane can use a different daemon image with `QUARSHELL_DOCKER_E2E_IMAGE`.
 The Podman lane builds the same pinned Podman 6.1.4 Fedora image used by its
 CI workflows and requires every Gateway/proxy scenario to pass. Use
-`CAUTEM_PODMAN_IMAGE` only to point at a verified image that reports exactly
+`QUARSHELL_PODMAN_IMAGE` only to point at a verified image that reports exactly
 version 6.1.4. Set `E2E_KEEP_TMP=1` to keep
 cross-compiled helpers and the test binary for debugging. Both lanes remove their
 outer container and temporary artifacts on exit.
@@ -88,12 +88,12 @@ rootless CI service uses `200000:65536`; these are test fixture ranges, not a
 claim that the host's production `/etc/subuid` or `/etc/subgid` is configured.
 
 Each nested engine container has a shared default budget of 6 GiB RAM, 4 CPUs,
-and 1024 PIDs. Override these with `CAUTEM_E2E_CONTAINER_MEMORY`,
-`CAUTEM_E2E_CONTAINER_CPUS`, and `CAUTEM_E2E_CONTAINER_PIDS` when qualifying a
+and 1024 PIDs. Override these with `QUARSHELL_E2E_CONTAINER_MEMORY`,
+`QUARSHELL_E2E_CONTAINER_CPUS`, and `QUARSHELL_E2E_CONTAINER_PIDS` when qualifying a
 different host size. The tmpfs sizes are upper bounds inside this container;
 they do not reserve RAM in advance and cannot exceed the container memory cap.
 
 The gateway test runs as a Linux binary inside the engine container so nested
 sandbox containers can reach the gateway listener over their container network.
 It is deliberately skipped by ordinary `go test ./...` runs unless
-`CAUTEM_ENGINE_E2E=1` is set by one of these harnesses.
+`QUARSHELL_ENGINE_E2E=1` is set by one of these harnesses.

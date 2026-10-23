@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -11,10 +11,10 @@ sandbox, observation log rings и workflow policy proposals.
 ## Запуск
 
 ```bash
-cautem gateway ensure
-cautem gateway add https://127.0.0.1:17670 --local --name local
-cautem gateway select local
-cautem gateway info
+quarshell gateway ensure
+quarshell gateway add https://127.0.0.1:17670 --local --name local
+quarshell gateway select local
+quarshell gateway info
 ```
 
 Compose: `quarshell-gateway/compose/docker-compose.yml`.
@@ -44,14 +44,14 @@ backup `state.json` либо одновременно PostgreSQL и катало
 
 | Поверхность | Роль |
 |-------------|------|
-| Secrets | AES-GCM store; KEK через `CAUTEM_SECRETS_KEK` или `secrets.kek` |
+| Secrets | AES-GCM store; KEK через `QUARSHELL_SECRETS_KEK` или `secrets.kek` |
 | Providers | Именованные инстансы + метаданные composition |
 | Sandboxes | Управление реестром и жизненным циклом через RPC; ограниченный буфер логов |
-| Sidecar | Resolve секретов через `host.cautem.internal` |
+| Sidecar | Resolve секретов через `host.quarshell.internal` |
 
 ## Справка по HTTP API
 
-[Спецификация OpenAPI](https://github.com/KLORQ/quarshell-gateway/blob/main/api/openapi.yaml)
+[Спецификация OpenAPI](https://github.com/KLORQ/quarshell/blob/main/quarshell-gateway/api/openapi.yaml)
 описывает только health и bootstrap-аутентификацию. Операции управления
 используют закреплённый OpenShell RPC контракт. Потоки
 SSH и supervisor используют OpenShell RPC `ForwardTcp`, `ConnectSupervisor` и
@@ -88,7 +88,7 @@ supervisor credentials. HTTP оставлен для health и auth bootstrap; U
 
 ## Конфиг
 
-Gateways пишутся в `~/.config/cautem/config.yaml`:
+Gateways пишутся в `~/.config/quarshell/config.yaml`:
 
 ```yaml
 current: local
@@ -97,7 +97,7 @@ gateways:
     url: https://127.0.0.1:17670
 ```
 
-OIDC- и edge-учётные данные сохраняются после `cautem gateway login`. Для local
+OIDC- и edge-учётные данные сохраняются после `quarshell gateway login`. Для local
 Gateway CLI читает `auth_token` из настроенного `data_dir`; Gateway не выдаёт
 токены через HTTP login endpoint. OIDC использует browser PKCE. Edge-аутентификация
 использует подтверждение через `/auth/connect` и передаёт gRPC через WebSocket
@@ -179,7 +179,7 @@ selector `compute_driver`; legacy список `compute_drivers` отклоня�
 неизвестное поле. Парсинг upstream fixture не означает, что
 все настройки его drivers уже запускаются: неподдержанные backend settings
 по-прежнему fail closed на startup.
-Без файла OpenShell пока действуют прежние defaults cautem.
+Без файла OpenShell пока действуют прежние defaults quarshell.
 Необязательные `health_bind_address` и `metrics_bind_address`, а также
 `OPENSHELL_HEALTH_PORT` / `OPENSHELL_METRICS_PORT` и соответствующие флаги
 запускают отдельные listeners. `/healthz` — liveness check с пустым ответом;

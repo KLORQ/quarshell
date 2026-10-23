@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository contains the Python SDK for the cautem gateway control plane.
+This repository contains the Python SDK for the quarshell gateway control plane.
 
 ## Working rules
 

@@ -12,7 +12,8 @@ export default defineConfig({
     { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } },
   ],
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
+    command: "npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort",
+    env: { VITE_OIDC_CLIENT_ID: "console-test" },
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

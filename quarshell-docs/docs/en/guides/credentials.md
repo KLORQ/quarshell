@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -14,14 +14,14 @@ Secrets are read from the **current process environment**, not from sticky
 shell exports and not from argv values.
 
 ```bash
-GITHUB_TOKEN=… cautem provider create --name gh --type github --credential GITHUB_TOKEN
-CURSOR_API_KEY=… cautem provider create --name cursor --type cursor --credential CURSOR_API_KEY
+GITHUB_TOKEN=… quarshell provider create --name gh --type github --credential GITHUB_TOKEN
+CURSOR_API_KEY=… quarshell provider create --name cursor --type cursor --credential CURSOR_API_KEY
 
 # if keys are already in this process env:
-# cautem provider create --name gh --type github --from-existing
+# quarshell provider create --name gh --type github --from-existing
 
-cautem provider list
-cautem provider get gh
+quarshell provider list
+quarshell provider get gh
 ```
 
 `list` / `get` never print secret values. Ciphertext lives in the gateway
@@ -30,7 +30,7 @@ encrypted store (`secrets.enc.json`).
 ## Attach on create
 
 ```bash
-cautem sandbox create \
+quarshell sandbox create \
   --name demo \
   --upload "$PWD" \
   --policy /path/to/policy.yaml \
@@ -41,7 +41,7 @@ cautem sandbox create \
 
 Composition merges profile endpoints, binaries, and `credential_keys` into the
 effective policy. The guest sees placeholders such as
-`cautem:resolve:env:GITHUB_TOKEN`. The proxy rewrites them on egress.
+`quarshell:resolve:env:GITHUB_TOKEN`. The proxy rewrites them on egress.
 
 ## Profile behavior
 
@@ -53,29 +53,29 @@ effective policy. The guest sees placeholders such as
 | `claude-code` | `ANTHROPIC_API_KEY` | Placeholder |
 
 ```bash
-cautem provider profile list
-cautem provider profile show github
+quarshell provider profile list
+quarshell provider profile show github
 ```
 
 ## Rotate
 
 ```bash
-GITHUB_TOKEN=ghp_new… cautem provider refresh gh
-# or: GITHUB_TOKEN=… cautem provider update gh --from-existing
+GITHUB_TOKEN=ghp_new… quarshell provider refresh gh
+# or: GITHUB_TOKEN=… quarshell provider update gh --from-existing
 ```
 
 ## Do not
 
 ```bash
-cautem sandbox create … --env GITHUB_TOKEN=ghp_…     # raw secret in guest
-cautem sandbox create … --env CURSOR_API_KEY=cautem:resolve:…  # breaks Cursor Agent
+quarshell sandbox create … --env GITHUB_TOKEN=ghp_…     # raw secret in guest
+quarshell sandbox create … --env CURSOR_API_KEY=quarshell:resolve:…  # breaks Cursor Agent
 ```
 
 ## KEK
 
 | Item | Detail |
 |------|--------|
-| Env | `CAUTEM_SECRETS_KEK` (passphrase, base64, or hex ≥16 bytes) |
+| Env | `QUARSHELL_SECRETS_KEK` (passphrase, base64, or hex ≥16 bytes) |
 | File fallback | `secrets.kek` in gateway data dir (mode 0600) |
 | Doctor | Warns when KEK is not env-pinned |
 

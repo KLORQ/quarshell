@@ -1,15 +1,15 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Провайдер Docker
 
 **Провайдер вычислений** — движок, на котором работают песочница и её
-egress-прокси. Выбирается через `CAUTEM_DRIVER`, виден в
-`cautem status`.
+egress-прокси. Выбирается через `QUARSHELL_DRIVER`, виден в
+`quarshell status`.
 
-| Провайдер | `CAUTEM_DRIVER` | Статус |
+| Провайдер | `QUARSHELL_DRIVER` | Статус |
 |-----------|---------------------|--------|
 | Docker Engine 28.0+ на Linux | `docker` | <span class="ws-badge ws-badge--ok">поддерживается, по умолчанию</span> |
 | Docker Desktop на macOS/Windows | `docker` | <span class="ws-badge ws-badge--ok">beta</span> |
@@ -18,7 +18,7 @@ egress-прокси. Выбирается через `CAUTEM_DRIVER`, виден
 | [Kubernetes](../kubernetes.md) | `kubernetes` | <span class="ws-badge ws-badge--soon">скоро</span> |
 | [MicroVM](../microvm.md) | `vm` | <span class="ws-badge ws-badge--soon">скоро</span> |
 
-Docker — провайдер по умолчанию. cautem обращается к локальному Engine API
+Docker — провайдер по умолчанию. quarshell обращается к локальному Engine API
 (`DOCKER_HOST` / сокет Desktop), создаёт внутреннюю сеть на sandbox, поднимает
 egress-sidecar, затем sandbox-контейнер.
 
@@ -39,19 +39,19 @@ Kubernetes и MicroVM не являются production-провайдерами 
 
 ```text
 host Docker Engine
-├── cautem-<name>              sandbox (образ агента)
+├── quarshell-<name>              sandbox (образ агента)
 ├── quarshell-proxy-<name>        egress sidecar (slim base)
-├── cautem-net-<name>          внутренняя сеть
-├── cautem-data-<name>         опциональный data volume
-└── cautem-ca-<name>           MITM CA (если proxy включён)
+├── quarshell-net-<name>          внутренняя сеть
+├── quarshell-data-<name>         опциональный data volume
+└── quarshell-ca-<name>           MITM CA (если proxy включён)
 ```
 
 ## Активация
 
 ```bash
-unset CAUTEM_DRIVER          # или: export CAUTEM_DRIVER=docker
-cautem doctor
-cautem status
+unset QUARSHELL_DRIVER          # или: export QUARSHELL_DRIVER=docker
+quarshell doctor
+quarshell status
 ```
 
 В статусе ожидайте `driver: docker`.
@@ -74,7 +74,7 @@ PEM bundle с доверенными корнями для проверяемы�
 Если после перезапуска rootless-движка меняется UID/GID mapping, в конфигурации
 compute-драйвера Docker можно включить `reconcile_data_ownership`. При включённой
 настройке привилегированный init при запуске переназначит владельца файлов в
-отдельном persistent volume `/cautem/data` на пользователя sandbox. По умолчанию
+отдельном persistent volume `/quarshell/data` на пользователя sandbox. По умолчанию
 настройка выключена, на больших volume операция может занять время; bind mount
 workspace не затрагивается.
 

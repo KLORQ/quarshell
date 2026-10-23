@@ -61,7 +61,7 @@
       "go_test_files": 1
     },
     {
-      "name": "quarshell-providers",
+      "name": "quarshell-policy",
       "head": "4f0872d6d47953f95d89d5b22db6c1d4bbaa365a",
       "dirty_entries": 12,
       "go_source_files": 5,

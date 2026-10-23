@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 const defaultJSONRPCMaxBodyBytes = 64 << 10

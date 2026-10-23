@@ -4,14 +4,14 @@ import "testing"
 
 func TestPublishedImage(t *testing.T) {
 	cases := map[string]string{
-		ImageLocal:               ImageBaseRef,
-		"cautem-sandbox:base":    ImageBaseRef,
-		ImageGUI:                 ImageGUIRef,
-		ImageGPU:                 ImageGPURef,
-		ImageGUIGPU:              ImageGUIGPURef,
-		ImageCursor:              ImageCursorRef,
-		" cautem-Sandbox:Claude": ImageClaudeRef,
-		ImageCodex:               ImageCodexRef,
+		ImageLocal:                  ImageBaseRef,
+		"quarshell-sandbox:base":    ImageBaseRef,
+		ImageGUI:                    ImageGUIRef,
+		ImageGPU:                    ImageGPURef,
+		ImageGUIGPU:                 ImageGUIGPURef,
+		ImageCursor:                 ImageCursorRef,
+		" quarshell-Sandbox:Claude": ImageClaudeRef,
+		ImageCodex:                  ImageCodexRef,
 	}
 	for in, want := range cases {
 		got, ok := PublishedImage(in)
@@ -19,7 +19,7 @@ func TestPublishedImage(t *testing.T) {
 			t.Fatalf("PublishedImage(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, in := range []string{"", "debian:bookworm", "cautem-sandbox:mine", "ghcr.io/cautem/cautem/sandboxes/base:latest"} {
+	for _, in := range []string{"", "debian:bookworm", "quarshell-sandbox:mine", "ghcr.io/quarshell/quarshell/sandboxes/base:latest"} {
 		if got, ok := PublishedImage(in); ok {
 			t.Fatalf("PublishedImage(%q) = %q, want no mapping", in, got)
 		}

@@ -6,8 +6,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/KLORQ/quarshell-core/engine"
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
+	"github.com/KLORQ/quarshell-policy/engine"
 )
 
 func TestPolicyUpdateClosesActiveTunnel(t *testing.T) {

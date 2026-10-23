@@ -24,7 +24,7 @@ func TestPolicyValidationAndDisabledMode(t *testing.T) {
 	if err := policy.Validate(); err == nil {
 		t.Fatal("enabled empty policy was accepted")
 	}
-	policy = Config{Enabled: true, RequiredLabels: map[string]string{"cautem.internal/workspace": "team-a", "example.com/ok": "yes"}}
+	policy = Config{Enabled: true, RequiredLabels: map[string]string{"quarshell.internal/workspace": "team-a", "example.com/ok": "yes"}}
 	if err := policy.Validate(); err == nil {
 		t.Fatal("driver-owned label was accepted")
 	}

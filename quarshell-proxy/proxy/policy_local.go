@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+// SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 // SPDX-License-Identifier: Apache-2.0
 
 package proxy
@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,7 +34,7 @@ const (
 	policyLocalWaitDefault   = 60
 	policyLocalWaitMin       = 1
 	policyLocalWaitMax       = 300
-	policyLocalAgentGuidance = "cautem blocked this request with sandbox policy. If the user task still needs this network action, read /etc/cautem/skills/policy_advisor.md, submit the narrowest proposal to http://policy.local/v1/proposals, wait for approval with policy_reloaded: true, then retry."
+	policyLocalAgentGuidance = "quarshell blocked this request with sandbox policy. If the user task still needs this network action, read /etc/quarshell/skills/policy_advisor.md, submit the narrowest proposal to http://policy.local/v1/proposals, wait for approval with policy_reloaded: true, then retry."
 )
 
 type denialLine struct {
@@ -78,7 +78,7 @@ func (s *Server) mitmHandshake(client net.Conn, host string) (*tls.Conn, error) 
 
 func (s *Server) isPolicyLocal(host string) bool {
 	h := strings.ToLower(strings.TrimSpace(host))
-	return h == PolicyLocalHost || h == "policy.cautem.local"
+	return h == PolicyLocalHost || h == "policy.quarshell.local"
 }
 
 func (s *Server) recordDenial(line string) {
@@ -206,7 +206,7 @@ func (s *Server) policyLocalSubmit(w io.Writer, body []byte) {
 			rejected = append(rejected, map[string]string{"error": err.Error()})
 			continue
 		}
-		p.Sandbox = strings.TrimSpace(os.Getenv("CAUTEM_SANDBOX"))
+		p.Sandbox = strings.TrimSpace(os.Getenv("QUARSHELL_SANDBOX"))
 		if err := s.persistProposal(p); err != nil {
 			rejected = append(rejected, map[string]string{"error": err.Error()})
 			continue
@@ -330,8 +330,8 @@ func (s *Server) persistProposal(p *localProposal) error {
 	s.proposals[p.ID] = p
 	s.mu.Unlock()
 
-	gw := strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_URL"))
-	sb := strings.TrimSpace(os.Getenv("CAUTEM_SANDBOX"))
+	gw := strings.TrimSpace(os.Getenv("QUARSHELL_GATEWAY_URL"))
+	sb := strings.TrimSpace(os.Getenv("QUARSHELL_SANDBOX"))
 	if gw == "" || sb == "" {
 		return nil
 	}
@@ -470,8 +470,8 @@ func (s *Server) lookupProposal(id string) *localProposal {
 }
 
 func (s *Server) refreshProposalFromGateway(id string) {
-	gw := strings.TrimSpace(os.Getenv("CAUTEM_GATEWAY_URL"))
-	sb := strings.TrimSpace(os.Getenv("CAUTEM_SANDBOX"))
+	gw := strings.TrimSpace(os.Getenv("QUARSHELL_GATEWAY_URL"))
+	sb := strings.TrimSpace(os.Getenv("QUARSHELL_SANDBOX"))
 	if gw == "" || sb == "" || id == "" {
 		return
 	}

@@ -666,7 +666,7 @@ def test_provider_crud_hides_secret_values_and_uses_workspace(gateway):
         assert create.workspace_scope.workspace == "team-a"
         assert create.provider.credentials["API_KEY"] == "test-secret"
         assert create.provider.metadata.annotations[
-            "cautem.io/runtime-credentials"
+            "quarshell.io/runtime-credentials"
         ] == "true"
 
         stored = datamodel_pb2.Provider()
@@ -889,7 +889,7 @@ def test_profile_mutations_validate_before_rpc(gateway):
 
 def test_token_defaults_to_gateway_environment(gateway, monkeypatch):
     gateway_url, control = gateway
-    monkeypatch.setenv("CAUTEM_GATEWAY_TOKEN", "env-token")
+    monkeypatch.setenv("QUARSHELL_GATEWAY_TOKEN", "env-token")
     with Client(gateway_url) as client:
         assert client.list() == []
     assert control.compatibility_service.auth == ["Bearer env-token"]

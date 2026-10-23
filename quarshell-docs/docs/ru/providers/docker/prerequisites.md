@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -27,11 +27,11 @@ docker info
 
 ```bash
 # Локальная сборка из workspace
-task runtime:image:cli          # cautem-sandbox:local
-task docker:agent:cursor        # cautem-sandbox:cursor
+task runtime:image:cli          # quarshell-sandbox:local
+task docker:agent:cursor        # quarshell-sandbox:cursor
 
 # Или каталог GHCR
-docker pull ghcr.io/cautem/cautem/sandboxes/base:latest
+docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
 ```
 
 Каталог и BYOC: [Справка по образам](../../reference/images.md).
@@ -41,9 +41,9 @@ docker pull ghcr.io/cautem/cautem/sandboxes/base:latest
 Proxy, секреты и `--provider` требуют доступный gateway:
 
 ```bash
-cautem gateway ensure
-cautem gateway add https://127.0.0.1:17670 --local --name local
-cautem gateway select local
+quarshell gateway ensure
+quarshell gateway add https://127.0.0.1:17670 --local --name local
+quarshell gateway select local
 ```
 
 Compose gateway: `quarshell-gateway/compose/docker-compose.yml`.
@@ -94,7 +94,7 @@ engine, поэтому они запрещены, пока admission включ�
 Задайте soft defaults (по желанию) и оставьте ротацию логов (включена по умолчанию):
 
 ```yaml
-# ~/.config/cautem/config.yaml
+# ~/.config/quarshell/config.yaml
 defaults:
   memory: 2g
   cpu: 2

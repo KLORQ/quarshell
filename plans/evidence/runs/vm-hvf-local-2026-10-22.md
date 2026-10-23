@@ -220,7 +220,7 @@ default-deny and revision acknowledgement, worker adoption, stop/start,
 broker-loss shutdown, authenticated registry access, and natural workload exit.
 The descriptor was published and checked against durable boot identity. The
 guest workload start gate now travels over an inherited one-shot pipe through
-the VM agent, guest supervisor, and `cautem-init`; the live test passed after
+the VM agent, guest supervisor, and `quarshell-init`; the live test passed after
 the init process dropped to its non-root workload identity. Per-boot control
 identity now uses the canonical UUID session form expected by OpenShell. This
 is evidence for the VM driver's host lifecycle and its local control paths;
@@ -567,7 +567,7 @@ upstream running-boundary operations remain outside this local HVF probe.
 
 - Reverified: 2026-10-22 15:15 Europe/Samara
 - `task vm:live-darwin`: PASS; `TestLiveMicroVMLifecycle` passed in 22.20s and the required Go test gate passed
-- `CAUTEM_VM_TEST_GATEWAY_CREDENTIALS_ONLY=1 task vm:live-darwin`: PASS; paired credential/registry acceptance passed in 5.31s and required Go test gate passed
+- `QUARSHELL_VM_TEST_GATEWAY_CREDENTIALS_ONLY=1 task vm:live-darwin`: PASS; paired credential/registry acceptance passed in 5.31s and required Go test gate passed
 - Live mock Gateway checked Sandbox bearer on `ConnectSupervisor`, Gateway bearer on policy revision status, instance rotation, and fresh mTLS control identity. The VM driver attached its private descriptor through `isolation.Registry`, performed confirmation, released the one-shot guest start gate, and executed a guest command afterward.
 - This uses a mock Gateway and local unsigned test identity path. It does not exercise the complete Gateway composition, trusted macOS Team ID signing, credential refresh/replay, KVM, or upstream process/exec/loopback operations on a running boundary. G04 remains open.
 
@@ -576,13 +576,13 @@ upstream running-boundary operations remain outside this local HVF probe.
 - Reverified: 2026-10-22 15:16 Europe/Samara
 - Host: local Apple Silicon Mac, `darwin/arm64`, Hypervisor.framework
 - Commands: `task vm:live-darwin`; credentials-only run with
-  `CAUTEM_VM_TEST_GATEWAY_CREDENTIALS_ONLY=1 task vm:live-darwin`
+  `QUARSHELL_VM_TEST_GATEWAY_CREDENTIALS_ONLY=1 task vm:live-darwin`
 - Results: full `TestLiveMicroVMLifecycle` PASS (23.24s test / 23.61s Go
   package); latest paired-credential `TestLiveMicroVMLifecycle` PASS
   (4.82s test / 5.23s Go package). Both runs passed after the broker PID
   accessor refactor.
 
-The paired-credential scenario launches the actual `cautem proxy` binary and a
+The paired-credential scenario launches the actual `quarshell proxy` binary and a
 live HVF VM with EdDSA Gateway/Sandbox session tokens, the private descriptor
 bound auth bundle, and the guest verification-key set. The mock OpenShell
 Gateway verified that `ConnectSupervisor` carried the Sandbox bearer and
@@ -591,7 +591,7 @@ instance after workload start, and acknowledged policy revision 2. Guest exec
 confirmed that the workload passed the one-shot start gate.
 
 VM startup now passes the verified descriptor through the production
-`quarshell-core/isolation.Registry`. The `cautem/vm` backend checks the live
+`quarshell-core/isolation.Registry`. The `quarshell/vm` backend checks the live
 worker and policy broker, broker health, guest control reachability, and the
 per-generation mTLS identity; it commits those observations and the non-root
 guest readiness identity into generation-bound evidence. `ConfirmedBoundary`
@@ -767,7 +767,7 @@ integration tests plus the separate paired-credential live fixture, not this
 manual smoke.
 
 The Go SDK now accepts a dedicated gRPC endpoint, and the CLI proxy configures
-it from `CAUTEM_GATEWAY_GRPC_ENDPOINT`; the live fixture confirms the proxy
+it from `QUARSHELL_GATEWAY_GRPC_ENDPOINT`; the live fixture confirms the proxy
 reaches the correct Gateway gRPC listener. `GetSandboxProviderEnvironment`
 remains unimplemented: credential values must stay withheld until sandbox
 provider attachment, endpoint authorization, credential identity/handles and
@@ -1219,7 +1219,7 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 
 - Command: `task vm:live-darwin`.
 - Result: PASS. Driver lifecycle + local OCI import passed; Gateway composition test passed in 19.63s.
-- The test started a real Gateway gRPC server on loopback, then executed the built `cautem` binary as a separate process with the Gateway endpoint selected. `sandbox upload` and `sandbox download` used the CLI's normal archive path through generated Gateway gRPC streams and the live VM's authenticated guest exec stream.
+- The test started a real Gateway gRPC server on loopback, then executed the built `quarshell` binary as a separate process with the Gateway endpoint selected. `sandbox upload` and `sandbox download` used the CLI's normal archive path through generated Gateway gRPC streams and the live VM's authenticated guest exec stream.
 - The round-trip preserved a nested file and relative symlink.
 
 # VM authenticated vsock identity rotation on HVF (2026-10-22 23:45 Europe/Samara)
@@ -1376,12 +1376,12 @@ This closes `vm.logs-watch` for the pinned contract. Final local gates passed: f
 # Hosted KVM private socket root follow-up (2026-10-23 04:12 Europe/Samara)
 
 - Run [`39874763824`](https://github.com/KLORQ/quarshell/actions/runs/39874763824): macOS/HVF build lane and Windows VM build/package lane passed. The verbose `TestWorkerIsolationNamespaceSubprocess` explicitly passed; libkrun runtime build, digest lock, KVM access and runner mount isolation also passed. The full Linux VM lifecycle started and advanced past the earlier worker mount `EPERM`.
-- Live acceptance then failed before the broker started: `validateNetworkBrokerConfig` required the per-UID `/tmp/cautem-vm-<uid>` socket root to already exist, while `workerSocketPaths` creates it lazily when the worker control listener starts later. Production validation now permits only that exact missing per-user directory. `startNetworkBroker` creates it with `0700` before binding, after which ownership and mode checks still apply. A focused Linux config regression test verifies that only the expected lazy root is accepted and that validation itself does not create it.
+- Live acceptance then failed before the broker started: `validateNetworkBrokerConfig` required the per-UID `/tmp/quarshell-vm-<uid>` socket root to already exist, while `workerSocketPaths` creates it lazily when the worker control listener starts later. Production validation now permits only that exact missing per-user directory. `startNetworkBroker` creates it with `0700` before binding, after which ownership and mode checks still apply. A focused Linux config regression test verifies that only the expected lazy root is accepted and that validation itself does not create it.
 - The focused broker config test passed in a Linux Docker container. Linux/amd64 and Linux/arm64 VM test binaries cross-compile. The next hosted KVM run will validate the complete lifecycle with this fix.
 
 # Hosted KVM workload-start timeout follow-up (2026-10-23 04:36 Europe/Samara)
 
-- Run [`39877080970`](https://github.com/KLORQ/quarshell/actions/runs/39877080970): hosted Linux passed the explicit namespace subprocess probe, pinned runtime build/digest validation, KVM device check, mount isolation, and worker startup. The guest booted and `cautem-sshd` listened, but `TestLiveMicroVMLifecycle` timed out after 480 seconds awaiting the guest `start-workload` control response. Hosted macOS/HVF build and Windows VM build/package lanes passed.
+- Run [`39877080970`](https://github.com/KLORQ/quarshell/actions/runs/39877080970): hosted Linux passed the explicit namespace subprocess probe, pinned runtime build/digest validation, KVM device check, mount isolation, and worker startup. The guest booted and `quarshell-sshd` listened, but `TestLiveMicroVMLifecycle` timed out after 480 seconds awaiting the guest `start-workload` control response. Hosted macOS/HVF build and Windows VM build/package lanes passed.
 - The timeout exposed a guest-agent deadlock: on supervisor early exit, `startWorkload` waited for its completion callback while holding the mutex that callback needed. Completion notification now closes before the callback acquires that mutex; a Linux regression test covers an immediate supervisor exit before readiness. The focused guest-agent tests passed in Docker with Go 1.27.2.
 - Fresh `8023af9` macOS live acceptance passed before this deadlock fix: `TestLiveMicroVMLifecycle` (25.06 s), OCI import (1.16 s), and Gateway VM watch composition (8.89 s). The next hosted KVM run should now return the supervisor's original early-exit/readiness failure promptly if startup still fails, or verify full KVM lifecycle.
 - Current parity remains 25 implemented, 3 partial, 2 unsupported. The KVM live lifecycle is still unverified; do not mark the three partial host-supervisor/attachment rows or GPU/VFIO rows complete without their required implementation and evidence.

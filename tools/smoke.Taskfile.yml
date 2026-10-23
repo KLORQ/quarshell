@@ -68,9 +68,9 @@ tasks:
           go test -C "$ORG/quarshell-proxy" ./proxy/ -count=1 -run 'TestTLSTerminateL7$'
 
           echo "== inference local snippet =="
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
-          "$TMP/cautem" inference local | grep -q host.cautem.internal
-          "$TMP/cautem" inference list >/dev/null
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
+          "$TMP/quarshell" inference local | grep -q host.quarshell.internal
+          "$TMP/quarshell" inference list >/dev/null
 
           test -f "$ORG/quarshell-docs/docs/en/guides/provider-profiles.md"
       - task: workspace-io
@@ -82,42 +82,42 @@ tasks:
           set -euo pipefail
           ORG="{{.ORG}}"
           export GOWORK="${GOWORK:-{{.GOWORK}}}"
-          CAUTEM="${CAUTEM:-}"
+          QUARSHELL="${QUARSHELL:-}"
           HOST_OS="$(uname -s)"
-          if [[ -z "$CAUTEM" ]]; then
-            go build -C "$ORG/quarshell-cli" -o /tmp/cautem-mvp-smoke ./cmd/cautem
-            CAUTEM=/tmp/cautem-mvp-smoke
+          if [[ -z "$QUARSHELL" ]]; then
+            go build -C "$ORG/quarshell-cli" -o /tmp/quarshell-mvp-smoke ./cmd/quarshell
+            QUARSHELL=/tmp/quarshell-mvp-smoke
           fi
           NAME="mvp-smoke-$$"
           POLICY="$ORG/quarshell-cli/policies/default.yaml"
-          cleanup() { "$CAUTEM" sandbox rm "$NAME" >/dev/null 2>&1 || true; }
+          cleanup() { "$QUARSHELL" sandbox rm "$NAME" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
 
           echo "== host: $HOST_OS =="
           echo "== health =="
-          "$CAUTEM" health
+          "$QUARSHELL" health
 
           echo "== policy =="
-          "$CAUTEM" policy check "$POLICY"
-          "$CAUTEM" policy check "$ORG/quarshell-cli/policies/cursor.yaml"
-          "$CAUTEM" inference show "$POLICY" | head -20
+          "$QUARSHELL" policy check "$POLICY"
+          "$QUARSHELL" policy check "$ORG/quarshell-cli/policies/cursor.yaml"
+          "$QUARSHELL" inference show "$POLICY" | head -20
 
           echo "== init cursor =="
           tmpdir="$(mktemp -d)"
-          "$CAUTEM" init --agent cursor --dir "$tmpdir" --force
-          "$CAUTEM" policy check "$tmpdir/policies/cursor.yaml"
+          "$QUARSHELL" init --agent cursor --dir "$tmpdir" --force
+          "$QUARSHELL" policy check "$tmpdir/policies/cursor.yaml"
 
           echo "== sandbox exec =="
-          "$CAUTEM" sandbox create --name "$NAME" --workspace "$ORG" --policy "$POLICY" --no-proxy
-          "$CAUTEM" exec "$NAME" -- sh -c 'uname -s; test -d /workspace && echo workspace=ok'
+          "$QUARSHELL" sandbox create --name "$NAME" --workspace "$ORG" --policy "$POLICY" --no-proxy
+          "$QUARSHELL" exec "$NAME" -- sh -c 'uname -s; test -d /workspace && echo workspace=ok'
 
-          if [[ "${SKIP_DISPLAY:-0}" != "1" ]] && docker image inspect cautem-sandbox:gui >/dev/null 2>&1; then
+          if [[ "${SKIP_DISPLAY:-0}" != "1" ]] && docker image inspect quarshell-sandbox:gui >/dev/null 2>&1; then
             echo "== display =="
             DNAME="mvp-gui-$$"
-            "$CAUTEM" sandbox create --name "$DNAME" --workspace "$ORG" --policy "$POLICY" --no-proxy --display novnc --display-port 18080
+            "$QUARSHELL" sandbox create --name "$DNAME" --workspace "$ORG" --policy "$POLICY" --no-proxy --display novnc --display-port 18080
             sleep 1
             code="$(curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/vnc.html || true)"
-            "$CAUTEM" sandbox rm "$DNAME" >/dev/null 2>&1 || true
+            "$QUARSHELL" sandbox rm "$DNAME" >/dev/null 2>&1 || true
             if [[ "$code" != "200" ]]; then
               echo "WARN: noVNC http=$code (display soft-fail)" >&2
             else
@@ -140,7 +140,7 @@ tasks:
 
           go test -C "$ORG/quarshell-proxy" ./proxy/ -count=1 -run 'TestWatchPolicyReload'
           go test -C "$ORG/quarshell-runtime" ./refresh/ -count=1 -run 'TestStub'
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
 
           test -f "$ORG/quarshell-docs/docs/en/guides/policy.md"
           test -f "$ORG/quarshell-docs/docs/en/guides/credentials.md"
@@ -148,18 +148,18 @@ tasks:
           grep -rq 'PolicySet' "$ORG/quarshell-cli/internal/service"
 
           # policy set usage (no docker needed)
-          if "$TMP/cautem" policy set 2>&1 | grep -q 'usage: cautem policy set'; then
+          if "$TMP/quarshell" policy set 2>&1 | grep -q 'usage: quarshell policy set'; then
             :
           else
-            out="$("$TMP/cautem" policy set 2>&1 || true)"
-            echo "$out" | grep -q 'usage: cautem policy set' || {
+            out="$("$TMP/quarshell" policy set 2>&1 || true)"
+            echo "$out" | grep -q 'usage: quarshell policy set' || {
               echo "expected policy set usage" >&2
               echo "$out" >&2
               exit 1
             }
           fi
 
-          "$TMP/cautem" policy check "$ORG/quarshell-cli/policies/default.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$ORG/quarshell-cli/policies/default.yaml" >/dev/null
 
           echo "near-term smoke: PASS"
   p10:
@@ -174,10 +174,10 @@ tasks:
 
           go test -C "$ORG/quarshell-core" ./policy/ -count=1
           go test -C "$ORG/quarshell-proxy" ./proxy/ -count=1
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
 
-          "$TMP/cautem" policy check "$ORG/quarshell-cli/examples/ollama/policy.yaml" >/dev/null
-          "$TMP/cautem" policy check "$ORG/quarshell-cli/examples/claude-codex/policy.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$ORG/quarshell-cli/examples/ollama/policy.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$ORG/quarshell-cli/examples/claude-codex/policy.yaml" >/dev/null
 
           cat > "$TMP/profile.yaml" <<'EOF'
           version: 1
@@ -186,16 +186,16 @@ tasks:
           inference:
             profiles:
               - id: vllm
-                host: host.cautem.internal
+                host: host.quarshell.internal
                 port: 8000
                 env_keys: [OPENAI_API_KEY]
                 refresh: env
           EOF
-          "$TMP/cautem" policy check "$TMP/profile.yaml" >/dev/null
-          "$TMP/cautem" inference show "$TMP/profile.yaml" | grep -q host.cautem.internal || true
+          "$TMP/quarshell" policy check "$TMP/profile.yaml" >/dev/null
+          "$TMP/quarshell" inference show "$TMP/profile.yaml" | grep -q host.quarshell.internal || true
 
           # term rejects non-TTY
-          if "$TMP/cautem" term >/dev/null 2>&1; then
+          if "$TMP/quarshell" term >/dev/null 2>&1; then
             echo "expected term to require TTY" >&2
             exit 1
           fi
@@ -211,10 +211,10 @@ tasks:
           export GOWORK="${GOWORK:-{{.GOWORK}}}"
 
           go test -C "$ORG/quarshell-proxy" ./proxy/middleware/ ./proxy/ -count=1
-          go test -C "$ORG/quarshell-sdk" ./go/cautem/ -count=1
+          go test -C "$ORG/quarshell-sdk" ./go/quarshell/ -count=1
 
           test -f "$ORG/quarshell-sdk/README.md"
-          test -f "$ORG/quarshell-python/cautem/client.py"
+          test -f "$ORG/quarshell-python/quarshell/client.py"
 
           if command -v python3 >/dev/null 2>&1; then
             python3 -m pip install -q --user 'httpx>=0.27' 'pytest>=7' >/dev/null
@@ -234,18 +234,18 @@ tasks:
           trap 'rm -rf "$TMP"' EXIT
 
           go test -C "$ORG/quarshell-driver" ./podman/ -count=1
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
 
           test -f "$ORG/quarshell-docs/docs/en/providers/podman/index.md"
           test -f "$ORG/quarshell-gateway/compose/docker-compose.yml"
 
           # CLI selects driver name even when engine is down
-          CAUTEM_DRIVER=podman "$TMP/cautem" version >/dev/null
-          CAUTEM_DRIVER=docker "$TMP/cautem" version >/dev/null
+          QUARSHELL_DRIVER=podman "$TMP/quarshell" version >/dev/null
+          QUARSHELL_DRIVER=docker "$TMP/quarshell" version >/dev/null
 
           # Optional live Podman API probe
           if command -v podman >/dev/null 2>&1; then
-            if CAUTEM_DRIVER=podman "$TMP/cautem" health >/dev/null 2>&1; then
+            if QUARSHELL_DRIVER=podman "$TMP/quarshell" health >/dev/null 2>&1; then
               echo "P12: live podman health ok"
             else
               echo "P12: podman present but API not ready (ok for smoke)"
@@ -264,7 +264,7 @@ tasks:
           trap 'rm -rf "$TMP"' EXIT
 
           go test -C "$ORG/quarshell-driver" ./docker/ ./driver/vm/ -count=1 -run 'TestDeviceRequestsForGPU|TestStubCreate|TestClassifyIsolation'
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
 
           test -f "$ORG/quarshell-docs/docs/en/providers/microvm.md"
           grep -q 'AS gpu' "$ORG/quarshell-runtime/images/sandbox/Dockerfile"
@@ -272,7 +272,7 @@ tasks:
 
           # CLI accepts --gpu / --cdi (parse-only: unknown flag would fail before docker)
           # Use version/health paths that don't need create; flag presence checked via help-ish create dry fail
-          out="$(CAUTEM_DRIVER=vm "$TMP/cautem" health 2>&1 || true)"
+          out="$(QUARSHELL_DRIVER=vm "$TMP/quarshell" health 2>&1 || true)"
           echo "$out" | grep -q MICROVM || {
             echo "expected vm health to mention MICROVM" >&2
             echo "$out" >&2
@@ -291,17 +291,17 @@ tasks:
           trap 'rm -rf "$TMP"' EXIT
 
           go test -C "$ORG/quarshell-driver" ./internal/kubernetes/ -count=1
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
 
           test -f "$ORG/quarshell-docs/docs/en/providers/kubernetes.md"
-          test -f "$ORG/quarshell-gateway/packaging/helm/cautem/Chart.yaml"
-          test -f "$ORG/quarshell-gateway/packaging/helm/cautem/values.yaml"
-          test -f "$ORG/quarshell-gateway/packaging/helm/cautem/templates/deployment.yaml"
-          grep -q 'nvidia.com/gpu' "$ORG/quarshell-gateway/packaging/helm/cautem/values.yaml"
-          grep -q 'topology:' "$ORG/quarshell-gateway/packaging/helm/cautem/values.yaml"
-          grep -q 'sideloadMethod:' "$ORG/quarshell-gateway/packaging/helm/cautem/values.yaml"
+          test -f "$ORG/quarshell-gateway/packaging/helm/quarshell/Chart.yaml"
+          test -f "$ORG/quarshell-gateway/packaging/helm/quarshell/values.yaml"
+          test -f "$ORG/quarshell-gateway/packaging/helm/quarshell/templates/deployment.yaml"
+          grep -q 'nvidia.com/gpu' "$ORG/quarshell-gateway/packaging/helm/quarshell/values.yaml"
+          grep -q 'topology:' "$ORG/quarshell-gateway/packaging/helm/quarshell/values.yaml"
+          grep -q 'sideloadMethod:' "$ORG/quarshell-gateway/packaging/helm/quarshell/values.yaml"
 
-          out="$(CAUTEM_DRIVER=kubernetes "$TMP/cautem" health 2>&1 || true)"
+          out="$(QUARSHELL_DRIVER=kubernetes "$TMP/quarshell" health 2>&1 || true)"
           echo "$out" | grep -q KUBERNETES || {
             echo "expected kubernetes health to mention KUBERNETES" >&2
             echo "$out" >&2
@@ -309,7 +309,7 @@ tasks:
           }
 
           if command -v helm >/dev/null 2>&1; then
-            helm template cautem "$ORG/quarshell-gateway/packaging/helm/cautem" >/dev/null
+            helm template quarshell "$ORG/quarshell-gateway/packaging/helm/quarshell" >/dev/null
             echo "P14: helm template ok"
           fi
 
@@ -336,32 +336,32 @@ tasks:
           set -euo pipefail
           ORG="{{.ORG}}"
           export GOWORK="${GOWORK:-{{.GOWORK}}}"
-          CAUTEM="${CAUTEM:-}"
-          if [[ -z "$CAUTEM" ]]; then
-            go build -C "$ORG/quarshell-cli" -o /tmp/cautem-p4-smoke ./cmd/cautem
-            CAUTEM=/tmp/cautem-p4-smoke
+          QUARSHELL="${QUARSHELL:-}"
+          if [[ -z "$QUARSHELL" ]]; then
+            go build -C "$ORG/quarshell-cli" -o /tmp/quarshell-p4-smoke ./cmd/quarshell
+            QUARSHELL=/tmp/quarshell-p4-smoke
           fi
           POLICY="${POLICY:-$ORG/quarshell-cli/policies/default.yaml}"
           NAME="p4-smoke-$$"
-          cleanup() { "$CAUTEM" sandbox rm "$NAME" >/dev/null 2>&1 || true; }
+          cleanup() { "$QUARSHELL" sandbox rm "$NAME" >/dev/null 2>&1 || true; }
           trap cleanup EXIT
 
           echo "== health =="
-          "$CAUTEM" health
+          "$QUARSHELL" health
 
-          ABI_LINE="$("$CAUTEM" health 2>/dev/null | sed -n 's/.*landlock:[[:space:]]*//p' | head -1 || true)"
+          ABI_LINE="$("$QUARSHELL" health 2>/dev/null | sed -n 's/.*landlock:[[:space:]]*//p' | head -1 || true)"
           echo "landlock: $ABI_LINE"
 
           echo "== create ($NAME) =="
-          "$CAUTEM" sandbox create --name "$NAME" --workspace "$ORG" --policy "$POLICY" --no-proxy
+          "$QUARSHELL" sandbox create --name "$NAME" --workspace "$ORG" --policy "$POLICY" --no-proxy
 
           echo "== exec hello =="
-          out="$("$CAUTEM" exec "$NAME" -- sh -c 'echo ok-harden; test -x /cautem/cautem-init -o -x /usr/local/bin/cautem-init; echo init-present')"
+          out="$("$QUARSHELL" exec "$NAME" -- sh -c 'echo ok-harden; test -x /quarshell/quarshell-init -o -x /usr/local/bin/quarshell-init; echo init-present')"
           echo "$out"
           echo "$out" | grep -q ok-harden
 
           echo "== docker harden flags =="
-          cid="$(docker ps -qf "label=cautem.name=$NAME" | head -1)"
+          cid="$(docker ps -qf "label=quarshell.name=$NAME" | head -1)"
           [[ -n "$cid" ]]
           inspect="$(docker inspect -f 'CapDrop={{json .HostConfig.CapDrop}} SecurityOpt={{json .HostConfig.SecurityOpt}}' "$cid")"
           echo "$inspect"
@@ -369,9 +369,9 @@ tasks:
           echo "$inspect" | grep -q no-new-privileges
 
           echo "== raw socket gate (CapDrop NET_RAW) =="
-          if "$CAUTEM" exec "$NAME" -- sh -c 'command -v python3 >/dev/null' 2>/dev/null; then
+          if "$QUARSHELL" exec "$NAME" -- sh -c 'command -v python3 >/dev/null' 2>/dev/null; then
             set +e
-            "$CAUTEM" exec "$NAME" -- python3 -c 'import socket; socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)'
+            "$QUARSHELL" exec "$NAME" -- python3 -c 'import socket; socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)'
             rc=$?
             set -e
             if [[ $rc -eq 0 ]]; then
@@ -386,7 +386,7 @@ tasks:
           if echo "$ABI_LINE" | grep -Eq 'abi=[1-9]'; then
             echo "== Landlock deny smoke (ABI≥1) =="
             set +e
-            "$CAUTEM" exec "$NAME" -- sh -c 'cat /root/.bashrc 2>/dev/null || cat /root/x 2>/dev/null'
+            "$QUARSHELL" exec "$NAME" -- sh -c 'cat /root/.bashrc 2>/dev/null || cat /root/x 2>/dev/null'
             rc=$?
             set -e
             if [[ $rc -eq 0 ]]; then
@@ -420,13 +420,13 @@ tasks:
           export XDG_CONFIG_HOME="$DATADIR/xdg-config"
           export XDG_STATE_HOME="$DATADIR/xdg-state"
 
-          go build -C "$ORG/quarshell-cli" -o /tmp/cautem-p8 ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o /tmp/quarshell-p8 ./cmd/quarshell
           go build -C "$ORG/quarshell-gateway" -o /tmp/quarshell-gateway ./cmd/quarshell-gateway
 
           /tmp/quarshell-gateway --listen "$LISTEN" --data-dir "$DATADIR/gw" &
           GWPID=$!
           cleanup() {
-            /tmp/cautem-p8 sandbox rm "$NAME" >/dev/null 2>&1 || true
+            /tmp/quarshell-p8 sandbox rm "$NAME" >/dev/null 2>&1 || true
             kill "$GWPID" >/dev/null 2>&1 || true
             wait "$GWPID" 2>/dev/null || true
           }
@@ -434,53 +434,53 @@ tasks:
           sleep 0.4
 
           curl -sf "http://$LISTEN/healthz" | grep -q '"ok":true'
-          /tmp/cautem-p8 gateway add local --url "http://$LISTEN"
-          /tmp/cautem-p8 gateway select local
+          /tmp/quarshell-p8 gateway add local --url "http://$LISTEN"
+          /tmp/quarshell-p8 gateway select local
 
           echo "== create with volume + ssh + from =="
-          /tmp/cautem-p8 sandbox create --name "$NAME" --workspace "$ORG" --policy "$ORG/quarshell-cli/policies/default.yaml" \
+          /tmp/quarshell-p8 sandbox create --name "$NAME" --workspace "$ORG" --policy "$ORG/quarshell-cli/policies/default.yaml" \
             --no-proxy --from ubuntu --ssh --label team=p8 --gateway "http://$LISTEN"
 
-          echo "== host.cautem.internal =="
-          /tmp/cautem-p8 exec "$NAME" -- sh -c 'getent hosts host.cautem.internal >/dev/null && echo host.cautem.internal=ok'
+          echo "== host.quarshell.internal =="
+          /tmp/quarshell-p8 exec "$NAME" -- sh -c 'getent hosts host.quarshell.internal >/dev/null && echo host.quarshell.internal=ok'
 
           echo "== volume path =="
-          /tmp/cautem-p8 exec "$NAME" -- sh -c 'test -d /cautem/data && echo data=ok; echo retained > /cautem/data/marker'
+          /tmp/quarshell-p8 exec "$NAME" -- sh -c 'test -d /quarshell/data && echo data=ok; echo retained > /quarshell/data/marker'
 
           echo "== cp =="
           echo hello-p8 > "$DATADIR/up.txt"
-          /tmp/cautem-p8 cp "$DATADIR/up.txt" "$NAME:/workspace/up.txt"
-          /tmp/cautem-p8 exec "$NAME" -- cat /workspace/up.txt | grep -q hello-p8
-          /tmp/cautem-p8 cp "$NAME:/workspace/up.txt" "$DATADIR/down.txt"
+          /tmp/quarshell-p8 cp "$DATADIR/up.txt" "$NAME:/workspace/up.txt"
+          /tmp/quarshell-p8 exec "$NAME" -- cat /workspace/up.txt | grep -q hello-p8
+          /tmp/quarshell-p8 cp "$NAME:/workspace/up.txt" "$DATADIR/down.txt"
           grep -q hello-p8 "$DATADIR/down.txt"
 
           echo "== stop/start retain =="
-          /tmp/cautem-p8 sandbox stop "$NAME"
-          /tmp/cautem-p8 sandbox start "$NAME"
-          /tmp/cautem-p8 exec "$NAME" -- cat /cautem/data/marker | grep -q retained
+          /tmp/quarshell-p8 sandbox stop "$NAME"
+          /tmp/quarshell-p8 sandbox start "$NAME"
+          /tmp/quarshell-p8 exec "$NAME" -- cat /quarshell/data/marker | grep -q retained
 
           echo "== relay =="
-          /tmp/cautem-p8 relay agent "$NAME" --gateway "http://$LISTEN"
+          /tmp/quarshell-p8 relay agent "$NAME" --gateway "http://$LISTEN"
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            if /tmp/cautem-p8 relay exec "$NAME" -- sh -c 'echo relay-ok' 2>/dev/null | grep -q relay-ok; then
+            if /tmp/quarshell-p8 relay exec "$NAME" -- sh -c 'echo relay-ok' 2>/dev/null | grep -q relay-ok; then
               echo relay=ok
               break
             fi
             sleep 1
             if [[ $i -eq 12 ]]; then
               echo "relay exec failed" >&2
-              /tmp/cautem-p8 exec "$NAME" -- cat /cautem/agent.log 2>/dev/null || true
+              /tmp/quarshell-p8 exec "$NAME" -- cat /quarshell/agent.log 2>/dev/null || true
               exit 1
             fi
           done
 
           echo "== ssh port =="
-          port="$(docker port "cautem-$NAME" 2222/tcp 2>/dev/null | head -1 | awk -F: '{print $NF}')"
+          port="$(docker port "quarshell-$NAME" 2222/tcp 2>/dev/null | head -1 | awk -F: '{print $NF}')"
           [[ -n "$port" ]]
           echo "ssh host port=$port ok"
 
-          /tmp/cautem-p8 gateway list | grep -q "$NAME"
-          /tmp/cautem-p8 logs "$NAME" >/dev/null
+          /tmp/quarshell-p8 gateway list | grep -q "$NAME"
+          /tmp/quarshell-p8 logs "$NAME" >/dev/null
           echo "P8 full smoke: PASS"
   p9:
     desc: P9 L7/policy smoke
@@ -497,7 +497,7 @@ tasks:
           go test -C "$ORG/quarshell-core" ./policy/ ./engine/ ./tofu/ -count=1
           go test -C "$ORG/quarshell-proxy" ./proxy/ -count=1
 
-          go build -C "$ORG/quarshell-cli" -o "$TMP/cautem" ./cmd/cautem
+          go build -C "$ORG/quarshell-cli" -o "$TMP/quarshell" ./cmd/quarshell
           go build -C "$ORG/quarshell-gateway" -o "$TMP/quarshell-gateway" ./cmd/quarshell-gateway
 
           LISTEN="127.0.0.1:17449"
@@ -603,20 +603,20 @@ tasks:
                 port: 443
           EOF
 
-          "$TMP/cautem" policy check "$TMP/l7-ok.yaml" >/dev/null
-          "$TMP/cautem" policy check "$TMP/l7-tls.yaml" >/dev/null
-          "$TMP/cautem" policy check "$TMP/l7-ws.yaml" >/dev/null
-          "$TMP/cautem" policy check "$TMP/l7-gql.yaml" >/dev/null
-          "$TMP/cautem" policy check "$TMP/l7-rego.yaml" >/dev/null
-          if "$TMP/cautem" policy check "$TMP/l7-bad.yaml" >/dev/null 2>&1; then
+          "$TMP/quarshell" policy check "$TMP/l7-ok.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$TMP/l7-tls.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$TMP/l7-ws.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$TMP/l7-gql.yaml" >/dev/null
+          "$TMP/quarshell" policy check "$TMP/l7-rego.yaml" >/dev/null
+          if "$TMP/quarshell" policy check "$TMP/l7-bad.yaml" >/dev/null 2>&1; then
             echo "expected fail-closed on 443 L7 without tls: terminate" >&2
             exit 1
           fi
 
-          "$TMP/cautem" gateway add local --url "http://$LISTEN"
-          "$TMP/cautem" gateway select local
-          "$TMP/cautem" policy global set "$TMP/global.yaml"
-          "$TMP/cautem" policy global get | grep -q global.example.com
+          "$TMP/quarshell" gateway add local --url "http://$LISTEN"
+          "$TMP/quarshell" gateway select local
+          "$TMP/quarshell" policy global set "$TMP/global.yaml"
+          "$TMP/quarshell" policy global get | grep -q global.example.com
 
           echo "P9 L7 smoke: PASS"
   workspace-io:
@@ -628,7 +628,7 @@ tasks:
           TMP="$(mktemp -d)"
           trap 'rm -rf "$TMP"' EXIT
 
-          N="${CAUTEM_IO_STORM_N:-200}"
+          N="${QUARSHELL_IO_STORM_N:-200}"
           echo "== host file storm (N=$N) =="
           mkdir -p "$TMP/storm"
           start=$(date +%s%N)

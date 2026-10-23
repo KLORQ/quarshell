@@ -1,6 +1,6 @@
 # Evidence status
 
-Generated from `matrix.yaml` by `tools/generate-evidence-report.py`.
+Generated from `matrix.yaml` by `tools/cmd/quarshell-tools evidence-report`.
 
 - Baseline: OpenShell v0.1.4
 - Upstream SHA: `5a7728c304b5528e954e9ae900cf21f84e1a12b1`

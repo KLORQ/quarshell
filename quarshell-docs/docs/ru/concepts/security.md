@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -18,10 +18,10 @@ SPDX-License-Identifier: Apache-2.0
 - Нет `docker.sock` в sandbox
 - Bind workspace с deny-list для `$HOME`, `~/.ssh`, `~/.aws`, `~/.cursor`
 - Default-deny сеть; allowlist из policy + composition провайдеров
-- Секреты как `cautem:resolve:env:…` с rewrite только на egress
+- Секреты как `quarshell:resolve:env:…` с rewrite только на egress
 - Default seccomp Docker; `no-new-privileges`; `CapDrop=NET_RAW`
-- Правила путей Landlock через `cautem-init` при ABI ≥ 1 (профиль соответствует доступному ABI до V5 или V7 при ABI ≥ 7; на Desktop часто ABI 0)
-- Kernel audit для отказов Landlock при ABI ≥ 7; события попадают в audit-подсистему Linux и автоматически не копируются в `cautem logs`
+- Правила путей Landlock через `quarshell-init` при ABI ≥ 1 (профиль соответствует доступному ABI до V5 или V7 при ABI ≥ 7; на Desktop часто ABI 0)
+- Kernel audit для отказов Landlock при ABI ≥ 7; события попадают в audit-подсистему Linux и автоматически не копируются в `quarshell logs`
 - При использовании OpenShell gRPC relay на Linux supervisor отправляет в gateway OCSF-наблюдения о запуске и выходе основного процесса и обнаруженных через `/proc` потомков. При включённой настройке `[openshell.gateway.ocsf_log]` Gateway также записывает эти наблюдения как OCSF Process Activity JSONL. `SIGCHLD` и `wait4` ускоряют локальное обнаружение выхода основного и усыновлённых supervisor процессов; опрос `/proc` каждые 250 мс остаётся резервным способом обнаружения. Relay отправляет события пачками с ожиданием до 25 мс. Сетевое время и повторные попытки всё ещё не позволяют гарантировать доставку в gateway за 250 мс. Короткие процессы, которые успевает собрать их родитель, и замены через `exec` могут быть пропущены. Записывается только basename executable, без argv и переменных окружения. Это не полный аудит процессов или файловой системы.
 
 Egress proxy один раз разрешает имя назначения, проверяет SSRF и `allowed_ips`,
@@ -30,7 +30,7 @@ proxy этот IP передаётся ему как CONNECT target, поэто�
 разрешения имени нет. Зарезервированные, loopback и link-local адреса остаются
 закрытыми даже при `allowed_ips` в политике. Сам upstream proxy остаётся частью
 доверенной сетевой границы. Значение
-`CAUTEM_PROXY_CONNECT_BY_HOSTNAME=true` отклоняется при использовании upstream
+`QUARSHELL_PROXY_CONNECT_BY_HOSTNAME=true` отклоняется при использовании upstream
 proxy, так как оно обходит проверенный IP.
 
 На Docker Desktop для macOS прокси может не получить достоверную идентичность

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -8,31 +8,40 @@ SPDX-License-Identifier: Apache-2.0
 With the CLI installed and the gateway running, create a sandbox for the
 project you want the agent to work on.
 
+Set `QUARSHELL_USE_GHCR=1` if you want the `base` alias to use the published
+Quarshell image, and save a policy file as shown in the [macOS](run-macos.md)
+or [Linux](run-linux.md) walkthrough. The commands below assume that file is
+`~/.config/quarshell/default-policy.yaml`.
+
 ## Create
 
 Create a Gateway managed sandbox:
 
 ```bash
-cautem sandbox create \
+quarshell sandbox create \
   --name demo \
   --gateway-workspace default \
-  --policy quarshell-cli/policies/default.yaml \
+  --from base \
+  --policy ~/.config/quarshell/default-policy.yaml \
+  --upload "$PWD" \
   --memory 2g
 ```
 
 | Flag | What it does |
 |------|--------------|
-| `--name` | OpenShell sandbox name |
+| `--name` | Sandbox name |
 | `--gateway-workspace` | Workspace on the selected Gateway |
-| `--policy` | OpenShell SandboxPolicy YAML |
+| `--from` | Image alias; `base` uses GHCR when `QUARSHELL_USE_GHCR=1` |
+| `--policy` | Sandbox policy YAML file |
+| `--upload` | Copy a local project directory into `/workspace` |
 | `--memory` | Sandbox memory limit |
 
 ## Work inside
 
 ```bash
-cautem sandbox list
-cautem sandbox exec demo -- uname -a
-cautem sandbox connect demo
+quarshell sandbox list
+quarshell sandbox exec demo -- uname -a
+quarshell sandbox connect demo
 ```
 
 `connect` opens an interactive shell inside the sandbox. A Gateway workspace
@@ -44,12 +53,13 @@ Optional. Secrets live in the gateway and never enter the sandbox — the agent
 only sees placeholders:
 
 ```bash
-GITHUB_TOKEN=… cautem provider create --name gh --type github --credential GITHUB_TOKEN
+GITHUB_TOKEN=… quarshell provider create --name gh --type github --credential GITHUB_TOKEN
 
-cautem sandbox create \
-  --name demo \
+quarshell sandbox create \
+  --name demo-with-gh \
   --gateway-workspace default \
-  --policy quarshell-cli/policies/default.yaml \
+  --from base \
+  --policy ~/.config/quarshell/default-policy.yaml \
   --provider gh
 ```
 
@@ -59,9 +69,9 @@ More: [Credential providers](../guides/credentials.md) ·
 ## Watch, stop, clean up
 
 ```bash
-cautem logs demo --tail --source proxy
-cautem sandbox stop demo
-cautem sandbox delete demo
+quarshell logs demo --tail --source proxy
+quarshell sandbox stop demo
+quarshell sandbox delete demo
 ```
 
 `delete` removes the sandbox, its proxy sidecar, network and data volumes.

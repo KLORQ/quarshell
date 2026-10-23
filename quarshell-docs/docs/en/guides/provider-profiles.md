@@ -1,12 +1,12 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Provider profiles
 
 Provider profiles package credential names, endpoint policy, binaries, and
-discovery rules into a reusable YAML document. cautem can import OpenShell
+discovery rules into a reusable YAML document. quarshell can import OpenShell
 profile examples into a gateway catalog and use those profiles when creating
 provider instances and composing sandbox policy.
 
@@ -17,8 +17,8 @@ by your sandbox. Upstream profiles are examples; review the permissions and
 paths before importing them.
 
 ```bash
-cautem profile lint --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/codex.yaml
-cautem profile lint -f ./providers/codex.yaml
+quarshell profile lint --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/codex.yaml
+quarshell profile lint -f ./providers/codex.yaml
 ```
 
 Lint checks the OpenShell schema and runtime features required by
@@ -31,11 +31,11 @@ credential works.
 Import one file, an HTTPS URL, or all supported YAML/JSON files in a directory:
 
 ```bash
-cautem profile import --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/openai.yaml
-cautem profile import -f ./providers/codex.yaml
-cautem profile import --from ./providers
-cautem profile list
-cautem profile describe codex -o yaml
+quarshell profile import --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/openai.yaml
+quarshell profile import -f ./providers/codex.yaml
+quarshell profile import --from ./providers
+quarshell profile list
+quarshell profile describe codex -o yaml
 ```
 
 Import creates a gateway catalog entry and fails if that ID already exists.
@@ -47,9 +47,9 @@ default. Use `provider create --global-profile` to use a profile from the global
 catalog; the new provider instance still belongs to the selected workspace.
 
 ```bash
-cautem profile export codex -o yaml > codex.yaml
+quarshell profile export codex -o yaml > codex.yaml
 # edit codex.yaml
-cautem profile update -f codex.yaml
+quarshell profile update -f codex.yaml
 ```
 
 ## Run Codex with an API key
@@ -90,11 +90,11 @@ endpoints:
 binaries: [/usr/local/bin/codex, /usr/bin/codex]
 YAML
 
-cautem profile lint -f codex-api.yaml
-cautem profile import -f codex-api.yaml
-CODEX_API_KEY=… cautem provider create --name codex --type codex-api --from-existing
+quarshell profile lint -f codex-api.yaml
+quarshell profile import -f codex-api.yaml
+CODEX_API_KEY=… quarshell provider create --name codex --type codex-api --from-existing
 
-cautem sandbox create \
+quarshell sandbox create \
   --name codex-work \
   --upload "$PWD" \
   --provider codex
@@ -111,11 +111,11 @@ OpenShell `oauth2_refresh_token` and `oauth2_client_credentials` profile
 refreshes are wired into provider creation. Refresh material is stored in the
 gateway's encrypted store, mapped response fields update their declared
 credential keys, and sandbox secret resolution refreshes an expiring token.
-The first rotation can also be requested with `cautem provider refresh
+The first rotation can also be requested with `quarshell provider refresh
 rotate NAME --credential-key ACCESS_TOKEN`.
 
 The upstream Codex OAuth fixture describes `CODEX_AUTH_*` credentials, but
-cautem does not acquire or refresh a ChatGPT login or implement Codex
+quarshell does not acquire or refresh a ChatGPT login or implement Codex
 workload identity federation. Token grants, AWS STS role assumption, Google
 service-account JWT, and SigV4 signing are also outside the current runtime.
 Profiles that request those features remain importable and exportable, while
@@ -128,7 +128,7 @@ workspace. Global catalog operations require the gateway's platform-admin
 role; workspace writes require a workspace admin or owner.
 
 ```bash
-cautem --workspace team-ml profile import -f codex-api.yaml
-cautem profile list --workspace team-ml
-cautem profile export codex-api --global -o yaml
+quarshell --workspace team-ml profile import -f codex-api.yaml
+quarshell profile list --workspace team-ml
+quarshell profile export codex-api --global -o yaml
 ```

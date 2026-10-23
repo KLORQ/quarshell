@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -24,5 +24,5 @@ workload template.
 Пример:
 
 ```bash
-cautem sandbox create --name worker --from cursor --cpu 2 --memory 4Gi --gpu 1
+quarshell sandbox create --name worker --from cursor --cpu 2 --memory 4Gi --gpu 1
 ```

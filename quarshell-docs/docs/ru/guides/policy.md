@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -11,8 +11,8 @@ credential-профилей дают effective allowlist, который enforci
 ## Set и get
 
 ```bash
-cautem policy get demo --full
-cautem policy set demo --policy /path/to/policy.yaml --wait
+quarshell policy get demo --full
+quarshell policy set demo --policy /path/to/policy.yaml --wait
 ```
 
 `--wait` ждёт, пока sidecar перечитает bind-mounted effective YAML.
@@ -20,7 +20,7 @@ cautem policy set demo --policy /path/to/policy.yaml --wait
 Сначала просмотрите результат incremental network policy update:
 
 ```bash
-cautem policy update demo --add-allow 'api.github.com:443,8443:GET:/repos/**' --rule-name github --binary /usr/bin/agent --dry-run
+quarshell policy update demo --add-allow 'api.github.com:443,8443:GET:/repos/**' --rule-name github --binary /usr/bin/agent --dry-run
 ```
 
 `--dry-run` читает текущую base policy, печатает объединённый YAML и не
@@ -29,9 +29,9 @@ cautem policy update demo --add-allow 'api.github.com:443,8443:GET:/repos/**' --
 Обновления только с удалением используют атомарный merge API Gateway:
 
 ```bash
-cautem policy update demo --remove-endpoint api.github.com:443
-cautem policy update demo --remove-rule github
-cautem policy update demo --add-endpoint api.example.com:443:read-only:rest --rule-name example-api --remove-rule old-api
+quarshell policy update demo --remove-endpoint api.github.com:443
+quarshell policy update demo --remove-rule github
+quarshell policy update demo --add-endpoint api.example.com:443:read-only:rest --rule-name example-api --remove-rule old-api
 ```
 
 `--add-endpoint`, L7 операции и удаления можно объединять атомарно. Для L7
@@ -58,9 +58,9 @@ endpoint. `--endpoint-path` выбирает endpoint с таким policy path 
 ## Цикл approve у оператора
 
 ```bash
-cautem rule get --status pending
-cautem rule approve --chunk-id chk_…
-# или: cautem rule reject --chunk-id chk_… --reason "narrow to /docs"
+quarshell rule get --status pending
+quarshell rule approve --chunk-id chk_…
+# или: quarshell rule reject --chunk-id chk_… --reason "narrow to /docs"
 ```
 
 Approve мержит правило в base policy sandbox, переписывает live policy file и
@@ -69,7 +69,7 @@ Approve мержит правило в base policy sandbox, переписыва
 ## Ключи схемы
 
 Документы policy используют `filesystem_policy`, `landlock` и
-`network_policies` (`quarshell-core/policy`). L7-правила могут задавать
+`network_policies` (`quarshell-policy/corepolicy`). L7-правила могут задавать
 `protocol: rest|graphql|mcp` с method/path/tool.
 
 ## Встроенная редактирующая middleware
@@ -100,4 +100,4 @@ severity, confidence и число совпадений. Ключ и исход�
 
 ## Связанное
 
-- Skill: `/etc/cautem/skills/policy-advisor`
+- Skill: `/etc/quarshell/skills/policy-advisor`

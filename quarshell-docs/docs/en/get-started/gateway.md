@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -44,5 +44,5 @@ to use SQLite. The `/v1/healthz` endpoint returns only `{"status":"ok"}`.
 The UI and Dex compose profiles are retained from the migration baseline but
 are not integrated with the current token-authenticated Gateway. See the
 [Gateway module README](https://github.com/KLORQ/quarshell/blob/master/quarshell-gateway/README.md)
-and [remaining migration work](https://github.com/KLORQ/quarshell/blob/master/plans/REMAINING.md)
+and [remaining migration work](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md)
 for current scope.

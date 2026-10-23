@@ -1,4 +1,4 @@
-# cautem control console
+# quarshell control console
 
 This is the browser console for the OpenShell Gateway Connect API. Sign in
 with OIDC, inspect workspace sandboxes and observed runtime status, manage
@@ -16,9 +16,13 @@ npm ci --prefix quarshell-ui
 npm run dev --prefix quarshell-ui
 ```
 
-Vite proxies `/v1/` HTTP/WebSocket and Connect requests to `https://127.0.0.1:7443`
-by default and accepts the local gateway's development certificate. Point it at
-another gateway with `CAUTEM_GATEWAY_TARGET`. This proxy setting is for local
+Set `VITE_OIDC_CLIENT_ID` to the public OIDC client ID for local development.
+`npm run test:e2e` builds the UI with its isolated fixture client ID.
+
+Vite proxies `/v1/` HTTP/WebSocket and Connect requests to the local
+`quarshell gateway ensure` endpoint at `https://127.0.0.1:17670` by default.
+It accepts the local gateway's development certificate. Point it at another
+gateway with `QUARSHELL_GATEWAY_TARGET`. This proxy setting is for local
 development only.
 
 Configure the gateway with its OIDC issuer and audience. Set
@@ -71,7 +75,7 @@ forwarding and scopes application cookies to the service path. The service
 session is never put in a URL.
 
 For a noVNC display, expose port `6080` with the **Expose noVNC** action or use
-`cautem service expose <sandbox> 6080 novnc`. The UI opens `vnc.html` and routes
+`quarshell service expose <sandbox> 6080 novnc`. The UI opens `vnc.html` and routes
 its WebSocket through the authenticated gateway path; the VNC password is not
 added to the URL. A password protected display may still prompt for its password
 inside noVNC. The service runs under a path prefix, so applications that build

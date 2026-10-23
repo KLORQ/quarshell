@@ -11,7 +11,7 @@
   <a href="https://github.com/KLORQ/quarshell-core"><img src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go" alt="Go Version"></a>
 </p>
 <p align="center">
-  <sub>Part of the <a href="https://github.com/KLORQ">cautem / cautem</a> ecosystem</sub>
+  <sub>Part of the <a href="https://github.com/KLORQ">quarshell / quarshell</a> ecosystem</sub>
 </p>
 
 ---
@@ -20,7 +20,7 @@
 
 Policy behavior and its security boundaries are documented in the [policy guide](https://klorq.github.io/sandbox.dev/guides/policy/) and [security reference](https://klorq.github.io/sandbox.dev/concepts/security/).
 
-**quarshell-core** is the shared policy library for cautem. Every data-plane and control-plane component evaluates egress and filesystem rules from this schema.
+**quarshell-core** is the shared policy library for quarshell. Every data-plane and control-plane component evaluates egress and filesystem rules from this schema.
 
 ### Key Features
 
@@ -29,7 +29,7 @@ Policy behavior and its security boundaries are documented in the [policy guide]
 | **Schema** | `filesystem_policy`, `landlock`, `network_policies`, inference, display, credentials |
 | **Engine** | Default-deny allowlist with L7 REST / GraphQL / MCP matching |
 | **Hosts** | Glob host patterns (`**.example.com`), ports, binaries, credential binding |
-| **Inference** | Builtin provider presets (`anthropic`, `openai`, `local` → `host.cautem.internal`) |
+| **Inference** | Builtin provider presets (`anthropic`, `openai`, `local` → `host.quarshell.internal`) |
 | **Safety** | Binary TOFU store, env placeholder expansion for guest inject |
 
 ---
@@ -50,8 +50,8 @@ package main
 import (
     "fmt"
 
-    "github.com/KLORQ/quarshell-core/engine"
-    "github.com/KLORQ/quarshell-core/policy"
+    "github.com/KLORQ/quarshell-policy/engine"
+    "github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 func main() {
@@ -95,4 +95,4 @@ func main() {
 
 ## License
 
-[Apache-2.0](./LICENSE) © cautem
+[Apache-2.0](./LICENSE) © quarshell

@@ -1,26 +1,26 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Создание sandbox (Gateway на Podman)
 
 ```bash
-cautem sandbox create \
+quarshell sandbox create \
   --name demo \
   --upload "$PWD" \
   --policy quarshell-cli/policies/default.yaml \
   --memory 2g
 
-cautem sandbox exec demo -- uname -a
-cautem sandbox delete demo
+quarshell sandbox exec demo -- uname -a
+quarshell sandbox delete demo
 ```
 
 С proxy и providers сначала выберите gateway:
 
 ```bash
-cautem gateway select local
-cautem sandbox create \
+quarshell gateway select local
+quarshell sandbox create \
   --name cursor \
   --from cursor \
   --upload "$PWD" \
@@ -30,5 +30,5 @@ cautem sandbox create \
   --memory 2g
 ```
 
-Настройте Podman на хосте Gateway. `CAUTEM_DRIVER=podman` в CLI не выбирает
+Настройте Podman на хосте Gateway. `QUARSHELL_DRIVER=podman` в CLI не выбирает
 compute driver удалённого Gateway. Сетевую policy применяет runtime Gateway.

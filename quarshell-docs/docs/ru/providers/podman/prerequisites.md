@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -9,12 +9,12 @@ SPDX-License-Identifier: Apache-2.0
 
 ```bash
 systemctl --user enable --now podman.socket
-export CAUTEM_DRIVER=podman
-# export CAUTEM_PODMAN_SOCKET=$XDG_RUNTIME_DIR/podman/podman.sock
+export QUARSHELL_DRIVER=podman
+# export QUARSHELL_PODMAN_SOCKET=$XDG_RUNTIME_DIR/podman/podman.sock
 # или: export DOCKER_HOST=unix:///run/user/$UID/podman/podman.sock
 
 podman info
-cautem status
+quarshell status
 ```
 
 ## macOS (Podman Machine)
@@ -22,8 +22,8 @@ cautem status
 ```bash
 podman machine init     # один раз
 podman machine start
-export CAUTEM_DRIVER=podman
-cautem status
+export QUARSHELL_DRIVER=podman
+quarshell status
 ```
 
 Discovery также смотрит
@@ -31,12 +31,12 @@ Discovery также смотрит
 
 ## Образы
 
-Те же теги, что у Docker (`cautem-sandbox:local`, `:cursor`, … или GHCR).
+Те же теги, что у Docker (`quarshell-sandbox:local`, `:cursor`, … или GHCR).
 Соберите через Docker tooling с загрузкой в store Podman, либо
 `podman pull` / `podman load`.
 
 ```bash
-podman images | grep cautem
+podman images | grep quarshell
 ```
 
 ## Gateway

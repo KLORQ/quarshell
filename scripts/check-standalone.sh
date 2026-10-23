@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2026 the cautem authors
+# SPDX-FileCopyrightText: Copyright (c) 2026 the quarshell authors
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
@@ -11,8 +11,8 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 modules=(
-  quarshell-proto quarshell-slogx quarshell-cli quarshell-core quarshell-display quarshell-driver
-  quarshell-gateway quarshell-providers quarshell-proxy quarshell-runtime
+  quarshell-proto quarshell-cli quarshell-core quarshell-driver quarshell-driver-vm
+  quarshell-gateway quarshell-policy quarshell-proxy quarshell-runtime
   quarshell-sdk
 )
 

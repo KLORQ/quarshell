@@ -28,4 +28,4 @@ if ! curl -sf "http://127.0.0.1:${PORT}/v1/sys/health" >/dev/null 2>&1; then
 fi
 
 QUARSHELL_VAULT_ADDR="http://127.0.0.1:${PORT}" QUARSHELL_VAULT_TOKEN=test \
-	go -C "$ROOT/quarshell-credentials" test -run TestVaultStoreIntegrationLive -count=1
+	go -C "$ROOT/quarshell-gateway" test ./credentialstore -run TestVaultStoreIntegrationLive -count=1

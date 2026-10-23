@@ -4,7 +4,7 @@
 
 Текущий workspace — частичная Go-реализация с широким API, но с неполным runtime и неоднородной доказательной базой. Продолжать измерять готовность числом зарегистрированных RPC недостаточно. Новый план должен начинаться с функциональной спецификации OpenShell, отдельных compute/isolation контрактов и проверяемых гарантий runtime.
 
-По требованию пользователя старый Quarshell/Cautem не становится обязательной основой. Новые модули реализуют нужное поведение напрямую; старые ветви, fallback-конфиги, dual readers и параллельные реализации удаляются при замене соответствующего компонента. Примеры тестовых сценариев могут служить материалом спецификации, но их результаты не переносятся автоматически на новый код.
+По требованию пользователя старый Quarshell/Quarshell не становится обязательной основой. Новые модули реализуют нужное поведение напрямую; старые ветви, fallback-конфиги, dual readers и параллельные реализации удаляются при замене соответствующего компонента. Примеры тестовых сценариев могут служить материалом спецификации, но их результаты не переносятся автоматически на новый код.
 
 ## 2. Что проверено
 
@@ -23,7 +23,7 @@
 
 ### R01 · P1 · Нет upstream-бюджета размера policy
 
-**Код:** [policy/parse.go](../../quarshell-core/policy/parse.go#L14), функции `Load` и `Parse`.
+**Код:** [policy/parse.go](../../quarshell-policy/corepolicy/parse.go#L14), функции `Load` и `Parse`.
 
 `Load` читает весь файл через `os.ReadFile`; `Parse` выполняет несколько YAML-разборов без общего лимита входа. В upstream `ParseLimits::default()` задаёт 4 MiB, depth 64, 300000 events, 100000 nodes, ограничение scalar bytes/aliases/keys/sequences.
 
@@ -65,7 +65,7 @@
 
 ### R05 · P1 · Реестр evidence противоречит рабочей копии
 
-**Код:** `quarshell-gateway/internal/httpapi/testdata/openshell_compatibility_matrix.json` и `openshell_compatibility_gaps.json`.
+**Историческое evidence:** на момент этого ревью compatibility matrix и gap register находились в `quarshell-gateway/internal/httpapi/testdata/`; эти артефакты удалены при перестройке inventory. Текущие источники: [`plans/inventory/features.yaml`](../inventory/features.yaml) и [`plans/REMAINING.md`](../../REMAINING.md). Старые выводы ниже описывают состояние на дату ревью и не являются актуальным machine-checked gate.
 
 Найдены пять ссылок на два отсутствующих файла: `remote_compute_engine_test.go` и `driver/backend_test.go`, в трёх feature rows. Текущий реестр упоминает compatibility adapter и отсутствие readiness/configuration handlers, хотя native Backend и соответствующие handlers уже присутствуют. В документации опубликованные зависимости названы падающим gate, а gap register помечает published standalone как verified.
 
@@ -133,7 +133,7 @@
 
 ### A03 · P2 · Нестабильное публичное именование
 
-Текущие документы требуют только `quarshell-*`, но в working tree остаются `cmd/cautem-init`, `go/cautem`, `CAUTEM_*`, `cautem_gateway_state`, прежний root README. Это наблюдаемое несоответствие заявленному release contract; само по себе оно не доказывает ошибку runtime.
+Текущие документы требуют только `quarshell-*`, но в working tree остаются `cmd/quarshell-init`, `go/quarshell`, `QUARSHELL_*`, `quarshell_gateway_state`, прежний root README. Это наблюдаемое несоответствие заявленному release contract; само по себе оно не доказывает ошибку runtime.
 
 Новая реализация получает одно имя при создании модулей. Исключения фиксируются явно: upstream wire identifiers и attribution. Старые aliases/env fallbacks/DB import не нужны по запросу пользователя.
 

@@ -1,5 +1,5 @@
 server {
-    listen ${CAUTEM_CONSOLE_LISTEN_PORT};
+    listen ${QUARSHELL_CONSOLE_LISTEN_PORT};
     server_name _;
     root /usr/share/nginx/html;
     index index.html;
@@ -24,19 +24,19 @@ server {
     }
 
     location = /healthz {
-        proxy_pass http://${CAUTEM_GATEWAY_UPSTREAM};
+        proxy_pass http://${QUARSHELL_GATEWAY_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;
     }
 
     location = /auth/oidc-config {
-        proxy_pass http://${CAUTEM_GATEWAY_UPSTREAM};
+        proxy_pass http://${QUARSHELL_GATEWAY_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;
     }
 
-    location ~ ^/(v1/|cautem\.control\.v1\.) {
-        proxy_pass http://${CAUTEM_GATEWAY_UPSTREAM};
+    location ~ ^/(v1/|quarshell\.control\.v1\.) {
+        proxy_pass http://${QUARSHELL_GATEWAY_UPSTREAM};
         proxy_http_version 1.1;
         proxy_buffering off;
         proxy_read_timeout 3600s;

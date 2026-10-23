@@ -196,7 +196,7 @@ async function mockGateway(page: Page, restoreSession = true) {
   await page.route("**/auth/oidc-config", (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ issuer, audience: "cautem-test" }),
+    body: JSON.stringify({ issuer, audience: "quarshell-test" }),
   }));
 
   await page.route("**/openshell.v1.OpenShell/**", async (route) => {

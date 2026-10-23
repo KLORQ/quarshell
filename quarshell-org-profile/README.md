@@ -1,5 +1,4 @@
-# cautem/.github
+# KLORQ organization profile
 
-Organization profile and shared GitHub metadata for [cautem](https://github.com/KLORQ).
-
-The profile README rendered on the organization home lives at [`profile/README.md`](./profile/README.md).
+Organization profile and shared GitHub metadata for Quarshell. The rendered
+profile lives in [`profile/README.md`](./profile/README.md).

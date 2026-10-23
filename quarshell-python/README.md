@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <sub>Part of the <a href="https://github.com/KLORQ">cautem</a> ecosystem</sub>
+  <sub>Part of the <a href="https://github.com/KLORQ">quarshell</a> ecosystem</sub>
 </p>
 
 ---
@@ -119,7 +119,7 @@ with Client("https://gateway.example") as client:
             print(f"exit: {event.exit_code}")
 ```
 
-Set `CAUTEM_GATEWAY_TOKEN` or pass `token="…"` to `Client` when the
+Set `QUARSHELL_GATEWAY_TOKEN` or pass `token="…"` to `Client` when the
 gateway requires bearer authentication. RPC failures are raised as `grpc.RpcError`;
 the health probe uses `httpx` exceptions.
 
@@ -234,9 +234,9 @@ The wheel includes partial PEP 561 typing metadata and generated protocol stubs.
 | Resource | Link |
 |----------|------|
 | Organization | [https://github.com/KLORQ](https://github.com/KLORQ) |
-| Go SDK | [cautem/quarshell-sdk](https://github.com/KLORQ/quarshell-sdk) |
-| Gateway | [cautem/quarshell-gateway](https://github.com/KLORQ/quarshell-gateway) |
+| Go SDK | [quarshell/quarshell-sdk](https://github.com/KLORQ/quarshell-sdk) |
+| Gateway | [quarshell/quarshell-gateway](https://github.com/KLORQ/quarshell-gateway) |
 
 ## License
 
-Apache-2.0 © cautem
+Apache-2.0 © quarshell

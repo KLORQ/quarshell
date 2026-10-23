@@ -1,15 +1,18 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Архитектура и границы модулей
 
+Назначение каждого независимого модуля перечислено в разделе
+[Модули проекта](modules.md).
+
 Принятое решение, задающее эти контракты, записано в
 [ADR 0001: доменная модель и compute backend SPI](decisions/0001-domain-and-backend-spi.md).
 
 Quarshell — название продукта. Активные Go module paths используют namespace
-`quarshell-*`; имя команды `cautem` сохранено как продуктовое имя CLI.
+`quarshell-*`; имя команды `quarshell` сохранено как продуктовое имя CLI.
 
 ```mermaid
 flowchart LR
@@ -38,12 +41,12 @@ flowchart LR
 | `quarshell-driver` | Compute SPI и реализации Docker, Podman, MicroVM | Core, контракты runtime assets, клиенты engine |
 | `quarshell-runtime` | Guest init, supervisor, SSH/PTY, guest protocol | Core и runtime assets |
 | `quarshell-proxy` | Egress enforcement, credential mediation, audit | Core policy и runtime protocol |
-| `quarshell-providers` | Provider profiles, credential declarations, refresh validation | Core policy |
+| `quarshell-policy` | Provider profiles, credential declarations, refresh validation | Core policy |
 | `quarshell-gateway` | Сборка API, auth, durable state, оркестрация операций | Core, proto, driver, runtime, proxy, providers |
 | `quarshell-sdk` и `quarshell-python` | Типизированные API clients и streaming helpers | Публичные API schemas |
 | `quarshell-cli` | Команды, terminal presentation, shell completions | SDK и terminal libraries |
 | `quarshell-ui` | Browser presentation и browser-safe client | Typed browser client и gateway API |
-| `quarshell-display`, `quarshell-slogx`, `quarshell-docs` | Display, logging utility, документация | Узкие публичные интерфейсы |
+| `quarshell-cli`, `quarshell-core/slogx`, `quarshell-docs` | Display, logging utility, документация | Узкие публичные интерфейсы |
 
 Зависимости идут в одну сторону: API clients вызывают gateway; gateway выбирает
 и проверяет backend; backend использует runtime и host engine. Gateway не

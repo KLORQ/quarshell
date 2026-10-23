@@ -132,8 +132,8 @@ func SecretsForEndpoint(secrets SecretStore, boundKeys, usedKeys []string) (Secr
 // controlPlaneKeys are gateway credentials of the sidecar itself; a sandbox
 // placeholder must never resolve them into outbound traffic.
 var controlPlaneKeys = map[string]struct{}{
-	"CAUTEM_SANDBOX_TOKEN": {},
-	"CAUTEM_GATEWAY_TOKEN": {},
+	"QUARSHELL_SANDBOX_TOKEN": {},
+	"QUARSHELL_GATEWAY_TOKEN": {},
 }
 
 // LoadSecretsFromEnviron builds a store from KEY=VAL entries (skips passthrough
@@ -338,7 +338,7 @@ func rewriteHeaderValue(value string, secrets SecretStore) (string, error) {
 	if secret, ok := resolveExact(trimmed, secrets); ok {
 		return secret, nil
 	}
-	// Prefixed: Bearer cautem:resolve:env:KEY
+	// Prefixed: Bearer quarshell:resolve:env:KEY
 	if i := strings.IndexFunc(trimmed, func(r rune) bool { return r == ' ' || r == '\t' }); i > 0 {
 		prefix := trimmed[:i]
 		cand := strings.TrimSpace(trimmed[i:])

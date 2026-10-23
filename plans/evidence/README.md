@@ -28,8 +28,8 @@ The latest standalone dependency check and its checksum mismatch are recorded
 in [`runs/published-dependency-gate-2026-10-22.md`](runs/published-dependency-gate-2026-10-22.md).
 
 ```bash
-python3 tools/check-evidence-matrix.py
-python3 tools/generate-evidence-report.py --check
+task evidence:check
+task evidence:report-check
 ```
 
 Валидатор блокирует дубли, неизвестные feature IDs, неполный `pass`, битые

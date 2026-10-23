@@ -1,14 +1,14 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Docker provider
 
 A **compute provider** is the engine that runs the sandbox and its egress
-proxy. It is picked with `CAUTEM_DRIVER` and shown by `cautem status`.
+proxy. It is picked with `QUARSHELL_DRIVER` and shown by `quarshell status`.
 
-| Provider | `CAUTEM_DRIVER` | Status |
+| Provider | `QUARSHELL_DRIVER` | Status |
 |----------|---------------------|--------|
 | Docker Engine 28.0+ on Linux | `docker` | <span class="ws-badge ws-badge--ok">supported, default</span> |
 | Docker Desktop on macOS/Windows | `docker` | <span class="ws-badge ws-badge--ok">beta</span> |
@@ -17,7 +17,7 @@ proxy. It is picked with `CAUTEM_DRIVER` and shown by `cautem status`.
 | [Kubernetes](../kubernetes.md) | `kubernetes` | <span class="ws-badge ws-badge--soon">coming soon</span> |
 | [MicroVM](../microvm.md) | `vm` | <span class="ws-badge ws-badge--soon">coming soon</span> |
 
-Docker is the default. cautem talks to the local Engine API
+Docker is the default. quarshell talks to the local Engine API
 (`DOCKER_HOST` / Desktop socket), creates an internal network per sandbox,
 starts an egress proxy sidecar, then starts the sandbox container.
 
@@ -38,19 +38,19 @@ platform. Kubernetes and MicroVM are not production providers in this release.
 
 ```text
 host Docker Engine
-├── cautem-<name>              sandbox (agent image)
+├── quarshell-<name>              sandbox (agent image)
 ├── quarshell-proxy-<name>        egress sidecar (slim base)
-├── cautem-net-<name>          internal network
-├── cautem-data-<name>         optional data volume
-└── cautem-ca-<name>           MITM CA volume (when proxy enabled)
+├── quarshell-net-<name>          internal network
+├── quarshell-data-<name>         optional data volume
+└── quarshell-ca-<name>           MITM CA volume (when proxy enabled)
 ```
 
 ## Activate
 
 ```bash
-unset CAUTEM_DRIVER          # or: export CAUTEM_DRIVER=docker
-cautem doctor
-cautem status
+unset QUARSHELL_DRIVER          # or: export QUARSHELL_DRIVER=docker
+quarshell doctor
+quarshell status
 ```
 
 Expect `driver: docker` in status output.
@@ -73,7 +73,7 @@ forward proxy. Recreate the sandbox proxy after rotating the bundle.
 For rootless engines whose UID/GID mapping changes, `reconcile_data_ownership`
 can be enabled in the Docker compute-driver configuration. When enabled for a
 sandbox with persistent data, the privileged init process reassigns entries in
-the dedicated `/cautem/data` volume to the sandbox user at startup. This is
+the dedicated `/quarshell/data` volume to the sandbox user at startup. This is
 off by default, can take time on large volumes, and does not touch the workspace
 bind mount.
 

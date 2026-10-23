@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package quarshell.runtime.v1;
+
+option go_package = "github.com/KLORQ/quarshell-proto/gen/go/quarshell/runtime/v1;runtimev1";
+
+// MainProcessService exposes Quarshell's retained canonical-process handles.
+// It is an additive runtime extension; the pinned OpenShell wire contract is
+// left unchanged.
+service MainProcessService {
+  rpc AttachTTY(stream MainProcessServiceAttachTTYRequest) returns (stream MainProcessServiceAttachTTYResponse);
+  rpc Signal(MainProcessServiceSignalRequest) returns (MainProcessServiceSignalResponse);
+}
+
+enum MainProcessSignal {
+  MAIN_PROCESS_SIGNAL_UNSPECIFIED = 0;
+  MAIN_PROCESS_SIGNAL_TERMINATE = 1;
+  MAIN_PROCESS_SIGNAL_KILL = 2;
+  MAIN_PROCESS_SIGNAL_INTERRUPT = 3;
+  MAIN_PROCESS_SIGNAL_HANGUP = 4;
+}
+
+message MainProcessServiceSignalRequest {
+  string workspace = 1;
+  string sandbox = 2;
+  MainProcessSignal signal = 3;
+}
+
+message MainProcessServiceSignalResponse {}
+
+message MainProcessTTYStart {
+  string workspace = 1;
+  string sandbox = 2;
+  uint32 cols = 3;
+  uint32 rows = 4;
+  bool non_tty = 5;
+}
+
+message MainProcessTTYResize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message MainProcessServiceAttachTTYRequest {
+  oneof payload {
+    MainProcessTTYStart start = 1;
+    bytes stdin = 2;
+    MainProcessTTYResize resize = 3;
+  }
+}
+
+message MainProcessServiceAttachTTYResponse {
+  oneof payload {
+    bytes stdout = 1;
+    int32 exit_code = 2;
+    bytes stderr = 3;
+  }
+}

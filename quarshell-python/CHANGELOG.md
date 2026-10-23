@@ -54,11 +54,11 @@
 
 ### Changed
 
-- Rename the installable package and SDK imports to `cautem`.
+- Rename the installable package and SDK imports to `quarshell`.
 
 ### Changed
 
-- Move overview, sandbox CRUD, and command execution from REST endpoints to native `cautem.control.v1` and pinned OpenShell gRPC clients. The beta Python API now requires sandbox images for create operations.
+- Move overview, sandbox CRUD, and command execution from REST endpoints to native `quarshell.control.v1` and pinned OpenShell gRPC clients. The beta Python API now requires sandbox images for create operations.
 - Check in reproducible generated Python protobuf/gRPC clients and declare their runtime dependencies.
 - Retain HTTP only for the unauthenticated health probe.
 

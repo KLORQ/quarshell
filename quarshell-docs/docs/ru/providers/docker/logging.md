@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -16,9 +16,9 @@ Sandbox и proxy используют Docker `json-file` с ротацией:
 | `max-file` | `3` |
 
 ```bash
-export CAUTEM_DOCKER_LOG_DRIVER=json-file   # или none
-export CAUTEM_DOCKER_LOG_MAX_SIZE=10m
-export CAUTEM_DOCKER_LOG_MAX_FILE=3
+export QUARSHELL_DOCKER_LOG_DRIVER=json-file   # или none
+export QUARSHELL_DOCKER_LOG_MAX_SIZE=10m
+export QUARSHELL_DOCKER_LOG_MAX_FILE=3
 ```
 
 `none` отключает Engine-логи, если достаточно observation в gateway.
@@ -43,5 +43,5 @@ sandbox, которым управляет CLI, он сохраняет посл
 архив. Для live-потока используйте:
 
 ```bash
-cautem logs demo --tail --source proxy
+quarshell logs demo --tail --source proxy
 ```

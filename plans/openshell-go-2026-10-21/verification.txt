@@ -13,7 +13,7 @@ GOTOOLCHAIN=local
 Directory: quarshell-core
 Command: go test ./policy
 Result: PASS
-Output: ok github.com/cautem/quarshell-core/policy 0.401s
+Output: ok github.com/quarshell/quarshell-policy/corepolicy 0.401s
 
 2. Independent policy probe
 Directory: quarshell-core (existing workspace resolves current source)
@@ -41,7 +41,7 @@ Result: PASS
 TestCompatRPCInventoryMatchesPinnedServiceAndHandlers: PASS (0.05s)
 TestWatchSandboxReplaysTailAndStreamsLiveLogs: PASS (0.03s)
 TestWatchSandboxStopsOnReadyAndStreamsLocalLifecycleEvents: PASS (0.28s)
-ok github.com/cautem/quarshell-gateway/internal/httpapi 0.731s
+ok github.com/quarshell/quarshell-gateway/internal/httpapi 0.731s
 
 5. Standalone design examples
 Directory: examples/design in this artifact

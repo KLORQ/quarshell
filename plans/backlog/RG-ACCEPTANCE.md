@@ -125,7 +125,7 @@
 
 - **Решение:** одно имя Quarshell; upstream wire identifiers и attribution —
   единственные исключения.
-- **Приёмка:** в новом коде нет `cautem-*`, `CAUTEM_*`, старых env fallback.
+- **Приёмка:** в новом коде нет `quarshell-*`, `QUARSHELL_*`, старых env fallback.
 - **Этап:** M1/M8. **Статус:** `unverified`.
 
 ### A04 — platform matrix

@@ -1,5 +1,3 @@
-// Package proxy implements mandatory egress (CONNECT + HTTP L7 + TLS terminate).
-// Process logs use github.com/KLORQ/quarshell-slogx via quarshell-runtime/internal/logging when wired
-// by the CLI/sidecar entrypoint (App.Proxy); audit lines remain OCSF shorthand
-// on the audit writer.
+// Package proxy implements Quarshell's policy-enforced egress proxy, including
+// HTTP CONNECT handling, HTTP filtering, and TLS termination.
 package proxy

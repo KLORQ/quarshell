@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"unicode/utf8"
 
-	"github.com/KLORQ/quarshell-core/openshell"
+	"github.com/KLORQ/quarshell-proto/compat/openshell"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 

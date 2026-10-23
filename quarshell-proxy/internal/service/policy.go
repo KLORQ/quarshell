@@ -4,7 +4,7 @@ package service
 import (
 	"context"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 // PolicySource loads the active egress policy document.

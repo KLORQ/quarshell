@@ -208,7 +208,7 @@ func (a *App) templateGatewayTarget() (url, workspace string, err error) {
 		return "", "", err
 	}
 	if url == "" {
-		return "", "", fmt.Errorf("no Gateway selected (use cautem gateway select or --gateway URL)")
+		return "", "", fmt.Errorf("no Gateway selected (use quarshell gateway select or --gateway URL)")
 	}
 	_, workspace = a.profileScope()
 	if workspace == "" {
@@ -247,7 +247,7 @@ func writeJSON(value any) error {
 	return err
 }
 
-// mergeTemplateIntoCreate applies template defaults before CLI flags (template first).
+// mergeTemplateIntoCreate applies saved workload defaults before CLI options.
 func mergeTemplateIntoCreate(opt *SandboxCreateOpts, tpl templates.Template) {
 	if tpl.Image != "" && opt.Image == "" {
 		opt.Image = tpl.Image
@@ -278,9 +278,9 @@ func mergeTemplateIntoCreate(opt *SandboxCreateOpts, tpl templates.Template) {
 		if opt.Env == nil {
 			opt.Env = map[string]string{}
 		}
-		for k, v := range tpl.Env {
-			if _, ok := opt.Env[k]; !ok {
-				opt.Env[k] = v
+		for key, value := range tpl.Env {
+			if _, exists := opt.Env[key]; !exists {
+				opt.Env[key] = value
 			}
 		}
 	}
@@ -288,9 +288,9 @@ func mergeTemplateIntoCreate(opt *SandboxCreateOpts, tpl templates.Template) {
 		if opt.Labels == nil {
 			opt.Labels = map[string]string{}
 		}
-		for k, v := range tpl.Labels {
-			if _, ok := opt.Labels[k]; !ok {
-				opt.Labels[k] = v
+		for key, value := range tpl.Labels {
+			if _, exists := opt.Labels[key]; !exists {
+				opt.Labels[key] = value
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -45,4 +45,4 @@ go -C quarshell-gateway run ./cmd/quarshell-gateway \
 Профили UI и Dex сохранены из базового проекта, но не подключены к текущему
 Gateway с token-аутентификацией. Текущий scope описан в
 [README модуля Gateway](https://github.com/KLORQ/quarshell/blob/master/quarshell-gateway/README.md)
-и [списке оставшейся работы](https://github.com/KLORQ/quarshell/blob/master/plans/REMAINING.md).
+и [списке оставшейся работы](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md).

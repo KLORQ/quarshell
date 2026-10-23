@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -120,7 +120,7 @@ ui/                    browser application and typed browser API client
 ```
 
 These are ownership boundaries, not a requirement that every repository be
-split immediately. Current repository and Go module paths still use Cautem
+split immediately. Current repository and Go module paths still use Quarshell
 names; their staged rename and release order is documented in the
 [rename and release plan](../../reference/renaming-and-release.md).
 

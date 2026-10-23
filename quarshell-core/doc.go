@@ -1,4 +1,4 @@
-// Package core holds shared identity and error primitives for cautem modules.
+// Package core provides shared identity and error primitives for Quarshell.
 package core
 
 // ID is an opaque sandbox or resource identifier.

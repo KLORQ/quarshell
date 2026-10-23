@@ -3,7 +3,7 @@ status: soon
 ---
 
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Что планируется
 
-- Песочницы запускаются как pod'ы, выбор — `CAUTEM_DRIVER=kubernetes`.
+- Песочницы запускаются как pod'ы, выбор — `QUARSHELL_DRIVER=kubernetes`.
 - Gateway поставляется Helm-чартом: постоянное хранилище, ServiceAccount,
   NetworkPolicy, Ingress и опционально OIDC.
 - Те же политики, прокси и credential-провайдеры, что и на Docker.

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 // parseMCPRequest extracts JSON-RPC method and optional tools/call name from an HTTP body.

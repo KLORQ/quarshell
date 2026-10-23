@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: Copyright (c) 2026 the cautem authors
+# SPDX-FileCopyrightText: Copyright (c) 2026 the quarshell authors
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
@@ -16,9 +16,9 @@ docker info >/dev/null 2>&1 || {
   exit 1
 }
 
-goreleaser_image="${CAUTEM_GORELEASER_IMAGE:-goreleaser/goreleaser:v2.12.7@sha256:a2a47c0dda85f8d40eaaa5b9765bf76c69addb6060666f8a51441410d9b008e9}"
-syft_image="${CAUTEM_SYFT_IMAGE:-anchore/syft@sha256:0356562f495d432056237fbea5cbc2d4839c9c75cd500784a66de2e7cc95ca7c}"
-sbom_version="${CAUTEM_RELEASE_VERSION:-0.0.0-dev}"
+goreleaser_image="${QUARSHELL_GORELEASER_IMAGE:-goreleaser/goreleaser:v2.12.7@sha256:a2a47c0dda85f8d40eaaa5b9765bf76c69addb6060666f8a51441410d9b008e9}"
+syft_image="${QUARSHELL_SYFT_IMAGE:-anchore/syft@sha256:0356562f495d432056237fbea5cbc2d4839c9c75cd500784a66de2e7cc95ca7c}"
+sbom_version="${QUARSHELL_RELEASE_VERSION:-0.0.0-dev}"
 
 run_goreleaser() {
   if command -v goreleaser >/dev/null 2>&1; then
@@ -56,12 +56,12 @@ trap cleanup EXIT
 
 echo "== build release archive inputs =="
 mkdir -p "$work/archive"
-CGO_ENABLED=0 go build -C quarshell-cli -o "$work/archive/cautem" ./cmd/cautem
+CGO_ENABLED=0 go build -C quarshell-cli -o "$work/archive/quarshell" ./cmd/quarshell
 CGO_ENABLED=0 go build -C quarshell-gateway -o "$work/archive/quarshell-gateway" ./cmd/quarshell-gateway
 cp LICENSE NOTICE "$work/archive/"
-tar -C "$work" -czf "$work/cautem-linux-amd64.tar.gz" archive
-tar -tzf "$work/cautem-linux-amd64.tar.gz" | grep -qx 'archive/LICENSE'
-tar -tzf "$work/cautem-linux-amd64.tar.gz" | grep -qx 'archive/NOTICE'
+tar -C "$work" -czf "$work/quarshell-linux-amd64.tar.gz" archive
+tar -tzf "$work/quarshell-linux-amd64.tar.gz" | grep -qx 'archive/LICENSE'
+tar -tzf "$work/quarshell-linux-amd64.tar.gz" | grep -qx 'archive/NOTICE'
 
 echo "== build gateway image =="
 docker build --pull=false -f quarshell-gateway/Dockerfile -t "$image" .
@@ -78,15 +78,15 @@ docker run --rm --entrypoint sh "$image" -ceu '
 '
 
 echo "== generate SBOM =="
-run_syft "dir:/src" --source-name cautem --source-version "$sbom_version" -o cyclonedx-json=/out/cautem.sbom.json
-test -s "$work/cautem.sbom.json"
-python3 - "$work/cautem.sbom.json" "$sbom_version" <<'PY'
+run_syft "dir:/src" --source-name quarshell --source-version "$sbom_version" -o cyclonedx-json=/out/quarshell.sbom.json
+test -s "$work/quarshell.sbom.json"
+python3 - "$work/quarshell.sbom.json" "$sbom_version" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as sbom_file:
     component = json.load(sbom_file).get("metadata", {}).get("component", {})
-expected = {"name": "cautem", "version": sys.argv[2]}
+expected = {"name": "quarshell", "version": sys.argv[2]}
 actual = {key: component.get(key) for key in expected}
 if actual != expected:
     raise SystemExit(f"SBOM source identity {actual!r} does not match {expected!r}")

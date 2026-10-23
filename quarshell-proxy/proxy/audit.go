@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KLORQ/quarshell-core/slogx"
 	"github.com/KLORQ/quarshell-proxy/proxy/middleware"
-	"github.com/KLORQ/quarshell-slogx"
 )
 
 // auditEvent is an internal security / lifecycle decision from the proxy.

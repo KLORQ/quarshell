@@ -17,7 +17,7 @@ remaining release gates.
 | GPU/VFIO | GPU host | CDI/passthrough allocation and release | OS-GPU |
 | Credentials | macOS Docker | Vault/Postgres/SPIRE integration profiles | OS-CRED-API, OS-CRED-DRIVERS, OS-TOKEN |
 | Release | macOS + signing hosts | `task release:dry-run`, images, SBOM, signatures, clean install | OS-DISTRIBUTION |
-| Evidence promotion | CI | `python3 tools/check-evidence-matrix.py`, `python3 tools/generate-evidence-report.py --check` | all rows |
+| Evidence promotion | CI | `task evidence:check`, `task evidence:report-check` | all rows |
 
 Local macOS substitutes:
 

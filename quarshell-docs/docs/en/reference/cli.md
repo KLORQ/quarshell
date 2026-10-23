@@ -1,22 +1,22 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # CLI surface
 
 ```text
-cautem sandbox create|list|get|stop|start|delete|exec|connect|upload|download|…
-cautem cp <local-path> <sandbox>:/path | <sandbox>:/path <local-path>
-cautem sandbox template create|list|get|delete
-cautem sandbox provider …
-cautem provider create|list|get|refresh|update|delete|profile …
-cautem profile …
-cautem gateway add|select|ensure|info|login|…
-cautem policy get|set|…
-cautem rule get|approve|reject|…
-cautem workspace|forward|service|settings|whoami|logs|term
-cautem health|init|doctor|status|version|install|completions|ssh-proxy
+quarshell sandbox create|list|get|stop|start|delete|exec|connect|upload|download|…
+quarshell cp <local-path> <sandbox>:/path | <sandbox>:/path <local-path>
+quarshell sandbox template create|list|get|delete
+quarshell sandbox provider …
+quarshell provider create|list|get|refresh|update|delete|profile …
+quarshell profile …
+quarshell gateway add|select|ensure|info|login|…
+quarshell policy get|set|…
+quarshell rule get|approve|reject|…
+quarshell workspace|forward|service|settings|whoami|logs|term
+quarshell health|init|doctor|status|version|install|completions|ssh-proxy
 ```
 
 `--gateway-endpoint URL` selects a Gateway directly, without resolving a
@@ -29,20 +29,20 @@ Repeat `-v` or `--verbose` to enable debug logging.
 default; in `auto` mode non-empty `NO_COLOR` disables styling and non-empty
 `FORCE_COLOR` enables it when `NO_COLOR` is unset.
 
-`cautem forward service --target-port PORT [--target-host HOST] [--local
+`quarshell forward service --target-port PORT [--target-host HOST] [--local
 [BIND:]PORT] [SANDBOX]` opens a local TCP listener to a sandbox loopback
 service. The target host defaults to `127.0.0.1`; `--local 0` requests an
 OS-assigned local port.
 
-`cautem provider list [--page-size N] [--page-token TOKEN]
+`quarshell provider list [--page-size N] [--page-token TOKEN]
 [--label-selector EXPR] [--all-workspaces] [-o table|yaml|json]` returns one
 Gateway page. Pass `next_page_token` as `--page-token`; all-workspace listing
 requires a platform administrator. Provider credentials remain redacted.
-`cautem provider list-profiles [--workspace NAME|--global] [--page-size N]
+`quarshell provider list-profiles [--workspace NAME|--global] [--page-size N]
 [--page-token TOKEN] [-o table|yaml|json]` pages through the selected profile
 catalog; `provider profile list` accepts the same options.
 
-`cautem term --theme auto|dark|light` selects the TUI accent palette;
+`quarshell term --theme auto|dark|light` selects the TUI accent palette;
 `QUARSHELL_THEME` sets the default. `auto` uses `COLORFGBG` when available and
 falls back to dark.
 
@@ -61,11 +61,11 @@ falls back to dark.
 | `--expose-authorization-mode strip|bearer-passthrough` | Choose how the service proxy handles application Bearer authorization |
 | `--gpu` | NVIDIA CDI devices |
 
-`cautem sandbox create --help` lists the accepted create flags. Creation always
+`quarshell sandbox create --help` lists the accepted create flags. Creation always
 uses the selected Gateway and OpenShell `CreateSandbox` RPC. Local build,
 display, bind-mount, and Engine-specific create flags are not accepted. Each
 `sandbox` leaf has its own help route; run
-`cautem sandbox <leaf> --help` for its accepted arguments.
+`quarshell sandbox <leaf> --help` for its accepted arguments.
 
 Use `--gateway-workspace NAME` to select the target workspace. Image based
 creates accept CPU, memory, GPU count, environment, labels, provider attachments,
@@ -75,7 +75,7 @@ workload settings and rejects inline overrides. `--from` also accepts a local
 machine and its compute driver supports rootfs staging. A foreground command
 runs through native interactive exec after provisioning; `--detach` leaves it
 running in the Gateway. Use
-`cautem sandbox connect NAME --editor vscode|cursor` to open a remote IDE.
+`quarshell sandbox connect NAME --editor vscode|cursor` to open a remote IDE.
 
 `--expose PORT` keeps the sandbox supervisor available. Gateway
 creation sends the exposure with the sandbox request and asks the Gateway to
@@ -85,13 +85,13 @@ cleanup; a cleanup failure is reported for reconciliation.
 one syntactically valid Bearer header to the service.
 
 Repeat `--forward PORT` during create to start a background local TCP forward
-after provisioning. `cautem forward start [BIND:]PORT SANDBOX` uses the native
+after provisioning. `quarshell forward start [BIND:]PORT SANDBOX` uses the native
 OpenShell `ForwardTcp` relay to a sandbox loopback port; `--forward` uses the
 same port on the local and sandbox sides.
 
 The SSH helper invoked by generated `sandbox ssh-config` entries supports the
 current gateway shorthand, a named gateway, and an explicit gateway URL with a
-sandbox token. Run `cautem ssh-proxy --help` for the exact forms.
+sandbox token. Run `quarshell ssh-proxy --help` for the exact forms.
 
 Host bind mounts, local image builds, display, and local runtime toggles are not
 part of the OpenShell Gateway create contract. `--upload` streams files through
@@ -153,7 +153,7 @@ Workspace member listing also returns one page and accepts its continuation toke
 
 ## Settings
 
-`cautem settings get [SANDBOX] [--global] [--json]` reads effective settings
+`quarshell settings get [SANDBOX] [--global] [--json]` reads effective settings
 for the last-used sandbox or a named sandbox; `--global` reads Gateway-wide
 settings and does not accept a sandbox name. `settings set [SANDBOX] --key
 KEY --value VALUE` and `settings delete [SANDBOX] --key KEY` update or remove
@@ -162,7 +162,7 @@ setting. Values are checked against OpenShell's registered keys and types.
 
 ## Service endpoints
 
-Use `cautem service expose SANDBOX PORT [NAME] [--authorization-mode strip|bearer-passthrough]`,
+Use `quarshell service expose SANDBOX PORT [NAME] [--authorization-mode strip|bearer-passthrough]`,
 `service list [SANDBOX] [--page-size N] [--page-token TOKEN] [--all-workspaces] [-o table|yaml|json]`, and `service get|delete SANDBOX [NAME]`. Service listing returns one cursor page; table output prints its next token, while JSON/YAML include `next_page_token`. `--all-workspaces` requires a platform administrator and overrides the selected workspace. The current
 gateway defaults to `strip`, which removes application Authorization headers
 before proxying. `bearer-passthrough` forwards one syntactically valid Bearer
@@ -173,7 +173,7 @@ and workspace metadata, domain status, and authorization mode.
 
 ## Terminal browser
 
-`cautem term` refreshes the sandbox inventory every two seconds. Use `↑`/`↓`
+`quarshell term` refreshes the sandbox inventory every two seconds. Use `↑`/`↓`
 or `j`/`k` to select a sandbox, `/` to filter by name/status/image, and `d` to
 view details. Press `enter` or `c` to connect, `e` for an interactive shell,
 `s` to stop a running sandbox, or `S` to start a stopped sandbox. Press `x` and

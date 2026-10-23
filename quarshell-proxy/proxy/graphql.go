@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 const defaultGraphQLMaxBodyBytes = 64 << 10

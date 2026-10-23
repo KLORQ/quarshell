@@ -1,11 +1,11 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# cautem documentation
+# Quarshell documentation
 
-Shared documentation for all cautem modules, built with
+User and engineering documentation for the independent Quarshell modules, built with
 [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) (EN / RU).
 
 **Site:** https://klorq.github.io/sandbox.dev/
@@ -23,8 +23,8 @@ docs/
 
 Keep `docs/en/` and `docs/ru/` in lockstep: same file names, same paths.
 New pages also need an entry in `nav` in `mkdocs.yml` (and a RU title in
-`nav_translations` if the label is new). The sidebar tree is the table of
-contents — don't add pages that only list links to other pages.
+`nav_translations` if the label is new). The sidebar is the user-facing table of contents. Detailed engineering registers
+are mirrored in the workspace repository and linked from the reference pages.
 
 ## Local preview
 

@@ -27,4 +27,4 @@ if ! docker exec "$NAME" pg_isready -U test >/dev/null 2>&1; then
 fi
 
 QUARSHELL_POSTGRES_URL="postgres://test:test@127.0.0.1:${PORT}/test?sslmode=disable" \
-	go -C "$ROOT/quarshell-credentials" test -run TestPostgresStoreIntegration -count=1
+	go -C "$ROOT/quarshell-gateway" test ./credentialstore -run TestPostgresStoreIntegration -count=1

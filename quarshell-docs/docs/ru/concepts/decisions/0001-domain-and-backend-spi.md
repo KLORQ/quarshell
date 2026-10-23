@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -119,7 +119,7 @@ ui/                    browser app и typed browser API client
 ```
 
 Это границы владения кодом, а не требование немедленно разделить каждый
-repository. Текущие repository и Go module paths пока используют имена Cautem;
+repository. Текущие repository и Go module paths пока используют имена Quarshell;
 этапы переименования описаны в
 [плане переименования и релиза](../../reference/renaming-and-release.md).
 

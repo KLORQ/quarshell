@@ -30,21 +30,21 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 | 2026-10-21 | Выход inventory-генератора перенесён в `plans/inventory/` | `[x]` | `plans/inventory/README.md` |
 | 2026-10-21 | Inventory привязан к новому плану: 37 crates, 7 сервисов, 110 RPC, 29 feature rows | `[x]` | `plans/inventory/` |
 | 2026-10-21 | Namespace переведён на `github.com/KLORQ`: module paths, imports, go.work, npm scope, docs URL, git remotes | `[x]` | workspace |
-| 2026-10-21 | Из `go.mod` новых модулей убраны `replace`; локальные зависимости разрешает `go.work` | `[x]` | `go.work`, `tools/workspace.py` |
+| 2026-10-21 | Из `go.mod` новых модулей убраны `replace`; локальные зависимости разрешает `go.work` | `[x]` | `go.work`, `tools/cmd/quarshell-tools/*.go` |
 | 2026-10-21 | Stream/provider/release inventory: 21 stream message, 84 variant, 17 profiles, 4 platform rows | `[x]` | `plans/inventory/` |
 | 2026-10-21 | Evidence matrix, validator, R/G backlog, шесть ADR | `[x]` | `plans/evidence/`, `plans/backlog/`, `plans/decisions/` |
 | 2026-10-21 | M1: domain-контракты, Compute/Isolation/Credential/Extension SPI, каркас девяти модулей | `[x]` | `quarshell-core/domain`, `quarshell-spi`, новые modules |
-| 2026-10-21 | M2: bounded parser, presence/unknown/null, policy corpus и differential harness | `[x]` | `quarshell-policy`, `plans/conformance/`, `tools/conformance.py` |
+| 2026-10-21 | M2: bounded parser, presence/unknown/null, policy corpus и differential harness | `[x]` | `quarshell-policy`, `plans/conformance/`, `task conformance:check` |
 | 2026-10-21 | M1: composition root `quarshell-gateway` с `/healthz`, `/readyz`, `/capabilities` без старого engine | `[x]` | `quarshell-gateway/cmd/quarshell-gateway` |
 | 2026-10-21 | После KLORQ rename исправлены SDK/CLI package selectors; build sweep всех 19 modules зелёный | `[x]` | `quarshell-cli`, `quarshell-sdk` |
 | 2026-10-21 | Проверки: targeted tests, CLI service, 12/12 policy conformance, evidence validator, workspace check | `[x]` | см. команды ниже |
 | 2026-10-21 | R01: parser-enforced `MaxEvents`; boundary tests для bytes/depth/events/nodes/keys/elements/aliases/scalar; дополнительные corpus cases | `[x]` | `quarshell-policy/budget_test.go`, `plans/conformance/corpus/` |
 | 2026-10-21 | R02: presence-тесты absent/null/false/zero/empty object/empty list/unknown; null scalar остаётся null, null port отклоняется | `[x]` | `quarshell-policy/presence_test.go`; upstream differential добавлен ниже |
-| 2026-10-21 | Pure evaluator подключён к conformance: expected decisions для filesystem/network/process | `[x]` | `tools/conformance.py`, `plans/conformance/corpus/eval/` |
+| 2026-10-21 | Pure evaluator подключён к conformance: expected decisions для filesystem/network/process | `[x]` | `task conformance:check`, `plans/conformance/corpus/eval/` |
 | 2026-10-21 | R02: typed decoder отклоняет null для всех authored-полей; `policy-check` проверяет `Typed()`; null list/tool/mcp/landlock/middleware cases | `[x]` | `quarshell-policy/typed.go`, `plans/conformance/corpus/cases/` |
 | 2026-10-21 | Дифференциальный gate против pinned upstream: Rust oracle, `task conformance:upstream`, 71/71 cases | `[x]` | `tools/policy-oracle/`, `tools/check-policy-differential.sh` |
 | 2026-10-21 | M2: provider policy composition — reserved `_provider_` keys, collision suffix, strip, deep copy без мутации source/layers | `[x]` | `quarshell-policy/compose.go`, `compose_test.go` |
-| 2026-10-21 | M1: module DAG/import-cycle gate; 20 modules, 0 cycles, strict ADR warnings на `core → proto` | `[x]` | `tools/check-module-dag.py` |
+| 2026-10-21 | M1: module DAG/import-cycle gate; 20 modules, 0 cycles, strict ADR warnings на `core → proto` | `[x]` | `tools/cmd/quarshell-tools/*.go` |
 | 2026-10-21 | M2: global-replaces-sandbox precedence, derived policy hash, provider composition | `[x]` | `quarshell-policy/compose.go` |
 | 2026-10-21 | M2: `FuzzParse`, memory (64 MiB) и time (2 s) budgets, `task policy:fuzz` | `[x]` | `quarshell-policy/fuzz_test.go`, `Taskfile.yml` |
 | 2026-10-21 | M3: launch admission/sanitization; Linux restricted child (socketpair + SO_PEERCRED, Landlock, no_new_privs, capability/identity drop); supervisor session + bounded reporter | `[~]` | `quarshell-isolation/`, `quarshell-supervisor/` |
@@ -56,7 +56,7 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 | 2026-10-21 | M5: durable lifecycle core — атомарные entity+operation записи, idempotent execute, outbox leases/retries/DLQ, reconciler | `[x]` | `quarshell-gateway/internal/application/lifecycle/` |
 | 2026-10-21 | M5: sandbox use case — идемпотентные Create/Delete, Get, outbox events, replay после restart | `[x]` | `quarshell-gateway/internal/application/sandbox/` |
 | 2026-10-21 | M2: Kubernetes operator key `default_runtime_class_name` вместо legacy `runtime_class_name` | `[x]` | `quarshell-driver/internal/kubernetes/backend_config.go` |
-| 2026-10-21 | M2: audit K8s/VM backend key coverage; `task compat:backends` | `[~]` | `tools/check-backend-config-fields.py` |
+| 2026-10-21 | M2: audit K8s/VM backend key coverage; `task compat:backends` | `[~]` | `tools/cmd/quarshell-tools/config.go` |
 | 2026-10-21 | M2: K8s `image_pull_policy` + snake_case/Kubernetes pull-policy spellings | `[x]` | `quarshell-driver/internal/kubernetes/backend_config.go` |
 | 2026-10-21 | M5/R03: combined watch — независимое закрытие источников, per-source errors, backpressure, cancel | `[x]` | `quarshell-gateway/internal/application/watch/` |
 | 2026-10-21 | M2 closure: ADR-0007 — implemented или fail-closed reject; backend audit и corpus | `[x]` | `plans/decisions/0007-backend-config-scope.md` |
@@ -64,15 +64,15 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 | 2026-10-21 | M3: seccomp baseline denylist в Linux child; notification broker остаётся blocked | `[~]` | `quarshell-isolation/seccomp_linux.go` |
 | 2026-10-21 | M4: encrypted credential stores, broker handles, refresh/R04, placeholder rewriting | `[x]` | `quarshell-credentials/` |
 | 2026-10-21 | M4: default-deny mediation + credential rewrite + create/rotate/detach scenario | `[x]` | `quarshell-proxy/internal/application/mediation/` |
-| 2026-10-21 | M4: session-bound provider readiness/ACK с revision fencing | `[x]` | `quarshell-providers/provider/readiness.go` |
-| 2026-10-21 | M8: local module proxy — все 20 modules проходят `GOWORK=off` build | `[x]` | `tools/standalone-build.py` |
-| 2026-10-21 | M7: bounded policy containment prover с counterexample/Inconclusive | `[x]` | `quarshell-prover/containment.go` |
-| 2026-10-21 | R05: generated evidence report `STATUS.md` + `--check` gate | `[x]` | `tools/generate-evidence-report.py` |
+| 2026-10-21 | M4: session-bound provider readiness/ACK с revision fencing | `[x]` | `quarshell-policy/provider/readiness.go` |
+| 2026-10-21 | M8: local module proxy — все 20 modules проходят `GOWORK=off` build | `[x]` | `tools/cmd/quarshell-tools/standalone.go` |
+| 2026-10-21 | M7: bounded policy containment prover с counterexample/Inconclusive | `[x]` | `quarshell-policy/prover/containment.go` |
+| 2026-10-21 | R05: generated evidence report `STATUS.md` + `--check` gate | `[x]` | `task evidence:report`, `task evidence:report-check` |
 | 2026-10-21 | M5: ownership lease с fencing tokens, renewal/expiry/stale-owner rejection | `[x]` | `quarshell-gateway/internal/application/lifecycle/lease.go` |
 | 2026-10-21 | M4: ordered middleware chain с auth, timeout и bounded failures | `[x]` | `quarshell-proxy/internal/application/chain/` |
-| 2026-10-21 | M7: risk analysis prover для broad grants | `[x]` | `quarshell-prover/risk.go` |
+| 2026-10-21 | M7: risk analysis prover для broad grants | `[x]` | `quarshell-policy/prover/risk.go` |
 | 2026-10-21 | M4: Vault KV v2 credential store с локальным шифрованием и CAS | `[x]` | `quarshell-credentials/vault_store.go` |
-| 2026-10-21 | M8: local module proxy — 20/20 modules проходят standalone build | `[x]` | `tools/standalone-build.py` |
+| 2026-10-21 | M8: local module proxy — 20/20 modules проходят standalone build | `[x]` | `tools/cmd/quarshell-tools/standalone.go` |
 | 2026-10-21 | M4: real HTTP forward proxy + CONNECT tunnel + default deny на localhost | `[x]` | `quarshell-proxy/internal/application/httpproxy/` |
 | 2026-10-21 | M4: TLS MITM для CONNECT с in-memory CA и short-lived leaf certs | `[x]` | `quarshell-proxy/internal/application/httpproxy/tls.go` |
 | 2026-10-21 | M4: proxy client auth — constant-time static bearer token, 407, header stripping | `[x]` | `quarshell-proxy/internal/application/httpproxy/auth.go` |
@@ -106,7 +106,7 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 | 2026-10-21 | M5: gRPC adapter с legacy fallback и новым Health | `[x]` | `quarshell-gateway/internal/transport/applicationgrpc/` |
 | 2026-10-21 | M5: gRPC adapter hooks для CurrentUser/GatewayInfo | `[x]` | `quarshell-gateway/internal/transport/applicationgrpc/server.go` |
 | 2026-10-21 | M5: greenfield composition root `cmd/quarshell-gateway` на lifecycle store и application HTTP | `[x]` | `quarshell-gateway/cmd/quarshell-gateway/main.go` |
-| 2026-10-21 | M5: удалён legacy `httpapi`, `cmd/cautem-gateway` и их integration/e2e tests (backup `/tmp/quarshell-legacy-backup.tgz`) | `[x]` | `quarshell-gateway/` |
+| 2026-10-21 | M5: удалён legacy `httpapi`, `cmd/quarshell-gateway` и их integration/e2e tests (backup `/tmp/quarshell-legacy-backup.tgz`) | `[x]` | `quarshell-gateway/` |
 | 2026-10-21 | M5: greenfield gRPC server (Health/Info, остальные 82 RPC — явный Unimplemented) подключён к `cmd/quarshell-gateway` | `[x]` | `quarshell-gateway/internal/transport/applicationgrpc/server.go` |
 | 2026-10-21 | M5: gRPC workspace/sandbox/policy/templates/settings/providers/services + fail-closed runtime RPC | `[x]` | `quarshell-gateway/internal/transport/applicationgrpc/` |
 | 2026-10-21 | M4: Kubernetes Secrets store на client-go fake и PostgreSQL store | `[x]` | `quarshell-credentials/kubernetes_store.go`, `postgres_store.go` |
@@ -115,7 +115,7 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 | 2026-10-21 | Docker Desktop disk увеличен 264→320 GiB для live credential lanes | `[x]` | Docker settings |
 | 2026-10-21 | M4: OAuth RFC 8693 token exchange с bounds/timeout | `[x]` | `quarshell-credentials/oauth_exchange.go` |
 | 2026-10-21 | M4: SPIFFE JWT-SVID source interface + provider token grant composition | `[x]` | `quarshell-credentials/token_grant.go` |
-| 2026-10-21 | M7: Z3 SMT-LIB solver + port containment + deterministic fallback | `[x]` | `quarshell-prover/solver.go`, `symbolic.go` |
+| 2026-10-21 | M7: Z3 SMT-LIB solver + port containment + deterministic fallback | `[x]` | `quarshell-policy/prover/solver.go`, `symbolic.go` |
 | 2026-10-21 | CI: lane matrix для macOS/Linux/Windows/GPU и локальные macOS-замены | `[x]` | `plans/ci-matrix.md` |
 | 2026-10-21 | M8: release dry-run — darwin/linux/windows binaries, SHA256SUMS, SBOM manifest | `[x]` | `tools/release-dry-run.sh` |
 | 2026-10-21 | M3: durable local event log — JSONL append, fsync, mode 0600 | `[x]` | `quarshell-supervisor/reporter_file.go` |
@@ -125,7 +125,7 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 | 2026-10-21 | M2: `Snapshot` теперь отклоняет невалидную policy через `Validate()` до публикации | `[x]` | `quarshell-policy/snapshot.go` |
 | 2026-10-21 | M2: typed L7 matchers (glob/any/params), REST query, GraphQL, MCP, SQL, JSON-RPC, access presets; eval corpus расширен | `[x]` | `quarshell-policy/l7_matcher.go`, `l7_match.go`, `plans/conformance/corpus/eval/` |
 | 2026-10-21 | M2: validation edge cases — missing host/port, TCP DNS/IP, TLD/wildcard shape, filesystem limits, MCP defaults; 71/71 parse+validate differential | `[x]` | `quarshell-policy/validate.go`, `plans/conformance/corpus/` |
-| 2026-10-21 | M2: gateway TOML schema audit (0 missing, 10 legacy), `image_preparation_timeout_seconds`, removed `builtin` provider source | `[x]` | `tools/check-gateway-config-fields.py`, `quarshell-gateway/internal/gatewayconfig/` |
+| 2026-10-21 | M2: gateway TOML schema audit (0 missing, 10 legacy), `image_preparation_timeout_seconds`, removed `builtin` provider source | `[x]` | `tools/cmd/quarshell-tools/config.go`, `quarshell-gateway/internal/gatewayconfig/` |
 | 2026-10-21 | M2: removed all legacy gateway inheritance fields; gateway audit 0 missing / 0 legacy, `--strict` gate | `[x]` | `quarshell-gateway/internal/gatewayconfig/` |
 | 2026-10-21 | Проверки: race tests policy/isolation/supervisor, Linux amd64/arm64 cross-build, 71/71 conformance, 71/71 upstream differential, evidence validator, workspace check | `[x]` | см. команды ниже |
 | 2026-10-22 | M8: исправлен Gateway image build context для всех 20 workspace modules, version ldflag, entrypoint, HTTP liveness/auth и HTTP/gRPC bind; default image собран и стал healthy | `[x]` | `quarshell-gateway/Dockerfile`, `quarshell-gateway/README.md`, `quarshell-gateway/cmd/quarshell-gateway/main.go`, `quarshell-gateway/internal/transport/applicationhttp/` |
@@ -146,10 +146,10 @@ Baseline-снимок: [baseline/BASELINE.md](baseline/BASELINE.md).
 ## 1.1. Команды проверки
 
 ```bash
-python3 tools/workspace.py --check
-python3 tools/check-module-dag.py
-python3 tools/check-evidence-matrix.py
-python3 tools/conformance.py
+go run tools/cmd/quarshell-tools/*.go workspace --check
+go run tools/cmd/quarshell-tools/*.go dag
+task evidence:check
+task conformance:check
 tools/check-policy-differential.sh   # or: task conformance:upstream
 go test ./quarshell-core/domain ./quarshell-spi/... ./quarshell-policy/... ./quarshell-isolation/... ./quarshell-supervisor/...
 task isolation:linux-build
@@ -170,7 +170,7 @@ go -C quarshell-gateway test ./internal/application/health ./internal/transport/
 | `quarshell-proto` | есть | Один pinned source, регенерация transport | `[~]` |
 | `quarshell-spi` | нет | Добавить Compute/Isolation/Credential/extension contracts | `[~]` |
 | `quarshell-telemetry` | нет | OCSF/OTEL/redaction; поглощает роль `slogx` | `[~]` |
-| `quarshell-providers` | есть | Переписать под новый contract | `[ ]` |
+| `quarshell-policy` | есть | Переписать под новый contract | `[ ]` |
 | `quarshell-credentials` | нет | Broker, leases, refresh, DB/K8s/Vault | `[~]` |
 | `quarshell-proxy` | есть | L7, middleware, credential injection | `[ ]` |
 | `quarshell-isolation` | нет, часть `runtime` | Linux launcher/broker, identity, FD boundary | `[~]` |
@@ -181,7 +181,7 @@ go -C quarshell-gateway test ./internal/application/health ./internal/transport/
 | `quarshell-gateway` | есть | Transport → application → domain/ports | `[ ]` |
 | `quarshell-sdk` | есть | Public Go client без server-зависимостей | `[~]` |
 | `quarshell-cli` | есть | Полное дерево команд, TUI, bootstrap | `[ ]` |
-| `quarshell-prover` | нет | Symbolic model, Z3 port, reports | `[~]` |
+| `quarshell-policy/prover` | нет | Symbolic model, Z3 port, reports | `[~]` |
 
 Старые каталоги:
 
@@ -310,7 +310,7 @@ go -C quarshell-gateway test ./internal/application/health ./internal/transport/
 - [~] Gateway image и Compose clean install проходят локальную и GitHub-hosted проверку; default HTTP/gRPC command, persistent SQLite, auth-free liveness и Docker healthcheck работают ([latest acceptance run](https://github.com/KLORQ/quarshell/actions/runs/39700634881)); Helm chart, 10-way cross-build, in-workflow manifest/SHA256/SBOM verification and artifact upload PASS ([release run](https://github.com/KLORQ/quarshell/actions/runs/39692425723)). Registry image publish, generated clients and signed releases pending.
 - [ ] Закрыть все functional и platform acceptance rows, включая peer/VM/MXC/prover/GPU (блокировано live lanes).
 - [x] Каждый module собирается с `GOWORK=off` через local file module proxy (20/20).
-- [~] Published dependency gate (`bash scripts/check-published-deps.sh`) не проходит: зависимостям нужны недостающие checksums/обновление go.mod, а `quarshell-core@v0.3.0` не совпал с публичным checksum database; release tags/зависимости надо сверить и выпустить согласованный набор до consumer acceptance.
+- [x] Published dependency gate: все 20 модулей проходят `GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...` against опубликованные версии; зависимости и checksums зафиксированы. Проверка выполнена через direct VCS fallback из-за отрицательного cache в `proxy.golang.org` сразу после публикации новых patch-тегов.
 - [~] Binaries/SBOM/checksums artifact with in-workflow verification PASS, signatures, images, upgrade и clean install pending.
 - [~] Final coverage report: 0 open/partial/blocked rows недостижим без live lanes; standalone 20/20.
 

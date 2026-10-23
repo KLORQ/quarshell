@@ -280,7 +280,7 @@ class Client:
         self.timeout = timeout
         self.workspace = workspace or "default"
         bearer = (
-            token if token is not None else os.getenv("CAUTEM_GATEWAY_TOKEN", "")
+            token if token is not None else os.getenv("QUARSHELL_GATEWAY_TOKEN", "")
         ).strip()
         self._metadata = (("authorization", f"Bearer {bearer}"),) if bearer else ()
         self._http = httpx.Client(base_url=self.base_url, timeout=timeout)
@@ -2214,7 +2214,7 @@ def _provider_to_proto(provider: Provider, workspace: str) -> datamodel_pb2.Prov
             name=provider.name,
             workspace=workspace,
             annotations={
-                "cautem.io/runtime-credentials": str(
+                "quarshell.io/runtime-credentials": str(
                     provider.runtime_credentials
                 ).lower()
             },
@@ -2236,7 +2236,7 @@ def _provider_from_proto(provider: datamodel_pb2.Provider) -> Provider:
     refresh = {}
     annotations = provider.metadata.annotations
     runtime_credentials = (
-        annotations.get("cautem.io/runtime-credentials", "").lower() == "true"
+        annotations.get("quarshell.io/runtime-credentials", "").lower() == "true"
     )
     return Provider(
         name=provider.metadata.name,

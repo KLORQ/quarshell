@@ -1,6 +1,6 @@
 # Roadmap — quarshell-python
 
-Status: **v0.1.7** (release prepared) · Python SDK for [quarshell-gateway](https://github.com/KLORQ/quarshell-gateway)
+Status: pre-stable SDK · Package publication and installed-consumer acceptance are tracked below.
 
 ## This module
 
@@ -10,6 +10,9 @@ Status: **v0.1.7** (release prepared) · Python SDK for [quarshell-gateway](http
 | Y2 | **Typing** | `py.typed` and generated protocol stubs ship in the package. The public client surface is marked partially typed; complete annotations/stubs remain open. |
 | Y3 | **PyPI** | Versioned `quarshell` package aligned with gateway alpha; publication and installed-consumer acceptance remain open. |
 
+
 ## Release
 
-Independent package version · generated first-party clients come from `quarshell-proto`.
+This module follows its own pre-stable 0.x version sequence. Publish dependencies
+first, update consumers to the published tags, and verify with `GOWORK=off`. Never
+rewrite a published tag.

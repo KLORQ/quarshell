@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/KLORQ/quarshell-core/engine"
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
+	"github.com/KLORQ/quarshell-policy/engine"
 )
 
 func TestUninspectedCredentialPolicy(t *testing.T) {

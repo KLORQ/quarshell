@@ -92,13 +92,13 @@
       "test_duration_seconds": 1.07
     },
     {
-      "repository": "quarshell-providers",
-      "url": "https://github.com/KLORQ/quarshell-providers.git",
+      "repository": "quarshell-policy",
+      "url": "https://github.com/KLORQ/quarshell-policy.git",
       "commit_sha": "58c132d1d47c8551b03ed37a8d7583db395d5276",
       "version": "v0.1.9",
       "status": "PASS",
       "checkout_sha": "58c132d1d47c8551b03ed37a8d7583db395d5276",
-      "module_path": "github.com/KLORQ/quarshell-providers",
+      "module_path": "github.com/KLORQ/quarshell-policy",
       "duration_seconds": 1.29,
       "test_command": "GOWORK=off CGO_ENABLED=0 go test -mod=readonly ./...",
       "test_output_sha256": "f4283d0c007371c244c2df869f0d566f540724f65eb697704cd440bfafc5d81d",

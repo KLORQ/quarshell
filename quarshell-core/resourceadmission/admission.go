@@ -10,13 +10,13 @@ import (
 const workspacePlaceholder = "${workspace}"
 
 var reservedLabelKeys = map[string]struct{}{
-	"openshell.ai/managed-by":                       {},
-	"openshell.ai/gateway-id":                       {},
-	"openshell.ai/sandbox-workspace":                {},
-	"cautem.internal/workspace":                     {},
-	"cautem.internal/gateway-id":                    {},
-	"cautem.internal/driver-config-used":            {},
-	"cautem.internal/resource-admission-identities": {},
+	"openshell.ai/managed-by":                          {},
+	"openshell.ai/gateway-id":                          {},
+	"openshell.ai/sandbox-workspace":                   {},
+	"quarshell.internal/workspace":                     {},
+	"quarshell.internal/gateway-id":                    {},
+	"quarshell.internal/driver-config-used":            {},
+	"quarshell.internal/resource-admission-identities": {},
 }
 
 // Config is the operator-owned label policy for caller attached volumes.

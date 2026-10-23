@@ -14,16 +14,16 @@ E2E_SANDBOX_ARCHIVE="$E2E_TMP/sandbox-image.tar"
 
 E2E_OWNER="$(basename "$E2E_TMP")"
 E2E_INNER_TMP=/e2e
-NAME="cautem-podman-e2e-$E2E_OWNER"
-E2E_CONTAINER_MEMORY="${CAUTEM_E2E_CONTAINER_MEMORY:-4g}"
-E2E_CONTAINER_CPUS="${CAUTEM_E2E_CONTAINER_CPUS:-2}"
-E2E_CONTAINER_PIDS="${CAUTEM_E2E_CONTAINER_PIDS:-1024}"
+NAME="quarshell-podman-e2e-$E2E_OWNER"
+E2E_CONTAINER_MEMORY="${QUARSHELL_E2E_CONTAINER_MEMORY:-4g}"
+E2E_CONTAINER_CPUS="${QUARSHELL_E2E_CONTAINER_CPUS:-2}"
+E2E_CONTAINER_PIDS="${QUARSHELL_E2E_CONTAINER_PIDS:-1024}"
 # Keep account-specific subordinate ID ranges disjoint. Rootful explicit-map
 # tests retain the root range at 100000; rootless lanes use the podman range.
-ROOTFUL_SUBUID_START="${CAUTEM_PODMAN_ROOTFUL_SUBUID_START:-100000}"
-ROOTLESS_SUBUID_START="${CAUTEM_PODMAN_ROOTLESS_SUBUID_START:-200000}"
-CONTAINERS_SUBUID_START="${CAUTEM_PODMAN_CONTAINERS_SUBUID_START:-300000}"
-SUBUID_RANGE_SIZE="${CAUTEM_PODMAN_SUBUID_RANGE_SIZE:-65536}"
+ROOTFUL_SUBUID_START="${QUARSHELL_PODMAN_ROOTFUL_SUBUID_START:-100000}"
+ROOTLESS_SUBUID_START="${QUARSHELL_PODMAN_ROOTLESS_SUBUID_START:-200000}"
+CONTAINERS_SUBUID_START="${QUARSHELL_PODMAN_CONTAINERS_SUBUID_START:-300000}"
+SUBUID_RANGE_SIZE="${QUARSHELL_PODMAN_SUBUID_RANGE_SIZE:-65536}"
 
 validate_subid_value() {
 	local name="$1" value="$2"
@@ -32,10 +32,10 @@ validate_subid_value() {
 		exit 1
 	fi
 }
-validate_subid_value CAUTEM_PODMAN_ROOTFUL_SUBUID_START "$ROOTFUL_SUBUID_START"
-validate_subid_value CAUTEM_PODMAN_ROOTLESS_SUBUID_START "$ROOTLESS_SUBUID_START"
-validate_subid_value CAUTEM_PODMAN_CONTAINERS_SUBUID_START "$CONTAINERS_SUBUID_START"
-validate_subid_value CAUTEM_PODMAN_SUBUID_RANGE_SIZE "$SUBUID_RANGE_SIZE"
+validate_subid_value QUARSHELL_PODMAN_ROOTFUL_SUBUID_START "$ROOTFUL_SUBUID_START"
+validate_subid_value QUARSHELL_PODMAN_ROOTLESS_SUBUID_START "$ROOTLESS_SUBUID_START"
+validate_subid_value QUARSHELL_PODMAN_CONTAINERS_SUBUID_START "$CONTAINERS_SUBUID_START"
+validate_subid_value QUARSHELL_PODMAN_SUBUID_RANGE_SIZE "$SUBUID_RANGE_SIZE"
 ROOTFUL_SUBUID_START=$((10#$ROOTFUL_SUBUID_START))
 ROOTLESS_SUBUID_START=$((10#$ROOTLESS_SUBUID_START))
 CONTAINERS_SUBUID_START=$((10#$CONTAINERS_SUBUID_START))
@@ -56,14 +56,14 @@ if subid_ranges_overlap "$ROOTFUL_SUBUID_START" "$ROOTLESS_SUBUID_START" || \
 fi
 # Build the same Podman version used by the required rootful and rootless CI
 # lanes. Overrides are accepted only when they report this exact version.
-IMAGE="${CAUTEM_PODMAN_IMAGE:-}"
+IMAGE="${QUARSHELL_PODMAN_IMAGE:-}"
 PORT=""
 PODMAN_IMAGE_CREATED=0
 cleanup() {
 	local status=$?
 	local owner=""
 	if command -v docker >/dev/null 2>&1; then
-		owner="$(docker inspect -f '{{index .Config.Labels "cautem.e2e.owner"}}' "$NAME" 2>/dev/null || true)"
+		owner="$(docker inspect -f '{{index .Config.Labels "quarshell.e2e.owner"}}' "$NAME" 2>/dev/null || true)"
 	fi
 	if [[ "$owner" == "$E2E_OWNER" ]]; then
 		if [[ "$status" != "0" ]]; then
@@ -84,10 +84,10 @@ trap 'exit 143' TERM
 
 command -v docker >/dev/null || { echo "docker CLI is required" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "Docker daemon is unavailable" >&2; exit 1; }
-if [[ -z "${CAUTEM_PODMAN_IMAGE:-}" ]]; then
-	IMAGE="localhost/cautem-podman6-e2e:$E2E_OWNER"
+if [[ -z "${QUARSHELL_PODMAN_IMAGE:-}" ]]; then
+	IMAGE="localhost/quarshell-podman6-e2e:$E2E_OWNER"
 	PODMAN_IMAGE_CREATED=1
-		CAUTEM_PODMAN_FIXTURE_DIGEST_FILE="$E2E_TMP/podman6-fixture-image-id.txt" \
+		QUARSHELL_PODMAN_FIXTURE_DIGEST_FILE="$E2E_TMP/podman6-fixture-image-id.txt" \
 			"$E2E_ROOT/quarshell-driver/scripts/build-podman6-fixture.sh" "$IMAGE"
 fi
 e2e_build_artifacts
@@ -102,7 +102,7 @@ chmod 755 "$E2E_TMP"/*.test
 chmod 755 "$E2E_HELPERS"/*
 
 docker run -d --name "$NAME" --privileged --cgroupns=host --device /dev/fuse \
-	--label "cautem.e2e.owner=$E2E_OWNER" \
+	--label "quarshell.e2e.owner=$E2E_OWNER" \
 	--memory "$E2E_CONTAINER_MEMORY" --cpus "$E2E_CONTAINER_CPUS" --pids-limit "$E2E_CONTAINER_PIDS" \
 	--security-opt label=disable -e STORAGE_DRIVER=vfs \
 	--tmpfs /var/lib/containers:rw,exec,size=4g \
@@ -112,12 +112,12 @@ docker run -d --name "$NAME" --privileged --cgroupns=host --device /dev/fuse \
 	--tmpfs /var/tmp:rw,exec,size=2g \
 	-v /sys/fs/cgroup:/sys/fs/cgroup:rw \
 	-v "$E2E_ROOT:$E2E_ROOT" -v "$E2E_TMP:$E2E_TMP" -p 127.0.0.1::18500 \
-	-e "CAUTEM_PODMAN_ROOTFUL_SUBUID_START=$ROOTFUL_SUBUID_START" \
-	-e "CAUTEM_PODMAN_ROOTLESS_SUBUID_START=$ROOTLESS_SUBUID_START" \
-	-e "CAUTEM_PODMAN_CONTAINERS_SUBUID_START=$CONTAINERS_SUBUID_START" \
-	-e "CAUTEM_PODMAN_SUBUID_RANGE_SIZE=$SUBUID_RANGE_SIZE" \
+	-e "QUARSHELL_PODMAN_ROOTFUL_SUBUID_START=$ROOTFUL_SUBUID_START" \
+	-e "QUARSHELL_PODMAN_ROOTLESS_SUBUID_START=$ROOTLESS_SUBUID_START" \
+	-e "QUARSHELL_PODMAN_CONTAINERS_SUBUID_START=$CONTAINERS_SUBUID_START" \
+	-e "QUARSHELL_PODMAN_SUBUID_RANGE_SIZE=$SUBUID_RANGE_SIZE" \
 	"$IMAGE" \
-	sh -lc 'id podman >/dev/null 2>&1 || useradd --create-home --uid 1000 podman; id containers >/dev/null 2>&1 || useradd --system --no-create-home containers; printf "root:%s:%s\npodman:%s:%s\ncontainers:%s:%s\n" "$CAUTEM_PODMAN_ROOTFUL_SUBUID_START" "$CAUTEM_PODMAN_SUBUID_RANGE_SIZE" "$CAUTEM_PODMAN_ROOTLESS_SUBUID_START" "$CAUTEM_PODMAN_SUBUID_RANGE_SIZE" "$CAUTEM_PODMAN_CONTAINERS_SUBUID_START" "$CAUTEM_PODMAN_SUBUID_RANGE_SIZE" > /etc/subuid; printf "root:%s:%s\npodman:%s:%s\ncontainers:%s:%s\n" "$CAUTEM_PODMAN_ROOTFUL_SUBUID_START" "$CAUTEM_PODMAN_SUBUID_RANGE_SIZE" "$CAUTEM_PODMAN_ROOTLESS_SUBUID_START" "$CAUTEM_PODMAN_SUBUID_RANGE_SIZE" "$CAUTEM_PODMAN_CONTAINERS_SUBUID_START" "$CAUTEM_PODMAN_SUBUID_RANGE_SIZE" > /etc/subgid; podman system service --time=0 tcp:0.0.0.0:18500' >/dev/null
+	sh -lc 'id podman >/dev/null 2>&1 || useradd --create-home --uid 1000 podman; id containers >/dev/null 2>&1 || useradd --system --no-create-home containers; printf "root:%s:%s\npodman:%s:%s\ncontainers:%s:%s\n" "$QUARSHELL_PODMAN_ROOTFUL_SUBUID_START" "$QUARSHELL_PODMAN_SUBUID_RANGE_SIZE" "$QUARSHELL_PODMAN_ROOTLESS_SUBUID_START" "$QUARSHELL_PODMAN_SUBUID_RANGE_SIZE" "$QUARSHELL_PODMAN_CONTAINERS_SUBUID_START" "$QUARSHELL_PODMAN_SUBUID_RANGE_SIZE" > /etc/subuid; printf "root:%s:%s\npodman:%s:%s\ncontainers:%s:%s\n" "$QUARSHELL_PODMAN_ROOTFUL_SUBUID_START" "$QUARSHELL_PODMAN_SUBUID_RANGE_SIZE" "$QUARSHELL_PODMAN_ROOTLESS_SUBUID_START" "$QUARSHELL_PODMAN_SUBUID_RANGE_SIZE" "$QUARSHELL_PODMAN_CONTAINERS_SUBUID_START" "$QUARSHELL_PODMAN_SUBUID_RANGE_SIZE" > /etc/subgid; podman system service --time=0 tcp:0.0.0.0:18500' >/dev/null
 
 docker exec "$NAME" mkdir -p "$E2E_INNER_TMP"
 docker cp "$E2E_TMP/." "$NAME:$E2E_INNER_TMP/"
@@ -138,21 +138,21 @@ docker exec "$NAME" podman load -i "$E2E_INNER_TMP/sandbox-image.tar"
 echo "Running rootful Podman user-namespace matrix without proxy dependencies…"
 e2e_run_required_test podman-userns-rootful TestPodmanUsernsMatrixE2E docker exec \
 	-e DOCKER_HOST=tcp://127.0.0.1:18500 \
-	-e CAUTEM_PODMAN_USERNS_E2E=1 \
-	-e CAUTEM_PODMAN_USERNS_STRICT=1 \
-	-e "CAUTEM_PODMAN_WORKSPACE=$E2E_TMP/workspace" \
-	-e "CAUTEM_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
+	-e QUARSHELL_PODMAN_USERNS_E2E=1 \
+	-e QUARSHELL_PODMAN_USERNS_STRICT=1 \
+	-e "QUARSHELL_PODMAN_WORKSPACE=$E2E_TMP/workspace" \
+	-e "QUARSHELL_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
 	"$NAME" "$E2E_INNER_TMP/podman.test" -test.run '^TestPodmanUsernsMatrixE2E$' -test.count=1 -test.v
 
 cd "$E2E_ROOT/quarshell-driver"
 e2e_run_required_test podman-driver-rootful TestPodmanEngineE2E env \
 	CGO_ENABLED=0 \
 	DOCKER_HOST="tcp://127.0.0.1:$PORT" \
-	CAUTEM_PODMAN_E2E=1 \
-	CAUTEM_PODMAN_WORKSPACE="$E2E_TMP/workspace" \
-	CAUTEM_E2E_SANDBOX_IMAGE="$E2E_SANDBOX_IMAGE" \
-	CAUTEM_PROXY_IMAGE="$E2E_PROXY_IMAGE" \
-	CAUTEM_HELPERS_DIR="$E2E_HELPERS" \
+	QUARSHELL_PODMAN_E2E=1 \
+	QUARSHELL_PODMAN_WORKSPACE="$E2E_TMP/workspace" \
+	QUARSHELL_E2E_SANDBOX_IMAGE="$E2E_SANDBOX_IMAGE" \
+	QUARSHELL_PROXY_IMAGE="$E2E_PROXY_IMAGE" \
+	QUARSHELL_HELPERS_DIR="$E2E_HELPERS" \
 	go test ./tests/e2e/podman -run '^TestPodmanEngineE2E$' -count=1 -v
 
 echo "Starting rootless Podman service for the full user-namespace E2E matrix…"
@@ -184,23 +184,23 @@ e2e_run_required_test podman-userns-rootless TestPodmanUsernsMatrixE2E docker ex
 	-e HOME=/home/podman \
 	-e XDG_RUNTIME_DIR=/run/user/1000 \
 	-e DOCKER_HOST=tcp://127.0.0.1:18501 \
-	-e CAUTEM_PODMAN_ROOTLESS=1 \
-	-e CAUTEM_PODMAN_USERNS_E2E=1 \
-	-e CAUTEM_PODMAN_USERNS_STRICT=1 \
-	-e "CAUTEM_PODMAN_WORKSPACE=$ROOTLESS_WORKSPACE" \
-	-e "CAUTEM_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
+	-e QUARSHELL_PODMAN_ROOTLESS=1 \
+	-e QUARSHELL_PODMAN_USERNS_E2E=1 \
+	-e QUARSHELL_PODMAN_USERNS_STRICT=1 \
+	-e "QUARSHELL_PODMAN_WORKSPACE=$ROOTLESS_WORKSPACE" \
+	-e "QUARSHELL_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
 	"$NAME" "$E2E_INNER_TMP/podman.test" -test.run '^TestPodmanUsernsMatrixE2E$' -test.count=1 -test.v
 echo "Running the Podman lifecycle and userns corpus against rootless Podman…"
 e2e_run_required_test podman-driver-rootless TestPodmanEngineE2E docker exec --user podman \
 	-e HOME=/home/podman \
 	-e XDG_RUNTIME_DIR=/run/user/1000 \
 	-e DOCKER_HOST=tcp://127.0.0.1:18501 \
-	-e CAUTEM_PODMAN_E2E=1 \
-	-e CAUTEM_PODMAN_ROOTLESS=1 \
-	-e "CAUTEM_PODMAN_WORKSPACE=$ROOTLESS_WORKSPACE" \
-	-e "CAUTEM_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
-	-e "CAUTEM_PROXY_IMAGE=$E2E_PROXY_IMAGE" \
-	-e "CAUTEM_HELPERS_DIR=$E2E_HELPERS" \
+	-e QUARSHELL_PODMAN_E2E=1 \
+	-e QUARSHELL_PODMAN_ROOTLESS=1 \
+	-e "QUARSHELL_PODMAN_WORKSPACE=$ROOTLESS_WORKSPACE" \
+	-e "QUARSHELL_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
+	-e "QUARSHELL_PROXY_IMAGE=$E2E_PROXY_IMAGE" \
+	-e "QUARSHELL_HELPERS_DIR=$E2E_HELPERS" \
 	"$NAME" "$E2E_INNER_TMP/podman.test" -test.run '^TestPodmanEngineE2E$' -test.count=1 -test.v
 
 echo "Running rootless Podman daemon/service recovery E2E…"
@@ -208,8 +208,8 @@ e2e_run_required_test podman-driver-rootless-recovery TestPodmanRootlessServiceR
 	-e HOME=/home/podman \
 	-e XDG_RUNTIME_DIR=/run/user/1000 \
 	-e DOCKER_HOST=tcp://127.0.0.1:18501 \
-	-e CAUTEM_PODMAN_ROOTLESS=1 \
-	-e "CAUTEM_PODMAN_WORKSPACE=$ROOTLESS_WORKSPACE" \
-	-e "CAUTEM_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
+	-e QUARSHELL_PODMAN_ROOTLESS=1 \
+	-e "QUARSHELL_PODMAN_WORKSPACE=$ROOTLESS_WORKSPACE" \
+	-e "QUARSHELL_E2E_SANDBOX_IMAGE=$E2E_SANDBOX_IMAGE" \
 	"$NAME" "$E2E_INNER_TMP/podman.test" -test.run '^TestPodmanRootlessServiceRecovery$' -test.count=1 -test.v
 

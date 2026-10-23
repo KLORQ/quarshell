@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/KLORQ/quarshell-core/engine"
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
+	"github.com/KLORQ/quarshell-policy/engine"
 )
 
 func TestWatchPolicyReload(t *testing.T) {
@@ -80,7 +80,7 @@ network_policies:
 func TestWatchPolicyReportsAppliedRevision(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yaml")
-	body := []byte(`# cautem-policy-revision: 7
+	body := []byte(`# quarshell-policy-revision: 7
 version: 1
 network_policies:
   api:
@@ -125,7 +125,7 @@ network_policies:
 func TestWatchPolicyAcknowledgementFailureFailsClosed(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "policy.yaml")
-	body := []byte(`# cautem-policy-revision: 9
+	body := []byte(`# quarshell-policy-revision: 9
 version: 1
 network_policies:
   api:

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KLORQ/quarshell-core/credentials"
 	"github.com/KLORQ/quarshell-core/domain"
-	"github.com/KLORQ/quarshell-credentials"
 	"github.com/KLORQ/quarshell-policy"
 )
 

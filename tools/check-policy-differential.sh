@@ -24,5 +24,5 @@ VALIDATE="$ORACLE_DIR/target/policy-validate"
 cargo build --locked --release --manifest-path "$ORACLE_DIR/Cargo.toml"
 go build -o "$VALIDATE" github.com/KLORQ/quarshell-policy/cmd/quarshell-policy-validate
 
-python3 "$ROOT/tools/conformance.py" --candidate-cmd "go run github.com/KLORQ/quarshell-policy/cmd/quarshell-policy-check" --oracle-cmd "$ORACLE"
-python3 "$ROOT/tools/conformance.py" --candidate-cmd "$VALIDATE" --oracle-cmd "$ORACLE --validate"
+go run "$ROOT"/tools/cmd/quarshell-tools/*.go conformance --candidate-cmd "go run github.com/KLORQ/quarshell-policy/cmd/quarshell-policy-check" --oracle-cmd "$ORACLE"
+go run "$ROOT"/tools/cmd/quarshell-tools/*.go conformance --candidate-cmd "$VALIDATE" --oracle-cmd "$ORACLE --validate"

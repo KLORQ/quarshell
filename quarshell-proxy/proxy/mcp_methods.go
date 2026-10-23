@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 func validateMCPMethodParams(method string, params *struct {

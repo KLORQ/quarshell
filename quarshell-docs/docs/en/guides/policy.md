@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -11,8 +11,8 @@ provider profiles form the effective allowlist enforced by the egress proxy.
 ## Set and get
 
 ```bash
-cautem policy get demo --full
-cautem policy set demo --policy /path/to/policy.yaml --wait
+quarshell policy get demo --full
+quarshell policy set demo --policy /path/to/policy.yaml --wait
 ```
 
 `--wait` blocks until the sidecar reloads the bind-mounted effective YAML.
@@ -20,7 +20,7 @@ cautem policy set demo --policy /path/to/policy.yaml --wait
 Preview an incremental network policy change before applying it:
 
 ```bash
-cautem policy update demo --add-allow 'api.github.com:443,8443:GET:/repos/**' --rule-name github --binary /usr/bin/agent --dry-run
+quarshell policy update demo --add-allow 'api.github.com:443,8443:GET:/repos/**' --rule-name github --binary /usr/bin/agent --dry-run
 ```
 
 `--dry-run` reads the current base policy, prints the merged YAML, and does not
@@ -29,9 +29,9 @@ send an update to the Gateway.
 Removal-only updates use the Gateway's atomic merge API:
 
 ```bash
-cautem policy update demo --remove-endpoint api.github.com:443
-cautem policy update demo --remove-rule github
-cautem policy update demo --add-endpoint api.example.com:443:read-only:rest --rule-name example-api --remove-rule old-api
+quarshell policy update demo --remove-endpoint api.github.com:443
+quarshell policy update demo --remove-rule github
+quarshell policy update demo --add-endpoint api.example.com:443:read-only:rest --rule-name example-api --remove-rule old-api
 ```
 
 Simple `--add-endpoint`, L7 additions, and removals can be combined atomically.
@@ -59,9 +59,9 @@ Inside the sandbox, agents can query denials and propose narrow rules via
 ## Operator approve loop
 
 ```bash
-cautem rule get --status pending
-cautem rule approve --chunk-id chk_…
-# or: cautem rule reject --chunk-id chk_… --reason "narrow to /docs"
+quarshell rule get --status pending
+quarshell rule approve --chunk-id chk_…
+# or: quarshell rule reject --chunk-id chk_… --reason "narrow to /docs"
 ```
 
 Approve merges into the sandbox base policy, rewrites the live policy file, and
@@ -70,7 +70,7 @@ hot-reloads the sidecar. Prefer the smallest `addRule` that unblocks the task.
 ## Schema keys
 
 Policy documents use `filesystem_policy`, `landlock`, and `network_policies`
-(`quarshell-core/policy`). L7 rules may set `protocol: rest|graphql|mcp` with
+(`quarshell-policy/corepolicy`). L7 rules may set `protocol: rest|graphql|mcp` with
 method/path/tool constraints.
 
 ## Built-in request redaction
@@ -100,4 +100,4 @@ count. The original key and request body are not included in audit output.
 
 ## Related
 
-- Skill: `/etc/cautem/skills/policy-advisor`
+- Skill: `/etc/quarshell/skills/policy-advisor`

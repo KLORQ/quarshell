@@ -1,4 +1,4 @@
-# ADR-0006: Нет совместимости со старым Quarshell/Cautem
+# ADR-0006: Нет совместимости со старым Quarshell/Quarshell
 
 - Статус: Accepted
 - Дата: 2026-10-21
@@ -6,7 +6,7 @@
 ## Контекст
 
 Старые API, конфиги, env aliases, state layout, images и дополнительные функции
-Quarshell/Cautem не являются требованием. Сохранение их параллельно создаёт
+Quarshell/Quarshell не являются требованием. Сохранение их параллельно создаёт
 dual readers и скрытые fallback-пути.
 
 ## Решение

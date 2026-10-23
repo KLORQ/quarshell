@@ -128,7 +128,7 @@ case "$ARCH" in
 	*) echo "unsupported host architecture: $ARCH" >&2; exit 1 ;;
 esac
 mkdir -p "$DIR/test"
-CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" go -C "$ROOT/quarshell-credentials" test -c -o "$DIR/test/spiffe.test"
+CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" go -C "$ROOT/quarshell-gateway" test -c -o "$DIR/test/spiffe.test"
 
 sleep 2
 if ! docker run --rm --network "$NETWORK" \

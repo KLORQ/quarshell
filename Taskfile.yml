@@ -43,17 +43,18 @@ tasks:
   "workspace:sync":
     desc: Regenerate go.work from sibling module manifests
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/workspace.py"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go workspace
 
   "workspace:check":
     desc: Verify go.work contains every sibling module manifest
     cmds:
       - bash "{{.ROOT_DIR}}/tools/workspace-layout-check.sh"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go workspace --check
 
   "clean:generated":
     desc: Remove ignored build outputs and caches from all registered module worktrees
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/clean-generated.py" --apply
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go clean-generated --apply
 
   pre-push:
     desc: Run the standalone pre-push gate in every product module
@@ -68,9 +69,9 @@ tasks:
       - bash "{{.ROOT_DIR}}/tools/pre-push-all.sh" "{{.MODULE}}"
 
   "ci:pins":
-    desc: Verify inter-repository workflow checkouts use modules.lock SHAs
+    desc: Verify inter-repository workflow checkouts use modules.lock versions
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/pin-workflow-checkouts.py" --check
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go pins --check
 
   "images:pins":
     desc: Verify release and tool images use immutable digests
@@ -169,7 +170,7 @@ tasks:
         for m in quarshell-*; do
           if [[ -d "$m/tests/e2e" ]] && find "$m/tests/e2e" -type f -name '*.go' -print -quit | grep -q .; then
             echo "== e2e $m =="
-            CGO_ENABLED=0 CAUTEM_TESTCONTAINERS=1 go -C "$m" test -p 1 ./tests/e2e/...
+            CGO_ENABLED=0 QUARSHELL_TESTCONTAINERS=1 go -C "$m" test -p 1 ./tests/e2e/...
           elif [[ -d "$m/tests/e2e" ]]; then
             echo "== e2e $m skipped (no Go tests) =="
           fi
@@ -189,22 +190,22 @@ tasks:
   evidence:check:
     desc: Validate the machine-readable evidence matrix
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/check-evidence-matrix.py"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go evidence-check
 
   evidence:report:
     desc: Generate plans/evidence/STATUS.md from the matrix
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/generate-evidence-report.py"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go evidence-report
 
   evidence:report-check:
     desc: Verify plans/evidence/STATUS.md is current
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/generate-evidence-report.py" --check
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go evidence-report --check
 
   conformance:check:
     desc: Run the bounded policy conformance corpus
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/conformance.py"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go conformance
 
   policy:fuzz:
     desc: Run bounded fuzz targets for the policy parser
@@ -219,22 +220,22 @@ tasks:
   dag:check:
     desc: Validate module dependency cycles (ADR-0002)
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/check-module-dag.py"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go dag
 
   dag:strict:
     desc: Enforce the full ADR-0002 module dependency rules
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/check-module-dag.py" --strict
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go dag --strict
 
   standalone:check:
     desc: Build every module with GOWORK=off using a local module proxy
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/standalone-build.py"
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go standalone
 
   standalone:strict:
     desc: Require every module to build with GOWORK=off and a local module proxy
     cmds:
-      - python3 "{{.ROOT_DIR}}/tools/standalone-build.py" --strict
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go standalone --strict
 
   credentials:vault:
     desc: Run the Vault KV v2 integration test in Docker
@@ -267,11 +268,11 @@ tasks:
       - bash "{{.ROOT_DIR}}/tools/release-dry-run.sh"
 
   isolation:linux-build:
-    desc: Cross-build and vet isolation and supervisor for Linux
+    desc: Cross-build and vet driver isolation for Linux
     cmds:
-      - GOOS=linux GOARCH=amd64 go build ./quarshell-isolation/... ./quarshell-supervisor/...
-      - GOOS=linux GOARCH=arm64 go build ./quarshell-isolation/... ./quarshell-supervisor/...
-      - GOOS=linux GOARCH=amd64 go vet ./quarshell-isolation/... ./quarshell-supervisor/...
+      - GOOS=linux GOARCH=amd64 go build ./quarshell-driver/isolation/... ./quarshell-driver/supervisor/...
+      - GOOS=linux GOARCH=arm64 go build ./quarshell-driver/isolation/... ./quarshell-driver/supervisor/...
+      - GOOS=linux GOARCH=amd64 go vet ./quarshell-driver/isolation/... ./quarshell-driver/supervisor/...
 
   check:
     desc: fmt:check + lint + vet/vuln + test (PR gate)
@@ -284,7 +285,7 @@ tasks:
       - task: evidence:check
       - task: evidence:report-check
       - task: conformance:check
-      - python3 "{{.ROOT_DIR}}/tools/check-gateway-config-fields.py" --strict
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go gateway-config --strict
       - task: fmt:check
       - task: lint
       - task: smoke:check
@@ -300,14 +301,14 @@ tasks:
         task smoke:check
         task release:published
         echo "== build binaries =="
-        go build -C quarshell-cli -o /tmp/cautem-prerelease ./cmd/cautem
+        go build -C quarshell-cli -o /tmp/quarshell-prerelease ./cmd/quarshell
         go build -C quarshell-gateway -o /tmp/quarshell-gateway-prerelease ./cmd/quarshell-gateway
         echo "== policy check =="
-        /tmp/cautem-prerelease policy check quarshell-cli/policies/default.yaml
-        /tmp/cautem-prerelease policy check quarshell-cli/policies/cursor.yaml
+        /tmp/quarshell-prerelease policy check quarshell-cli/policies/default.yaml
+        /tmp/quarshell-prerelease policy check quarshell-cli/policies/cursor.yaml
         if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
           echo "== smoke:mvp =="
-          CAUTEM=/tmp/cautem-prerelease task smoke:mvp
+          QUARSHELL=/tmp/quarshell-prerelease task smoke:mvp
         else
           echo "== smoke:mvp skipped (no docker) =="
         fi
@@ -316,17 +317,17 @@ tasks:
   "smoke:secrets":
     desc: Unit-level secrets + KEK + policy update tests (no Docker create)
     cmds:
-      - go test ./quarshell-runtime/secrets/ ./quarshell-core/env/ ./quarshell-core/policy/ ./quarshell-cli/internal/... ./quarshell-gateway/internal/storage/store/
+      - go test ./quarshell-runtime/secrets/ ./quarshell-core/env/ ./quarshell-policy/corepolicy/ ./quarshell-cli/internal/... ./quarshell-gateway/internal/storage/store/
 
   "profiles:check":
     desc: Validate OpenShell profile compatibility fixtures and credential discovery
     cmds:
-      - go test -C quarshell-providers ./provider -run 'OpenShell|Discovery|UnsupportedFields|DuplicateProfile|RuntimeValidation|InsecurePublic'
+      - go test -C quarshell-policy ./provider -run 'OpenShell|Discovery|UnsupportedFields|DuplicateProfile|RuntimeValidation|InsecurePublic'
 
   "vm:parity-check":
     desc: Validate the OpenShell VM parity inventory against pinned source files
     cmds:
-      - python3 tools/check-vm-parity.py
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go vm-parity
 
   "vm:install-check":
     desc: Verify VM runtime install, upgrade and rollback
@@ -344,23 +345,22 @@ tasks:
       - quarshell-driver/scripts/test-live-kvm-script.sh
 
   "compat:pin-check":
-    desc: Verify product SDK dependencies match the shared pinned OpenShell commit
+    desc: Verify the pinned OpenShell source and gateway config snapshots
     cmds:
       - tools/check-openshell-pin.sh
 
-  "compat:gaps":
-    desc: Validate the pinned gap report, RPC inventory, driver config field matrix and deletion guards
+  "compat:inventory":
+    desc: Validate the pinned feature inventory, gateway fields, driver fields, and VM parity rows
     cmds:
-      - python3 tools/check-driver-config-matrix.py
-      - python3 tools/check-gateway-config-fields.py --strict
-      - sh tools/check-compat-gaps.sh
-      - sh tools/test-compat-gaps.sh
-      - go test -C quarshell-gateway ./internal/httpapi -run '^TestCompatRPCInventoryMatchesPinnedServiceAndHandlers$' -count=1
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go driver-config
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go gateway-config --strict
+      - task: vm:parity-check
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go inventory --check
 
   "compat:backends":
     desc: Audit Kubernetes and VM backend config keys against pinned structs
     cmds:
-      - python3 tools/check-backend-config-fields.py
+      - go run "{{.ROOT_DIR}}"/tools/cmd/quarshell-tools/*.go backend-config
 
   "compat:proto":
     desc: Verify generated OpenShell protocol descriptors match the pinned wire contract
@@ -410,7 +410,7 @@ tasks:
   "vm:live-linux-podman-rootless":
     desc: Run rootless Podman 6 API, offline container, and keep-id probes inside a Linux KVM MicroVM
     cmds:
-      - cmd: CAUTEM_VM_PODMAN_ROOTLESS_ACCEPTANCE=1 CAUTEM_VM_TEST_NAME=TestLiveMicroVMNestedPodmanRootless quarshell-driver/scripts/run-live-kvm-podman-acceptance.sh
+      - cmd: QUARSHELL_VM_PODMAN_ROOTLESS_ACCEPTANCE=1 QUARSHELL_VM_TEST_NAME=TestLiveMicroVMNestedPodmanRootless quarshell-driver/scripts/run-live-kvm-podman-acceptance.sh
 
   e2e:
     desc: Run Docker and Podman end-to-end lanes
@@ -422,13 +422,13 @@ tasks:
     desc: Required OpenShell compatibility release gate for Docker and Podman
     cmds:
       - task: compat:pin-check
-      - task: compat:gaps
+      - task: compat:inventory
       - task: compat:proto
       - task: check
       - task: profiles:check
-      - go build -C quarshell-cli -o /tmp/cautem-compat-release-cli ./cmd/cautem
-      - go build -C quarshell-gateway -o /tmp/cautem-compat-release-gateway ./cmd/quarshell-gateway
-      - go build -C quarshell-runtime -o /tmp/cautem-compat-release-supervisor ./cmd/cautem-supervisor
+      - go build -C quarshell-cli -o /tmp/quarshell-compat-release-cli ./cmd/quarshell
+      - go build -C quarshell-gateway -o /tmp/quarshell-compat-release-gateway ./cmd/quarshell-gateway
+      - go build -C quarshell-runtime -o /tmp/quarshell-compat-release-supervisor ./cmd/quarshell-supervisor
       - task: race
       - task: release:standalone
       - task: release:published
@@ -474,19 +474,19 @@ tasks:
     cmds:
       - |
         set -euo pipefail
-        REG="${CAUTEM_GHCR:-ghcr.io/cautem/cautem}"
+        REG="${QUARSHELL_GHCR:-ghcr.io/quarshell/quarshell}"
         pull_tag() {
           local remote="$1" local="$2"
           echo "pull $remote → $local"
           docker pull "$remote"
           docker tag "$remote" "$local"
         }
-        pull_tag "$REG/sandboxes/base:latest" cautem-sandbox:local || true
-        pull_tag "$REG/sandboxes/gui:latest" cautem-sandbox:gui || true
-        pull_tag "$REG/sandboxes/gpu:latest" cautem-sandbox:gpu || true
-        pull_tag "$REG/sandboxes/gui-gpu:latest" cautem-sandbox:gui-gpu || true
-        pull_tag "$REG/sandboxes/cursor:latest" cautem-sandbox:cursor || true
-        pull_tag "$REG/sandboxes/claude:latest" cautem-sandbox:claude || true
-        pull_tag "$REG/sandboxes/codex:latest" cautem-sandbox:codex || true
+        pull_tag "$REG/sandboxes/base:latest" quarshell-sandbox:local || true
+        pull_tag "$REG/sandboxes/gui:latest" quarshell-sandbox:gui || true
+        pull_tag "$REG/sandboxes/gpu:latest" quarshell-sandbox:gpu || true
+        pull_tag "$REG/sandboxes/gui-gpu:latest" quarshell-sandbox:gui-gpu || true
+        pull_tag "$REG/sandboxes/cursor:latest" quarshell-sandbox:cursor || true
+        pull_tag "$REG/sandboxes/claude:latest" quarshell-sandbox:claude || true
+        pull_tag "$REG/sandboxes/codex:latest" quarshell-sandbox:codex || true
         pull_tag "$REG/gateway:latest" quarshell-gateway:local || true
         echo "images:pull: done (missing remotes are non-fatal)"

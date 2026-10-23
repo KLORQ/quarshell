@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
-	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/cautem/runtime/v1"
+	"github.com/KLORQ/quarshell-cli/internal/storage/templates"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/quarshell/runtime/v1"
 	"google.golang.org/grpc"
 )
 
@@ -134,6 +135,45 @@ func TestRemoteSandboxCreateCarriesWorkloadOptions(t *testing.T) {
 	}
 }
 
+func TestSandboxCreateAppliesLocalTemplateBeforeGatewayCreate(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	if err := templates.Save(templates.Template{
+		Name: "local-agent", Image: "alpine:3.22", CPU: 1.5, Memory: "2Gi", GPUCount: 1,
+		DriverConfigJSON: `{"docker":{"shm_size":67108864}}`,
+		Env:              map[string]string{"FROM_TEMPLATE": "yes"},
+		Labels:           map[string]string{"source": "template"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := grpc.NewServer()
+	created := &remoteNativeCreateTestServer{remoteLookupTestServer: &remoteLookupTestServer{}}
+	gatewayv1.RegisterOpenShellServer(server, created)
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(server.Stop)
+	app := &App{GatewayURLOverride: "http://" + listener.Addr().String(), GlobalWorkspace: "team"}
+	if err := app.SandboxCreate(SandboxCreateOpts{Name: "agent", Template: "local-agent", Detach: true}); err != nil {
+		t.Fatal(err)
+	}
+	if created.request == nil {
+		t.Fatal("Gateway create was not called")
+	}
+	spec := created.request.GetSpec().GetTemplate()
+	if spec == nil || spec.GetImage() != "alpine:3.22" || created.request.GetWorkloadTemplate() != "" {
+		t.Fatalf("local template was not expanded into the create request: request=%+v", created.request)
+	}
+	resources := spec.GetResources().AsMap()["limits"].(map[string]any)
+	if resources["cpu"] != "1500m" || resources["memory"] != "2147483648" || created.request.GetSpec().GetResourceRequirements().GetGpu().GetCount() != 1 {
+		t.Fatalf("local template resources were not applied: %+v", created.request)
+	}
+	if created.request.GetSpec().GetEnvironment()["FROM_TEMPLATE"] != "yes" || created.request.GetLabels()["source"] != "template" {
+		t.Fatalf("local template env/labels were not applied: %+v", created.request)
+	}
+}
+
 func TestSandboxCreateStagesRootfsTarIntoNativeVMDriverConfig(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -206,7 +246,7 @@ func TestRemoteSandboxCreateCallsGatewayControlAndKeepsTemplateScope(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	app.SetCommandContext(ctx)
-	err = app.sandboxCreateOpenShell(SandboxCreateOpts{
+	err = app.SandboxCreate(SandboxCreateOpts{
 		Name: "agent", Template: "shared-agent", Detach: true,
 		Argv: []string{"sleep", "infinity"}, Labels: map[string]string{"purpose": "test"},
 	})

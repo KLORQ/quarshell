@@ -4,7 +4,7 @@
 
 ## 1. Зафиксированное решение
 
-Создать самостоятельную модульную реализацию функциональности OpenShell на Go. Текущий код Quarshell/Cautem разрешено заменять целиком. Новая архитектура не обязана сохранять старые внутренние интерфейсы, API Quarshell, конфиги, env aliases, layout state, images и дополнительные возможности прежнего продукта.
+Создать самостоятельную модульную реализацию функциональности OpenShell на Go. Текущий код Quarshell/Quarshell разрешено заменять целиком. Новая архитектура не обязана сохранять старые внутренние интерфейсы, API Quarshell, конфиги, env aliases, layout state, images и дополнительные возможности прежнего продукта.
 
 Функциональным эталоном служит OpenShell v0.1.4, commit `5a7728c304b5528e954e9ae900cf21f84e1a12b1`. Наличие этого baseline подтверждено локальными материалами. Следующий upstream-релиз принимается отдельным пересмотром inventory, а не незаметным изменением требований посреди работ.
 
@@ -24,7 +24,7 @@ Gateway, supervisor, isolation orchestration, policy engine, proxy, providers, C
 
 Внешний OpenShell wire contract сохраняется как прямой публичный протокол новой реализации, чтобы можно было переносить и проверять клиентов и external extensions. Generated DTO преобразуются в новые domain values на транспортной границе. Это обычное декодирование протокола; слоя вызовов старого Quarshell runtime нет.
 
-Старая Quarshell/Cautem совместимость не требуется: dual API, env fallbacks, imports aliases, state import и adoption прежних resources исключаются. Чистая установка использует новый state layout. Удаление исходников и старых путей сборки не должно неявно означать удаление пользовательских данных на хосте.
+Старая Quarshell/Quarshell совместимость не требуется: dual API, env fallbacks, imports aliases, state import и adoption прежних resources исключаются. Чистая установка использует новый state layout. Удаление исходников и старых путей сборки не должно неявно означать удаление пользовательских данных на хосте.
 
 ## 2. Полный функциональный контракт
 
@@ -77,7 +77,7 @@ Go package — обычная единица разделения кода. Но
 | `quarshell-proto` | Pinned schemas, generated Go/TS, descriptors | Нет доменных зависимостей |
 | `quarshell-spi` | Compute, Isolation, Credential, extension contracts | core, policy только где действительно нужно |
 | `quarshell-telemetry` | OCSF, OTEL, redaction; slog helpers как package | core |
-| `quarshell-providers` | Profiles, binding rules, provider catalog | core, policy |
+| `quarshell-policy` | Profiles, binding rules, provider catalog | core, policy |
 | `quarshell-credentials` | Broker, leases, refresh, DB/K8s/Vault drivers | core, spi, providers |
 | `quarshell-proxy` | Network/L7, middleware chain, credential injection | core, policy, spi, telemetry |
 | `quarshell-isolation` | Linux launcher/broker, identity, syscall/FD boundary | core, spi, telemetry; proto только transport |
@@ -88,7 +88,7 @@ Go package — обычная единица разделения кода. Но
 | `quarshell-gateway` | Application services, repositories, transports | core, policy, spi, proto, providers, credentials, telemetry |
 | `quarshell-sdk` | Public Go client, transport/auth/converters | core, proto; без server/backend dependencies |
 | `quarshell-cli` | CLI, TUI, bootstrap, install; command composition | SDK; локальные policy/prover packages по необходимости |
-| `quarshell-prover` | Symbolic model, solver port, reports, отдельная команда | core, policy, spi при необходимости |
+| `quarshell-policy/prover` | Symbolic model, solver port, reports, отдельная команда | core, policy, spi при необходимости |
 
 Это 17 Go modules. Число можно уменьшить, объединив малоиспользуемые библиотеки, если независимый release им не нужен. Важнее DAG зависимостей. Builtin backend сборки собираются в явных composition roots; platform-independent gateway library не импортирует VM FFI или Windows APIs.
 
@@ -136,7 +136,7 @@ quarshell-gateway/
 
 | Паттерн | Где применять | Какую проблему решает | Что не делать |
 |---|---|---|---|
-| Ports and adapters | Store, compute, isolation, secret broker | Отделяет use cases от инфраструктуры | Не строить adapter к старому Cautem engine |
+| Ports and adapters | Store, compute, isolation, secret broker | Отделяет use cases от инфраструктуры | Не строить adapter к старому Quarshell engine |
 | Functional core / imperative shell | Policy, admission, authorization decisions | Детерминированные правила и corpus tests | Не читать env/time/network внутри evaluator |
 | Explicit composition root | Gateway/CLI/supervisor binaries | Видимые зависимости и backend selection | Не регистрировать всё через глобальный init() |
 | Capability negotiation | Backend и remote extensions | Ранний отказ без side effects | Не путать наличие метода с поддержкой на host |
@@ -576,7 +576,7 @@ M0 фиксирует одинаковые workloads и hardware для baseline
 | `internal/httpapi` как центр бизнес-логики | Переписать use cases; transport оставить тонким |
 | JSON/JSONB whole-state store и import прежнего файла | Заменить entity schema с нуля |
 | Flat driver API, старые Engine adapters | Удалить; один новый Compute SPI |
-| `cmd/cautem-*`, `CAUTEM_*`, старые config fallback | Удалить; canonical Quarshell names |
+| `cmd/quarshell-*`, `QUARSHELL_*`, старые config fallback | Удалить; canonical Quarshell names |
 | Rust OpenShell production binaries | Не включать; upstream source только conformance material |
 | Старые generated DTO и duplicated schema trees | Удалить; регенерировать из одного pinned source |
 | Исторический GUI/display функционал без upstream требования | Исключить из обязательного scope; не переносить автоматически |

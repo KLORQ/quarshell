@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -14,14 +14,14 @@ sandbox. Это не compute backend ([Docker](../providers/docker/index.md), [P
 значений в argv.
 
 ```bash
-GITHUB_TOKEN=… cautem provider create --name gh --type github --credential GITHUB_TOKEN
-CURSOR_API_KEY=… cautem provider create --name cursor --type cursor --credential CURSOR_API_KEY
+GITHUB_TOKEN=… quarshell provider create --name gh --type github --credential GITHUB_TOKEN
+CURSOR_API_KEY=… quarshell provider create --name cursor --type cursor --credential CURSOR_API_KEY
 
 # если ключи уже в env этого процесса:
-# cautem provider create --name gh --type github --from-existing
+# quarshell provider create --name gh --type github --from-existing
 
-cautem provider list
-cautem provider get gh
+quarshell provider list
+quarshell provider get gh
 ```
 
 `list` / `get` никогда не печатают значения. Ciphertext — в encrypted store
@@ -30,7 +30,7 @@ gateway (`secrets.enc.json`).
 ## Attach на create
 
 ```bash
-cautem sandbox create \
+quarshell sandbox create \
   --name demo \
   --upload "$PWD" \
   --policy /path/to/policy.yaml \
@@ -41,7 +41,7 @@ cautem sandbox create \
 
 Composition подмешивает endpoints, binaries и `credential_keys` профиля в
 effective policy. В guest — placeholders вида
-`cautem:resolve:env:GITHUB_TOKEN`. Proxy делает rewrite на egress.
+`quarshell:resolve:env:GITHUB_TOKEN`. Proxy делает rewrite на egress.
 
 ## Поведение профилей
 
@@ -53,29 +53,29 @@ effective policy. В guest — placeholders вида
 | `claude-code` | `ANTHROPIC_API_KEY` | Placeholder |
 
 ```bash
-cautem provider profile list
-cautem provider profile show github
+quarshell provider profile list
+quarshell provider profile show github
 ```
 
 ## Ротация
 
 ```bash
-GITHUB_TOKEN=ghp_new… cautem provider refresh gh
-# или: GITHUB_TOKEN=… cautem provider update gh --from-existing
+GITHUB_TOKEN=ghp_new… quarshell provider refresh gh
+# или: GITHUB_TOKEN=… quarshell provider update gh --from-existing
 ```
 
 ## Не делайте
 
 ```bash
-cautem sandbox create … --env GITHUB_TOKEN=ghp_…     # сырой секрет в guest
-cautem sandbox create … --env CURSOR_API_KEY=cautem:resolve:…  # ломает Cursor Agent
+quarshell sandbox create … --env GITHUB_TOKEN=ghp_…     # сырой секрет в guest
+quarshell sandbox create … --env CURSOR_API_KEY=quarshell:resolve:…  # ломает Cursor Agent
 ```
 
 ## KEK
 
 | Элемент | Деталь |
 |---------|--------|
-| Env | `CAUTEM_SECRETS_KEK` (passphrase, base64 или hex ≥16 байт) |
+| Env | `QUARSHELL_SECRETS_KEK` (passphrase, base64 или hex ≥16 байт) |
 | File fallback | `secrets.kek` в data dir gateway (mode 0600) |
 | Doctor | Предупреждает, если KEK не закреплён в env |
 

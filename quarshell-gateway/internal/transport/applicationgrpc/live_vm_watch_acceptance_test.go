@@ -202,12 +202,12 @@ func liveGatewayBootstrapImage(t *testing.T, rootfsTar string) string {
 }
 
 func TestLiveVMWatchSandboxComposition(t *testing.T) {
-	if os.Getenv("CAUTEM_VM_ACCEPTANCE") != "1" {
-		t.Skip("set CAUTEM_VM_ACCEPTANCE=1 to run live HVF Gateway watch acceptance")
+	if os.Getenv("QUARSHELL_VM_ACCEPTANCE") != "1" {
+		t.Skip("set QUARSHELL_VM_ACCEPTANCE=1 to run live HVF Gateway watch acceptance")
 	}
-	rootfsTar := strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_ROOTFS_TAR"))
+	rootfsTar := strings.TrimSpace(os.Getenv("QUARSHELL_VM_TEST_ROOTFS_TAR"))
 	if rootfsTar == "" {
-		t.Fatal("CAUTEM_VM_TEST_ROOTFS_TAR is required")
+		t.Fatal("QUARSHELL_VM_TEST_ROOTFS_TAR is required")
 	}
 	host := vm.DefaultHostConfig()
 	host.StateDir = t.TempDir()
@@ -230,9 +230,9 @@ func TestLiveVMWatchSandboxComposition(t *testing.T) {
 	if err := errors.Join(copyErr, stagedRootfs.Close(), sourceRootfs.Close()); err != nil {
 		t.Fatalf("stage live VM rootfs tar: %v", err)
 	}
-	host.GuestAgentPath = strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_GUEST_AGENT"))
-	host.WorkerPath = strings.TrimSpace(os.Getenv("CAUTEM_VM_WORKER"))
-	host.FormatterPath = strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_E2FS_FORMATTER"))
+	host.GuestAgentPath = strings.TrimSpace(os.Getenv("QUARSHELL_VM_TEST_GUEST_AGENT"))
+	host.WorkerPath = strings.TrimSpace(os.Getenv("QUARSHELL_VM_WORKER"))
+	host.FormatterPath = strings.TrimSpace(os.Getenv("QUARSHELL_VM_TEST_E2FS_FORMATTER"))
 	host.AllowDriverConfig = true
 	// Serve the staged rootfs as a local OCI bootstrap image so this live lane
 	// does not depend on Docker Hub availability.
@@ -417,9 +417,9 @@ func assertLiveVMGatewayPTYInterrupt(t *testing.T, server *Server, ref domain.Sa
 
 func assertLiveVMArchiveTransferThroughGateway(t *testing.T, server *Server, ref domain.SandboxRef, ctx context.Context) {
 	t.Helper()
-	cliBinary := strings.TrimSpace(os.Getenv("CAUTEM_VM_TEST_CLI"))
+	cliBinary := strings.TrimSpace(os.Getenv("QUARSHELL_VM_TEST_CLI"))
 	if cliBinary == "" {
-		t.Fatal("CAUTEM_VM_TEST_CLI is required for live CLI-to-Gateway VM archive acceptance")
+		t.Fatal("QUARSHELL_VM_TEST_CLI is required for live CLI-to-Gateway VM archive acceptance")
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

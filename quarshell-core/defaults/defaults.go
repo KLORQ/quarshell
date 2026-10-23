@@ -1,4 +1,4 @@
-// Package defaults holds shared ports, guest paths, and image names used across cautem modules.
+// Package defaults holds shared ports, guest paths, and image names used across quarshell modules.
 package defaults
 
 import (
@@ -20,26 +20,26 @@ const (
 const GatewayListen = "127.0.0.1:7443"
 
 // HostInternal is the host gateway alias injected into sandbox DNS.
-const HostInternal = "host.cautem.internal"
+const HostInternal = "host.quarshell.internal"
 
 // ProxyListenHost is used when binding the sidecar on all interfaces inside the netns.
 const ProxyListenHost = "0.0.0.0"
 
 // Guest filesystem layout inside sandboxes.
 const (
-	GuestRoot   = "/cautem"
+	GuestRoot   = "/quarshell"
 	GuestData   = GuestRoot + "/data"
 	GuestHome   = GuestData + "/home"
 	GuestBin    = GuestData + "/bin"
 	GuestCADir  = GuestRoot + "/ca"
 	GuestCAFile = GuestCADir + "/ca.pem"
 	GuestPolicy = GuestRoot + "/policy.yaml"
-	GuestInit   = GuestRoot + "/cautem-init"
-	GuestPath   = "/cautem/data/home/.local/bin:/cautem/data/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+	GuestInit   = GuestRoot + "/quarshell-init"
+	GuestPath   = "/quarshell/data/home/.local/bin:/quarshell/data/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 	// GuestEtcOSG is the reserved control tree for supervisor-owned guidance.
-	// Same role as OpenShell's /etc/openshell; cautem naming, Apache-2.0 project content.
-	GuestEtcOSG = "/etc/cautem"
+	// Same role as OpenShell's /etc/openshell; quarshell naming, Apache-2.0 project content.
+	GuestEtcOSG = "/etc/quarshell"
 	GuestSkills = GuestEtcOSG + "/skills"
 )
 
@@ -51,21 +51,21 @@ const (
 	ImageDebian = "debian:bookworm"
 	// ImageProxy is the slim base for egress sidecars (not the agent/sandbox image).
 	ImageProxy  = "debian:bookworm-slim"
-	ImageLocal  = "cautem-sandbox:local"
-	ImageGUI    = "cautem-sandbox:gui"
-	ImageGPU    = "cautem-sandbox:gpu"
-	ImageGUIGPU = "cautem-sandbox:gui-gpu"
-	ImageCursor = "cautem-sandbox:cursor"
-	ImageClaude = "cautem-sandbox:claude"
-	ImageCodex  = "cautem-sandbox:codex"
+	ImageLocal  = "quarshell-sandbox:local"
+	ImageGUI    = "quarshell-sandbox:gui"
+	ImageGPU    = "quarshell-sandbox:gpu"
+	ImageGUIGPU = "quarshell-sandbox:gui-gpu"
+	ImageCursor = "quarshell-sandbox:cursor"
+	ImageClaude = "quarshell-sandbox:claude"
+	ImageCodex  = "quarshell-sandbox:codex"
 
 	// SandboxPidsLimit is the OpenShell-aligned default PIDs cgroup limit when unset.
 	SandboxPidsLimit int64 = 2048
 
 	// GHCR: separate image per flavor (like openshell-community/sandboxes/<name>).
-	GHCROrg        = "ghcr.io/cautem"
-	GHCRGateway    = GHCROrg + "/cautem/gateway"
-	GHCRSandboxes  = GHCROrg + "/cautem/sandboxes"
+	GHCROrg        = "ghcr.io/quarshell"
+	GHCRGateway    = GHCROrg + "/quarshell/gateway"
+	GHCRSandboxes  = GHCROrg + "/quarshell/sandboxes"
 	ImageBaseRef   = GHCRSandboxes + "/base:latest"
 	ImageGUIRef    = GHCRSandboxes + "/gui:latest"
 	ImageGPURef    = GHCRSandboxes + "/gpu:latest"
@@ -76,13 +76,13 @@ const (
 )
 
 // EnvImagePull controls pulling published images for missing local
-// cautem-sandbox:* tags: "never" disables it (offline / local builds only).
-const EnvImagePull = "CAUTEM_IMAGE_PULL"
+// quarshell-sandbox:* tags: "never" disables it (offline / local builds only).
+const EnvImagePull = "QUARSHELL_IMAGE_PULL"
 
-// PublishedImage maps a local cautem-sandbox:<flavor> tag to the GHCR image
+// PublishedImage maps a local quarshell-sandbox:<flavor> tag to the GHCR image
 // CI publishes for it, so installs work without building images locally.
 func PublishedImage(local string) (string, bool) {
-	flavor, ok := strings.CutPrefix(strings.ToLower(strings.TrimSpace(local)), "cautem-sandbox:")
+	flavor, ok := strings.CutPrefix(strings.ToLower(strings.TrimSpace(local)), "quarshell-sandbox:")
 	if !ok {
 		return "", false
 	}
@@ -105,21 +105,23 @@ func PublishedImage(local string) (string, bool) {
 	return "", false
 }
 
-// Guest SSH layout (cautem-sshd). The socket directory is a volume shared
+// Guest SSH layout (quarshell-sshd). The socket directory is a volume shared
 // with the proxy sidecar (supervisor relay); sshd never listens on TCP.
 const (
-	GuestSSHD      = GuestRoot + "/cautem-sshd"
-	GuestSSHDir    = GuestRoot + "/ssh"
-	GuestSSHSocket = GuestSSHDir + "/sshd.sock"
-	GuestSSHLog    = GuestSSHDir + "/sshd.log"
-	GuestWorkspace = "/workspace"
+	GuestSSHD           = GuestRoot + "/quarshell-sshd"
+	GuestSSHDir         = GuestRoot + "/ssh"
+	GuestSSHSocket      = GuestSSHDir + "/sshd.sock"
+	GuestSSHLog         = GuestSSHDir + "/sshd.log"
+	GuestAgentSocket    = "/run/quarshell/guest-agent.sock"
+	GuestAgentTokenFile = "/run/quarshell/guest-agent.token"
+	GuestWorkspace      = "/workspace"
 )
 
 // HeaderBinary is an optional HTTP header naming the egress client binary (tests / ops).
-const HeaderBinary = "X-CAUTEM-Binary"
+const HeaderBinary = "X-QUARSHELL-Binary"
 
 // EnvTrustBinaryHeader enables trusting HeaderBinary when set to 1/true/yes.
-const EnvTrustBinaryHeader = "CAUTEM_TRUST_BINARY_HEADER"
+const EnvTrustBinaryHeader = "QUARSHELL_TRUST_BINARY_HEADER"
 
 // RelayClientTimeout is the CLI/SDK wait for a gateway relay exec round-trip.
 const RelayClientTimeout = 70 * time.Second

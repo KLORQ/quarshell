@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -22,7 +22,8 @@ The versioned feature matrix links each tracked feature to its backend, public
 API or configuration surface, test references, evidence level and gate result.
 `implemented`, `local_test`, `target_host_test` and `released` describe the
 strongest evidence level; `gate_result` records pass, partial, fail or open.
-Test-file references and the upstream pin are validated by `task compat:gaps`.
+The tracked feature inventory and upstream pin are validated by
+`task compat:inventory` and `task compat:pin-check`.
 No row claims `released` while the published-consumer gate is failing.
 
 The Docker/Podman config inventory is generated from the pinned public driver
@@ -30,7 +31,7 @@ structs and checked against each local decoder. Its `value_behavior` records
 omission, explicit empty/zero input and effective runtime behavior for all 54
 fields: five rows are `verified` and 49 are `partial`, each with source/test
 evidence. Partial rows name observed differences and remaining host/runtime
-gates; they do not claim parity. Examples include Cautem image/socket defaults,
+gates; they do not claim parity. Examples include Quarshell image/socket defaults,
 Podman health-check lifecycle, proxy boolean presence and rootless ID mapping.
 The config corpus remains a release blocker. The inventory also records
 unsupported runtime-image settings and the intentional rejection of gateway
@@ -47,11 +48,11 @@ policy, backend, SDK, TUI and packaging capability—not just matching schemas.
 The feature matrix below remains partial and release-blocking until every
 required row has passing conformance evidence.
 
-Quarshell does not support backward compatibility with earlier Cautem or
+Quarshell does not support backward compatibility with earlier Quarshell or
 Quarshell releases during this pre-beta cutover. The product will ship one
 canonical `quarshell-*` module/package/config/environment/resource namespace.
 No old-path imports, aliases, dual readers, fallback settings, old-resource
-adoption or Cautem-to-Quarshell migration adapter will be included. Existing
+adoption or Quarshell-to-Quarshell migration adapter will be included. Existing
 installations require a clean install; users must separately back up data they
 need. The product will not silently delete unrelated old host resources.
 
@@ -77,10 +78,9 @@ supervisor reporters and peer relay paths remain gaps.
 The RPC inventory lists exact methods, stream direction, auth class, handler,
 fixtures, tests and evidence. The gap register records remaining work:
 
-- [RPC inventory](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_rpc_inventory.json)
-- [Feature/API/test/evidence matrix](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_compatibility_matrix.json)
-- [Compatibility gap register](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_compatibility_gaps.json)
-- [Pinned Docker/Podman config field inventory](https://github.com/KLORQ/quarshell-driver/blob/main/internal/configcompat/testdata/openshell-v0.1.4-driver-config.json)
+- [Tracked OpenShell feature inventory](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/feature-inventory.yaml)
+- [Remaining implementation and acceptance gaps](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md)
+- [Pinned Docker/Podman config field inventory](https://github.com/KLORQ/quarshell/blob/main/quarshell-driver/internal/configcompat/testdata/openshell-v0.1.4-driver-config.json)
 - [Runtime acceptance and test map](runtime-acceptance.md)
 - [Architecture and backend SPI](../concepts/architecture.md)
 
@@ -91,7 +91,7 @@ From the workspace root, run:
 ```sh
 task compat:pin-check
 task compat:proto
-task compat:gaps
+task compat:inventory
 ```
 
 These checks confirm the checked-out source, generated proto drift, the RPC
@@ -100,5 +100,5 @@ that has not yet been added to the inventory. Docker, Podman and MicroVM require
 the separate host lanes documented in the [acceptance matrix](runtime-acceptance.md).
 
 The canonical product module and package paths use the `quarshell-*` names.
-Previous Cautem paths are outside the supported beta contract; see the
+Previous Quarshell paths are outside the supported beta contract; see the
 [product and release contract](renaming-and-release.md).

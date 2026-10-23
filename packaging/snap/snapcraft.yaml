@@ -13,13 +13,13 @@ parts:
     source: .
     override-build: |
       VERSION="${SNAPCRAFT_PROJECT_VERSION}" bash tools/release-dry-run.sh
-      install -Dm755 release-dry-run/quarshell-cli-linux-amd64 "$SNAPCRAFT_PART_INSTALL/bin/cautem"
+      install -Dm755 release-dry-run/quarshell-cli-linux-amd64 "$SNAPCRAFT_PART_INSTALL/bin/quarshell"
       install -Dm755 release-dry-run/quarshell-gateway-linux-amd64 "$SNAPCRAFT_PART_INSTALL/bin/quarshell-gateway"
       install -Dm755 release-dry-run/quarshell-prover-linux-amd64 "$SNAPCRAFT_PART_INSTALL/bin/quarshell-prover"
 
 apps:
-  cautem:
-    command: bin/cautem
+  quarshell:
+    command: bin/quarshell
   quarshell-gateway:
     command: bin/quarshell-gateway
   quarshell-prover:

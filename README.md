@@ -1,63 +1,46 @@
-# Quarshell module workspace
+# Quarshell
 
-This repository contains Quarshell's independently versioned Go modules and
-thin Python/TypeScript clients. Run Git commands from the repository root.
-Each Go module keeps its own `go.mod`; the root `go.work` is the local
-multi-module development workspace.
+Quarshell runs coding agents in policy controlled sandboxes. The `quarshell` CLI
+starts agents in isolated Docker or Podman environments, limits workspace and
+network access, and keeps configured provider credentials outside the
+sandbox. Gateway, VM, SDK, policy, and runtime components are maintained as 10
+independent Go modules. The UI is a separate TypeScript/React frontend; Gateway
+is its Go backend.
 
-Product documentation is at [sandbox.dev](https://klorq.github.io/sandbox.dev/). Each module README covers its own API and local checks. The [OpenShell compatibility status](https://klorq.github.io/sandbox.dev/reference/openshell-compatibility/) states what has and has not been verified.
+The user guide is available in [English](https://klorq.github.io/sandbox.dev/)
+and [Russian](https://klorq.github.io/sandbox.dev/ru/). It covers installation,
+sandbox creation, network policy, provider profiles, security boundaries, and
+current backend support.
 
-## Active plan
+## Quick start
 
-The workspace is being rebuilt as a modular Go implementation of OpenShell
-v0.1.4. The adopted plan, review, baseline snapshot and live progress checklist
-are in [`plans/`](plans/README.md).
+Follow the [installation guide](https://klorq.github.io/sandbox.dev/get-started/)
+and [first sandbox walkthrough](https://klorq.github.io/sandbox.dev/get-started/first-sandbox/).
 
-Start with [`plans/CHECKLIST.md`](plans/CHECKLIST.md): it records every addition
-to the project and the status of M0–M8.
+## Independent repositories
 
-## Modules
+Product components live in independent Git repositories. Go module APIs are
+pre-stable; new module paths start at `v0.1.0`, while paths with existing public
+tags continue at the next available `0.x` version.
 
-| Module | Purpose |
+| Area | Repositories |
 | --- | --- |
-| `quarshell-cli` | CLI and agent images |
-| `quarshell-core` | Shared domain values and errors |
-| `quarshell-policy` | Policy schema, validation and evaluation |
-| `quarshell-spi` | Runtime and backend interfaces |
-| `quarshell-credentials` | Credential broker and stores |
-| `quarshell-telemetry` | Event and telemetry contracts |
-| `quarshell-providers` | Provider profiles and composition |
-| `quarshell-proxy` | Network policy and egress proxy |
-| `quarshell-isolation` | Linux isolation and mediation |
-| `quarshell-supervisor` | Sandbox process supervision |
-| `quarshell-display` | Browser display support |
-| `quarshell-driver` | Docker, Podman and Kubernetes backends |
-| `quarshell-driver-vm` | VM compute backend |
-| `quarshell-driver-mxc` | Windows MXC backend |
-| `quarshell-gateway` | Control plane, registry and relay |
-| `quarshell-proto` | Protobuf contracts and generated clients |
-| `quarshell-prover` | Policy containment and risk analysis |
-| `quarshell-runtime` | Runtime integration and process lifecycle |
-| `quarshell-sdk` | Go client |
-| `quarshell-slogx` | Shared process logging (MIT) |
-| `quarshell-python` | Python client |
-| `quarshell-ui` | TypeScript client and UI bindings |
-| `quarshell-docs` | Source for the public site |
-| `quarshell-org-profile` | GitHub organization profile |
+| CLI and APIs | [CLI](https://github.com/KLORQ/quarshell-cli), [Go SDK](https://github.com/KLORQ/quarshell-sdk), [Python SDK](https://github.com/KLORQ/quarshell-python), [UI](https://github.com/KLORQ/quarshell-ui) |
+| Policy and runtime | [Core](https://github.com/KLORQ/quarshell-core), [Policy](https://github.com/KLORQ/quarshell-policy), [Proxy](https://github.com/KLORQ/quarshell-proxy), [Runtime](https://github.com/KLORQ/quarshell-runtime) |
+| Compute | [Driver](https://github.com/KLORQ/quarshell-driver), [VM driver](https://github.com/KLORQ/quarshell-driver-vm) |
+| Gateway and contracts | [Gateway](https://github.com/KLORQ/quarshell-gateway), [Protocol](https://github.com/KLORQ/quarshell-proto), [SDK](https://github.com/KLORQ/quarshell-sdk) |
+| Project resources | [Documentation](https://github.com/KLORQ/sandbox.dev), [Workspace and plans](https://github.com/KLORQ/quarshell-workspace), [Deployment](https://github.com/KLORQ/quarshell-deploy) |
 
-The repository root contains workspace/build configuration, CI, deployment,
-and migration acceptance materials required to build and verify these modules.
-Generated output, local credentials and private keys are ignored.
+## Workspace development
 
-The root `go.work` links the Go modules. Regenerate it after a module-path change with `task workspace:sync`, then check it with `task workspace:check`.
+The [workspace repository](https://github.com/KLORQ/quarshell-workspace) holds
+cross-module tooling and plans. Clone its pinned module versions with
+`tools/checkout-modules.sh`, then run `task workspace:sync` and `task test`.
+Individual module READMEs document module specific commands.
 
-## Local checks
+The [architecture consolidation plan](plans/ARCHITECTURE-CONSOLIDATION.md)
+records the consolidation from 20 to 10 Go modules, records the
+required compatibility gates, and tracks the migration of workspace tools
+from Python to Go.
 
-```bash
-task check
-task compat:pin-check
-task compat:gaps
-task docs:strict
-```
-
-All product modules use Apache-2.0 except `quarshell-slogx`, which remains MIT.
+Product modules use Apache-2.0. The logging package retains its MIT license in `quarshell-core/slogx/LICENSE`.

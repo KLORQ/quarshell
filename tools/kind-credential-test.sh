@@ -13,4 +13,4 @@ if [[ ! -x "$KIND" ]]; then
 fi
 "$KIND" get kubeconfig --name "$CLUSTER" > "$KUBECONFIG_FILE"
 QUARSHELL_KUBECONFIG="$KUBECONFIG_FILE" QUARSHELL_K8S_NAMESPACE="${QUARSHELL_K8S_NAMESPACE:-default}" \
-	go -C "$ROOT/quarshell-credentials" test -run TestKubernetesStoreIntegrationLive -count=1
+	go -C "$ROOT/quarshell-gateway" test ./credentialstore -run TestKubernetesStoreIntegrationLive -count=1

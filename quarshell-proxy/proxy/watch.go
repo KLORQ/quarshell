@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
 )
 
 // WatchPolicy polls path for content changes and calls Apply on the server.
@@ -96,7 +96,7 @@ func (s *Server) reportPolicyStatus(ctx context.Context, revision uint32, loadEr
 }
 
 func policyRevision(raw []byte) uint32 {
-	const prefix = "# cautem-policy-revision:"
+	const prefix = "# quarshell-policy-revision:"
 	for _, line := range strings.Split(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, prefix) {

@@ -15,47 +15,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Checkout published module versions
+        run: bash tools/checkout-modules.sh
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache: false
       - name: Cross-build artifacts
         run: bash tools/release-dry-run.sh
       - name: Verify checksums and manifest
         run: |
-          cd release-dry-run
-          shasum -a 256 -c SHA256SUMS
-          python3 - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-
-          root = Path(".")
-          targets = (("darwin", "arm64"), ("darwin", "amd64"), ("linux", "amd64"), ("linux", "arm64"), ("windows", "amd64"))
-          expected = {
-              f"quarshell-{name}-{os}-{arch}{'.exe' if os == 'windows' else ''}"
-              for os, arch in targets
-              for name in ("cli", "gateway")
-          }
-          binaries = {path.name for path in root.glob("quarshell-*") if path.is_file()}
-          if binaries != expected:
-              raise SystemExit(f"release binaries differ: missing={sorted(expected - binaries)}, unexpected={sorted(binaries - expected)}")
-
-          manifest = json.loads((root / "manifest.json").read_text())
-          if manifest.get("signed") is not False:
-              raise SystemExit("dry-run manifest must explicitly report unsigned artifacts")
-          entries = manifest.get("artifacts", [])
-          if {entry.get("name") for entry in entries} != expected or len(entries) != len(expected):
-              raise SystemExit("manifest must contain each release binary exactly once")
-          for entry in entries:
-              path = root / entry["name"]
-              digest = hashlib.sha256(path.read_bytes()).hexdigest()
-              if entry.get("sha256") != digest or entry.get("size") != path.stat().st_size:
-                  raise SystemExit(f"manifest metadata mismatch: {path.name}")
-          if len((root / "SBOM.txt").read_text().split("### ")) - 1 != len(expected):
-              raise SystemExit("SBOM must contain one module record per release binary")
-          print(f"verified {len(expected)} release binaries, manifest, checksums, and SBOM")
-          PY
+          shasum -a 256 -c release-dry-run/SHA256SUMS
+          go run tools/cmd/quarshell-tools/*.go release-verify release-dry-run
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: quarshell-release

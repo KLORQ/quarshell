@@ -1,15 +1,18 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Architecture and module boundaries
 
+The responsibility of every independent module is listed in
+[Project modules](modules.md).
+
 The accepted decision that governs these contracts is recorded in
 [ADR 0001: Domain model and compute backend SPI](decisions/0001-domain-and-backend-spi.md).
 
 Quarshell is the product name. Active Go module paths use the `quarshell-*`
-namespace; the `cautem` executable name is retained as a product command.
+namespace; the `quarshell` executable name is retained as a product command.
 
 ```mermaid
 flowchart LR
@@ -38,12 +41,12 @@ flowchart LR
 | `quarshell-driver` | Compute SPI and Docker, Podman, MicroVM implementations | Core, runtime asset contracts, engine clients |
 | `quarshell-runtime` | Guest init, supervisor, SSH/PTY, guest protocol | Core and runtime assets |
 | `quarshell-proxy` | Egress enforcement, credential mediation, audit | Core policy and runtime protocol |
-| `quarshell-providers` | Provider profiles, credential declarations, refresh validation | Core policy |
+| `quarshell-policy` | Provider profiles, credential declarations, refresh validation | Core policy |
 | `quarshell-gateway` | API composition, auth, durable state, operation orchestration | Core, proto, driver, runtime, proxy, providers |
 | `quarshell-sdk` and `quarshell-python` | Typed API clients and streaming helpers | Public API schemas |
 | `quarshell-cli` | Commands, terminal presentation, shell completions | SDK and terminal libraries |
 | `quarshell-ui` | Browser presentation and browser-safe client | Typed browser client and gateway API |
-| `quarshell-display`, `quarshell-slogx`, `quarshell-docs` | Display, logging utility, documentation | Their narrow public inputs |
+| `quarshell-cli`, `quarshell-core/slogx`, `quarshell-docs` | Display, logging utility, documentation | Their narrow public inputs |
 
 The dependency flow is one way: API clients call the gateway; the gateway
 selects and validates a backend; backend implementations use the runtime and

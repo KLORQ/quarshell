@@ -2,7 +2,7 @@
 
 This module contains the pinned OpenShell v0.1.4 protobuf contracts and
 generated Go, gRPC, Connect, and TypeScript bindings. It has no first-party
-`cautem.control.v1` service.
+`quarshell.control.v1` service.
 
 ## Pinned source and generation
 
@@ -32,5 +32,5 @@ v0.1.4.
 
 ## Toolchain
 
-Requires Go 1.27.2, Buf 1.66.0, Node.js 22+, and npm. Generated Go and
+Requires Go 1.27.3, Buf 1.66.0, Node.js 22+, and npm. Generated Go and
 TypeScript sources are checked in.

@@ -17,7 +17,7 @@ quarshell-core
   ├── quarshell-policy
   ├── quarshell-spi
   ├── quarshell-telemetry
-  ├── quarshell-providers
+  ├── quarshell-policy
   ├── quarshell-credentials
   ├── quarshell-proxy
   ├── quarshell-isolation
@@ -28,7 +28,7 @@ quarshell-core
   ├── quarshell-gateway
   ├── quarshell-sdk
   ├── quarshell-cli
-  └── quarshell-prover
+  └── quarshell-policy/prover
 quarshell-proto — без доменных зависимостей
 ```
 

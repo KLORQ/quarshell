@@ -10,7 +10,7 @@ import (
 
 func TestHostAuthBundleRoundTripAndDescriptorBinding(t *testing.T) {
 	descriptor := Descriptor{
-		Version: DescriptorVersion, BackendName: "cautem/vm", SandboxID: "sandbox-a",
+		Version: DescriptorVersion, BackendName: "quarshell/vm", SandboxID: "sandbox-a",
 		SessionID: "11111111-1111-4111-8111-111111111111", Generation: "g0000000000000001",
 		RootfsDigest:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RuntimeDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -37,7 +37,7 @@ func TestHostAuthBundleRoundTripAndDescriptorBinding(t *testing.T) {
 
 func TestDecodeHostAuthBundleRejectsUnknownFieldsAndMalformedToken(t *testing.T) {
 	descriptor := Descriptor{
-		BackendName: "cautem/vm", SandboxID: "sandbox-a", SessionID: "11111111-1111-4111-8111-111111111111", Generation: "g0000000000000001",
+		BackendName: "quarshell/vm", SandboxID: "sandbox-a", SessionID: "11111111-1111-4111-8111-111111111111", Generation: "g0000000000000001",
 		RootfsDigest:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RuntimeDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 	}
@@ -54,7 +54,7 @@ func TestDecodeHostAuthBundleRejectsUnknownFieldsAndMalformedToken(t *testing.T)
 
 func TestHostAuthBundleJSONMatchesOpenShellSupervisorAuthBundle(t *testing.T) {
 	descriptor := Descriptor{
-		Version: DescriptorVersion, BackendName: "cautem/vm", SandboxID: "sandbox-a",
+		Version: DescriptorVersion, BackendName: "quarshell/vm", SandboxID: "sandbox-a",
 		SessionID: "11111111-1111-4111-8111-111111111111", Generation: "g0000000000000001",
 		RootfsDigest:  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		RuntimeDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",

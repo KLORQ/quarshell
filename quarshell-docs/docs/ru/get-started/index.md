@@ -1,53 +1,61 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Быстрый старт
 
-cautem — один CLI, который запускает coding-агентов в песочницах с
+quarshell — один CLI, который запускает coding-агентов в песочницах с
 политикой на Docker или Podman. Установите CLI, убедитесь, что контейнерный
 движок работает, и скачайте образ песочницы — затем
 [запустите gateway](gateway.md) и [создайте первую песочницу](first-sandbox.md).
 
 ## Установка CLI
 
+Полная инструкция по платформе: [macOS](run-macos.md) или [Linux](run-linux.md).
+
 ### через установщик <small>рекомендуется</small> { #with-installer data-toc-label="через установщик" }
 
-Установщик скачивает CLI и gateway, ставит их в `~/.local/bin`,
-запускает локальный gateway и регистрирует его. Выполните:
+Установщик скачивает проверенный архив релиза из `quarshell-cli`, ставит CLI
+и вспомогательные файлы в `~/.local/bin` и запускает локальный Gateway, если он
+включён для платформы. В текущем Windows-архиве есть только CLI. Выполните:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh | sh
-cautem version
-cautem status
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell-cli/main/install.sh | sh
+quarshell version
+quarshell status
 ```
 
-`cautem status` должен показать `Connected`. `CAUTEM_NO_START=1` отключает
-запуск gateway, `CAUTEM_VERSION=vX.Y.Z` закрепляет релиз.
+`quarshell status` должен показать `Connected`. `QUARSHELL_NO_START=1` отключает
+запуск gateway, `QUARSHELL_VERSION=vX.Y.Z` закрепляет релиз.
 
-Бинарь ставится в `~/.local/bin` — этот каталог должен быть в `PATH`.
+Для Podman сначала запустите engine и установите CLI с `QUARSHELL_NO_START=1`.
+Затем экспортируйте `QUARSHELL_GATEWAY_RUNTIME=podman` до команды
+`quarshell gateway ensure`, иначе установщик запустит Docker backend по умолчанию.
+
+Бинарники и вспомогательные файлы ставятся в `~/.local/bin` — этот каталог должен быть в `PATH`.
 
 Для установки в другой каталог:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell/master/install.sh \
-  | CAUTEM_INSTALL_DIR=/usr/local/bin sh
+curl -LsSf https://raw.githubusercontent.com/KLORQ/quarshell-cli/main/install.sh \
+  | QUARSHELL_INSTALL_DIR=/usr/local/bin sh
 ```
 
 ### из исходников
 
-Сборка из checkout workspace — если нужен свежий `main` или вы разрабатываете
-cautem:
+Сборка из workspace опубликованных модулей:
 
 ```bash
-cd /path/to/cautem
-export GOWORK=$PWD/go.work
+git clone https://github.com/KLORQ/quarshell-workspace.git
+cd quarshell-workspace
+tools/checkout-modules.sh
+task workspace:sync
 
-go build -C quarshell-cli -o cautem ./cmd/cautem
+go build -C quarshell-cli -o quarshell ./cmd/quarshell
 go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
-./cautem install
-./cautem version
+./quarshell install
+./quarshell version
 ```
 
 ## Контейнерный движок
@@ -62,8 +70,8 @@ go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
 
     ```bash
     docker info
-    cautem doctor
-    cautem status
+    quarshell doctor
+    quarshell status
     ```
 
 === "Podman на macOS"
@@ -71,19 +79,21 @@ go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
     ```bash
     podman machine init     # один раз
     podman machine start
-    export CAUTEM_DRIVER=podman
-    cautem status
+    export QUARSHELL_GATEWAY_RUNTIME=podman
+    quarshell gateway ensure
+    quarshell status
     ```
 
 === "Podman на Linux"
 
     ```bash
     systemctl --user enable --now podman.socket
-    export CAUTEM_DRIVER=podman
-    cautem status
+    export QUARSHELL_GATEWAY_RUNTIME=podman
+    quarshell gateway ensure
+    quarshell status
     ```
 
-`cautem status` должен показать выбранный драйвер (`docker` или `podman`).
+`quarshell status` должен подтвердить соединение с выбранным Gateway.
 Подробнее о движках: [Docker](../providers/docker/index.md) ·
 [Podman](../providers/podman/index.md).
 
@@ -92,7 +102,8 @@ go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
 Скачайте базовый образ — в нём есть всё, что нужно агенту в CLI:
 
 ```bash
-docker pull ghcr.io/cautem/cautem/sandboxes/base:latest
+docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+export QUARSHELL_USE_GHCR=1
 ```
 
 !!! tip "Собрать образы самому"

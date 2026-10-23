@@ -1,12 +1,12 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # Профили провайдеров
 
 Профили объединяют имена credentials, endpoint policy, binaries и правила
-обнаружения в одном YAML-файле. cautem импортирует профили OpenShell в
+обнаружения в одном YAML-файле. quarshell импортирует профили OpenShell в
 каталог gateway и использует их при создании provider instance и сборке
 политики sandbox.
 
@@ -16,8 +16,8 @@ SPDX-License-Identifier: Apache-2.0
 sandbox. Upstream-профили — примеры; перед импортом проверьте разрешения и пути.
 
 ```bash
-cautem profile lint --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/codex.yaml
-cautem profile lint -f ./providers/codex.yaml
+quarshell profile lint --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/codex.yaml
+quarshell profile lint -f ./providers/codex.yaml
 ```
 
 Lint проверяет OpenShell-схему и runtime-функции, нужные `provider create`.
@@ -29,11 +29,11 @@ Lint проверяет OpenShell-схему и runtime-функции, нужн
 Можно импортировать один файл, HTTPS URL или все YAML/JSON-файлы каталога:
 
 ```bash
-cautem profile import --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/openai.yaml
-cautem profile import -f ./providers/codex.yaml
-cautem profile import --from ./providers
-cautem profile list
-cautem profile describe codex -o yaml
+quarshell profile import --url https://raw.githubusercontent.com/NVIDIA/OpenShell/main/providers/openai.yaml
+quarshell profile import -f ./providers/codex.yaml
+quarshell profile import --from ./providers
+quarshell profile list
+quarshell profile describe codex -o yaml
 ```
 
 Импорт создаёт запись в каталоге gateway и завершается ошибкой, если такой ID
@@ -46,9 +46,9 @@ cautem profile describe codex -o yaml
 provider instance всё равно принадлежит выбранному workspace.
 
 ```bash
-cautem profile export codex -o yaml > codex.yaml
+quarshell profile export codex -o yaml > codex.yaml
 # отредактируйте codex.yaml
-cautem profile update -f codex.yaml
+quarshell profile update -f codex.yaml
 ```
 
 ## Запустите Codex с API key
@@ -89,11 +89,11 @@ endpoints:
 binaries: [/usr/local/bin/codex, /usr/bin/codex]
 YAML
 
-cautem profile lint -f codex-api.yaml
-cautem profile import -f codex-api.yaml
-CODEX_API_KEY=… cautem provider create --name codex --type codex-api --from-existing
+quarshell profile lint -f codex-api.yaml
+quarshell profile import -f codex-api.yaml
+CODEX_API_KEY=… quarshell provider create --name codex --type codex-api --from-existing
 
-cautem sandbox create \
+quarshell sandbox create \
   --name codex-work \
   --upload "$PWD" \
   --provider codex
@@ -110,9 +110,9 @@ Refresh стратегии OpenShell `oauth2_refresh_token` и
 хранится в зашифрованном хранилище gateway, поля ответа записываются в указанные
 credential keys, а получение sandbox secrets обновляет токен перед истечением.
 Первое обновление можно вызвать вручную:
-`cautem provider refresh rotate NAME --credential-key ACCESS_TOKEN`.
+`quarshell provider refresh rotate NAME --credential-key ACCESS_TOKEN`.
 
-Upstream Codex OAuth fixture описывает credentials `CODEX_AUTH_*`, но cautem
+Upstream Codex OAuth fixture описывает credentials `CODEX_AUTH_*`, но quarshell
 не получает и не обновляет ChatGPT login и пока не реализует Codex workload
 identity federation. Token grants, AWS STS role assumption, Google
 service-account JWT и SigV4 signing также не поддерживаются runtime. Такие
@@ -126,7 +126,7 @@ service-account JWT и SigV4 signing также не поддерживаютс�
 доступна его admin или owner.
 
 ```bash
-cautem --workspace team-ml profile import -f codex-api.yaml
-cautem profile list --workspace team-ml
-cautem profile export codex-api --global -o yaml
+quarshell --workspace team-ml profile import -f codex-api.yaml
+quarshell profile list --workspace team-ml
+quarshell profile export codex-api --global -o yaml
 ```

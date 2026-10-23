@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -8,31 +8,40 @@ SPDX-License-Identifier: Apache-2.0
 CLI установлен, gateway запущен — создайте песочницу для проекта, с которым
 будет работать агент.
 
+Чтобы alias `base` указывал на опубликованный Quarshell image, задайте
+`QUARSHELL_USE_GHCR=1` и сохраните policy-файл, как показано в инструкциях для
+[macOS](run-macos.md) или [Linux](run-linux.md). Ниже предполагается путь
+`~/.config/quarshell/default-policy.yaml`.
+
 ## Создание
 
 Создайте sandbox под управлением Gateway:
 
 ```bash
-cautem sandbox create \
+quarshell sandbox create \
   --name demo \
   --gateway-workspace default \
-  --policy quarshell-cli/policies/default.yaml \
+  --from base \
+  --policy ~/.config/quarshell/default-policy.yaml \
+  --upload "$PWD" \
   --memory 2g
 ```
 
 | Флаг | Что делает |
 |------|------------|
-| `--name` | Имя OpenShell sandbox |
+| `--name` | Имя sandbox |
 | `--gateway-workspace` | Workspace выбранного Gateway |
-| `--policy` | YAML политики OpenShell SandboxPolicy |
+| `--from` | Alias image; `base` использует GHCR при `QUARSHELL_USE_GHCR=1` |
+| `--policy` | YAML-файл политики sandbox |
+| `--upload` | Копия локального проекта в `/workspace` |
 | `--memory` | Лимит памяти sandbox |
 
 ## Работа внутри
 
 ```bash
-cautem sandbox list
-cautem sandbox exec demo -- uname -a
-cautem sandbox connect demo
+quarshell sandbox list
+quarshell sandbox exec demo -- uname -a
+quarshell sandbox connect demo
 ```
 
 `connect` открывает интерактивный shell в sandbox. Gateway workspace задаёт
@@ -44,12 +53,13 @@ cautem sandbox connect demo
 видит только плейсхолдеры:
 
 ```bash
-GITHUB_TOKEN=… cautem provider create --name gh --type github --credential GITHUB_TOKEN
+GITHUB_TOKEN=… quarshell provider create --name gh --type github --credential GITHUB_TOKEN
 
-cautem sandbox create \
-  --name demo \
+quarshell sandbox create \
+  --name demo-with-gh \
   --gateway-workspace default \
-  --policy quarshell-cli/policies/default.yaml \
+  --from base \
+  --policy ~/.config/quarshell/default-policy.yaml \
   --provider gh
 ```
 
@@ -59,9 +69,9 @@ cautem sandbox create \
 ## Логи, остановка, удаление
 
 ```bash
-cautem logs demo --tail --source proxy
-cautem sandbox stop demo
-cautem sandbox delete demo
+quarshell logs demo --tail --source proxy
+quarshell sandbox stop demo
+quarshell sandbox delete demo
 ```
 
 `delete` удаляет песочницу, её proxy sidecar, сеть и data volumes. Секреты

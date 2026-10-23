@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KLORQ/quarshell-core/engine"
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
+	"github.com/KLORQ/quarshell-policy/engine"
 )
 
 const maxRawTunnelLifetime = 30 * time.Minute

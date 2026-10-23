@@ -16,7 +16,7 @@ type testBackend struct {
 	confirmErr  error
 }
 
-func (b *testBackend) Name() string { return "cautem/vm" }
+func (b *testBackend) Name() string { return "quarshell/vm" }
 func (b *testBackend) Attach(_ context.Context, descriptor VerifiedDescriptor, sandbox SandboxContext) (Boundary, error) {
 	b.attachCalls++
 	if descriptor.SandboxID() != sandbox.SandboxID || descriptor.Generation() != sandbox.Generation {
@@ -58,7 +58,7 @@ func testContext() SandboxContext {
 func descriptorBytes(t *testing.T, mutate func(*Descriptor)) []byte {
 	t.Helper()
 	sandbox := testContext()
-	descriptor := Descriptor{Version: DescriptorVersion, BackendName: "cautem/vm", SandboxID: sandbox.SandboxID, SessionID: sandbox.SessionID, Generation: sandbox.Generation, RootfsDigest: sandbox.RootfsDigest, RuntimeDigest: sandbox.RuntimeDigest, Payload: json.RawMessage(`{"worker_socket":"/private/vm/worker.sock"}`)}
+	descriptor := Descriptor{Version: DescriptorVersion, BackendName: "quarshell/vm", SandboxID: sandbox.SandboxID, SessionID: sandbox.SessionID, Generation: sandbox.Generation, RootfsDigest: sandbox.RootfsDigest, RuntimeDigest: sandbox.RuntimeDigest, Payload: json.RawMessage(`{"worker_socket":"/private/vm/worker.sock"}`)}
 	if mutate != nil {
 		mutate(&descriptor)
 	}
@@ -75,7 +75,7 @@ func TestRegistryAttachesConfirmsBeforeStartAndCloses(t *testing.T) {
 	if err := registry.Register(backend); err != nil {
 		t.Fatal(err)
 	}
-	attached, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "cautem/vm", testContext())
+	attached, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "quarshell/vm", testContext())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,15 +116,15 @@ func TestRegistryRejectsMismatchedDescriptorBeforeBackendAttach(t *testing.T) {
 		mutate   func(*Descriptor)
 		admitted string
 	}{
-		{name: "wrong sandbox", mutate: func(d *Descriptor) { d.SandboxID = "sandbox-other" }, admitted: "cautem/vm"},
-		{name: "wrong session", mutate: func(d *Descriptor) { d.SessionID = "session-other" }, admitted: "cautem/vm"},
-		{name: "stale generation", mutate: func(d *Descriptor) { d.Generation = "generation-old" }, admitted: "cautem/vm"},
+		{name: "wrong sandbox", mutate: func(d *Descriptor) { d.SandboxID = "sandbox-other" }, admitted: "quarshell/vm"},
+		{name: "wrong session", mutate: func(d *Descriptor) { d.SessionID = "session-other" }, admitted: "quarshell/vm"},
+		{name: "stale generation", mutate: func(d *Descriptor) { d.Generation = "generation-old" }, admitted: "quarshell/vm"},
 		{name: "wrong rootfs", mutate: func(d *Descriptor) {
 			d.RootfsDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-		}, admitted: "cautem/vm"},
+		}, admitted: "quarshell/vm"},
 		{name: "wrong runtime", mutate: func(d *Descriptor) {
 			d.RuntimeDigest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-		}, admitted: "cautem/vm"},
+		}, admitted: "quarshell/vm"},
 		{name: "admission mismatch", mutate: nil, admitted: "other/backend"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -146,7 +146,7 @@ func TestRegistryRejectsIncompleteConfirmationAndCleansBoundary(t *testing.T) {
 	if err := registry.Register(badBackend); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "cautem/vm", testContext()); err == nil {
+	if _, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "quarshell/vm", testContext()); err == nil {
 		t.Fatal("Attach() accepted incomplete enforcement evidence")
 	}
 	if backend.boundary == nil || backend.boundary.closeCalls != 1 || backend.boundary.startCalls != 0 {
@@ -162,7 +162,7 @@ func TestConfirmErrorClosesAttachedBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	backend.confirmErr = errors.New("confirm probe failed")
-	if _, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "cautem/vm", testContext()); err == nil || !strings.Contains(err.Error(), "confirm probe failed") {
+	if _, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "quarshell/vm", testContext()); err == nil || !strings.Contains(err.Error(), "confirm probe failed") {
 		t.Fatalf("Attach() error=%v, want confirmation failure", err)
 	}
 	if backend.boundary.closeCalls != 1 || backend.boundary.startCalls != 0 {
@@ -176,7 +176,7 @@ func TestStartFailureClosesBoundary(t *testing.T) {
 	if err := registry.Register(backend); err != nil {
 		t.Fatal(err)
 	}
-	attached, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "cautem/vm", testContext())
+	attached, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "quarshell/vm", testContext())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestCloseFailureCanBeRetriedWithoutRestartingWorkload(t *testing.T) {
 	if err := registry.Register(backend); err != nil {
 		t.Fatal(err)
 	}
-	attached, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "cautem/vm", testContext())
+	attached, err := registry.Attach(context.Background(), descriptorBytes(t, nil), "quarshell/vm", testContext())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestDescriptorDecoderRejectsUnknownFieldsTrailingDataAndOversize(t *testing
 func TestEncodeDescriptorValidatesAndRoundTripsBoundedClaims(t *testing.T) {
 	sandbox := testContext()
 	descriptor := Descriptor{
-		Version: DescriptorVersion, BackendName: "cautem/vm", SandboxID: sandbox.SandboxID,
+		Version: DescriptorVersion, BackendName: "quarshell/vm", SandboxID: sandbox.SandboxID,
 		SessionID: sandbox.SessionID, Generation: sandbox.Generation,
 		RootfsDigest: sandbox.RootfsDigest, RuntimeDigest: sandbox.RuntimeDigest,
 		Payload: json.RawMessage(`{"worker_id":"sandbox-1"}`),

@@ -33,15 +33,15 @@ jobs:
                    providers/docker/index.html providers/docker/resources/index.html ru/providers/docker/resources/index.html \
                    providers/kubernetes/index.html ru/providers/microvm/index.html \
                    assets/stylesheets/extra-20261009.css assets/stylesheets/mascot.css assets/images/under-construction.svg \
-                   assets/images/hero.svg assets/images/cautem-app-icon.png \
+                   assets/images/hero.svg assets/images/quarshell-app-icon.png \
                    assets/images/mascot.svg assets/images/mascot.png \
                    assets/images/mascot-violet.svg \
                    assets/images/mascot-scenes/working.png assets/images/mascot-scenes/containers.png \
                    assets/images/mascot-scenes/remote.png assets/images/mascot-scenes/fast.png \
                    assets/images/mascot-scenes/flexible.png assets/images/mascot-scenes/happy.png \
-                   assets/images/cautem-mascot.png \
-                   assets/images/cautem-mascot-no-tablet.png \
-                   assets/images/cautem-gopher-peek.svg \
+                   assets/images/quarshell-mascot.png \
+                   assets/images/quarshell-mascot-no-tablet.png \
+                   assets/images/quarshell-gopher-peek.svg \
                    assets/images/mascot-cutouts/clean.png assets/images/mascot-cutouts/nav.png \
                    assets/images/mascot-cutouts/containers.png \
                    assets/images/mascot-cutouts/remote.png assets/images/mascot-cutouts/fast.png \
@@ -62,25 +62,25 @@ jobs:
             grep -q 'id="how-it-works"' "$page"
             grep -q 'class="mermaid"' "$page"
             grep -q 'class="ws-mac-terminal ws-flow"' "$page"
-            grep -q 'cautem term' "$page"
+            grep -q 'quarshell term' "$page"
             grep -q 'ws-hero__mascot-track' "$page"
             grep -q 'ws-hero__mascot-art' "$page"
             grep -q 'ws-hero__pupil--left' "$page"
             grep -q 'ws-hero__pupil--right' "$page"
-            grep -q 'cautem-mascot-no-tablet.png' "$page"
-            ! grep -q 'cautem-mascot.png' "$page"
+            grep -q 'quarshell-mascot-no-tablet.png' "$page"
+            ! grep -q 'quarshell-mascot.png' "$page"
             ! grep -q 'ws-hero__mascot-canvas' "$page"
             grep -q 'assets/javascripts/hero.js' "$page"
             ! grep -q 'hero-3d.js' "$page"
           done
           grep -q 'Sandboxes for coding agents' site/index.html
           grep -q 'Песочницы для coding-агентов' site/ru/index.html
-          grep -q 'property="og:title" content="cautem Sandbox — Sandboxes for coding agents"' site/index.html
-          grep -q 'property="og:title" content="cautem Sandbox — песочницы для coding-агентов"' site/ru/index.html
+          grep -q 'property="og:title" content="Quarshell — Sandboxes for coding agents"' site/index.html
+          grep -q 'property="og:title" content="Quarshell — песочницы для coding-агентов"' site/ru/index.html
           grep -q 'property="og:locale" content="en_US"' site/index.html
           grep -q 'property="og:locale" content="ru_RU"' site/ru/index.html
-          grep -q 'cautem-app-icon.png' site/index.html
-          grep -q 'cautem-app-icon.png' site/ru/index.html
+          grep -q 'quarshell-app-icon.png' site/index.html
+          grep -q 'quarshell-app-icon.png' site/ru/index.html
           grep -q 'extra-20261009.css' site/ru/index.html
           grep -q 'mascot.css' site/ru/index.html
           grep -q 'hero.js' site/ru/index.html
@@ -92,16 +92,16 @@ jobs:
             grep -q 'property="og:title"' "$page"
             grep -q 'property="og:description"' "$page"
             grep -q 'property="og:url"' "$page"
-            grep -q 'property="og:image" content="https://klorq.github.io/sandbox.dev/assets/images/cautem-app-icon.png"' "$page"
+            grep -q 'property="og:image" content="https://klorq.github.io/sandbox.dev/assets/images/quarshell-app-icon.png"' "$page"
             grep -q 'property="og:image:width" content="1317"' "$page"
             grep -q 'property="og:image:height" content="1194"' "$page"
-            grep -q 'name="twitter:image" content="https://klorq.github.io/sandbox.dev/assets/images/cautem-app-icon.png"' "$page"
+            grep -q 'name="twitter:image" content="https://klorq.github.io/sandbox.dev/assets/images/quarshell-app-icon.png"' "$page"
             grep -q 'name="twitter:card" content="summary_large_image"' "$page"
           done
           grep -q 'Start the gateway' site/get-started/index.html
           grep -q 'Первая песочница' site/ru/get-started/index.html
           grep -q 'id="with-installer"' site/get-started/index.html
-          grep -q 'language-bash' site/get-started/gateway/index.html
+          grep -q 'language-sh' site/get-started/gateway/index.html
           grep -q 'md-status--soon' site/providers/docker/index.html
           grep -q 'ws-badge--soon' site/ru/providers/docker/index.html
           grep -q 'under-construction.svg' site/ru/providers/microvm/index.html
@@ -113,11 +113,11 @@ jobs:
           grep -q 'mascot-cutouts/worker.png' site/providers/kubernetes/index.html
           grep -q 'mascot-cutouts/docker.png' site/get-started/first-sandbox/index.html
           ! grep -R -q 'src="/assets/images/mascot-cutouts/' site
-          grep -q 'CAUTEM_VERSION' site/get-started/index.html
-          grep -q 'v0.1.6' site/get-started/index.html
+          grep -q 'QUARSHELL_VERSION' site/get-started/index.html
+          grep -q 'quarshell-cli/main/install.sh' site/get-started/index.html
           ! grep -q 'v0.1.0-beta.1' site/get-started/index.html
-          grep -q 'CAUTEM_VERSION' site/ru/get-started/index.html
-          grep -q 'v0.1.6' site/ru/get-started/index.html
+          grep -q 'QUARSHELL_VERSION' site/ru/get-started/index.html
+          grep -q 'quarshell-cli/main/install.sh' site/ru/get-started/index.html
           ! grep -q 'v0.1.0-beta.1' site/ru/get-started/index.html
           python -c 'from pathlib import Path; files = list(Path("site/assets/images/mascot-cutouts").glob("*.png")); assert len(files) == 12; assert all(p.read_bytes()[25] == 6 for p in files), "Mascot cutouts must be RGBA PNGs"'
           python - <<'PY'
@@ -125,7 +125,7 @@ jobs:
           import struct
           import zlib
 
-          data = Path("site/assets/images/cautem-app-icon.png").read_bytes()
+          data = Path("site/assets/images/quarshell-app-icon.png").read_bytes()
           assert data[:8] == b"\x89PNG\r\n\x1a\n", "App icon must be a PNG"
           offset = 8
           compressed = bytearray()
@@ -144,7 +144,7 @@ jobs:
           assert first_row[0] <= 4 and first_row[4] == 0, "App icon's outer corner must be transparent"
           PY
           grep -q 'class="ws-mascot-illustration"' site/assets/images/mascot-violet.svg
-          grep -q 'cautem-mascot.png' site/assets/images/mascot-violet.svg
+          grep -q 'quarshell-mascot.png' site/assets/images/mascot-violet.svg
           test ! -e site/assets/images/mascot-violet-atlas.png
           test ! -e site/assets/images/mascot-violet.png
       - uses: actions/upload-pages-artifact@v3

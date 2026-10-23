@@ -99,7 +99,7 @@ func (d *Driver) createSandbox(ctx context.Context, spec vmCreateSpec) (driver.H
 		defer archiveFile.Close()
 	}
 	if d.host.GuestAgentPath == "" {
-		return driver.Handle{}, fmt.Errorf("vm driver: set CAUTEM_VM_GUEST_AGENT to the matching static Linux guest agent binary")
+		return driver.Handle{}, fmt.Errorf("vm driver: set QUARSHELL_VM_GUEST_AGENT to the matching static Linux guest agent binary")
 	}
 	store, err := openStateStore(d.host.StateDir)
 	if err != nil {
@@ -140,7 +140,6 @@ func (d *Driver) createSandbox(ctx context.Context, spec vmCreateSpec) (driver.H
 		if statErr != nil || !info.Mode().IsRegular() || info.Size() == 0 {
 			return driver.Handle{}, fmt.Errorf("vm driver bootstrap disk is missing or invalid: %s", d.host.BootstrapDisk)
 		}
-		rootfsImage = d.host.BootstrapDisk
 		rootfsSourceType = "tar"
 		rootfsSourceRef = "uploaded-tar"
 		imagePlatform = "linux/" + runtime.GOARCH

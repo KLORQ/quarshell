@@ -153,7 +153,7 @@ func spawnOrphans(countArg, seconds string) {
 		}
 		pids = append(pids, strconv.Itoa(child.Process.Pid))
 	}
-	if err := os.WriteFile("/tmp/cautem-process-event-child-pids", []byte(strings.Join(pids, "\n")), 0o600); err != nil {
+	if err := os.WriteFile("/tmp/quarshell-process-event-child-pids", []byte(strings.Join(pids, "\n")), 0o600); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Fprintf(os.Stdout, "spawned %d adopted-child probes: %s\n", len(pids), strings.Join(pids, ","))
@@ -217,7 +217,7 @@ func probeUDP(target string) {
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(time.Second))
-	if _, err := conn.Write([]byte("cautem-policy-bypass-probe")); err != nil {
+	if _, err := conn.Write([]byte("quarshell-policy-bypass-probe")); err != nil {
 		fmt.Println("BLOCKED")
 		return
 	}
@@ -246,7 +246,7 @@ func probeConnectStatus(target, expected string) {
 		os.Exit(3)
 	}
 	proxyAuth := ""
-	if authPath := strings.TrimSpace(os.Getenv("CAUTEM_PROXY_AUTH_FILE")); authPath != "" {
+	if authPath := strings.TrimSpace(os.Getenv("QUARSHELL_PROXY_AUTH_FILE")); authPath != "" {
 		body, readErr := os.ReadFile(authPath)
 		if readErr != nil || len(body) > 64*1024 {
 			fmt.Fprintln(os.Stderr, "cannot read configured proxy auth file")

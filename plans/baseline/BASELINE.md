@@ -41,7 +41,7 @@
 | `quarshell-gateway` | `c9590ac` | 250 |
 | `quarshell-org-profile` | `113eac0` | 1 |
 | `quarshell-proto` | `f116012` | 32 |
-| `quarshell-providers` | `4f0872d` | 12 |
+| `quarshell-policy` | `4f0872d` | 12 |
 | `quarshell-proxy` | `3eb55a7` | 51 |
 | `quarshell-python` | `cfb8738` | 31 |
 | `quarshell-runtime` | `86c56b3` | 83 |

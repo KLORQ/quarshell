@@ -133,7 +133,7 @@ type PrepInput struct {
 
 func prepareWorkloadInGuest(ctx context.Context, in PrepInput) (string, error) {
     if err := validatePrepInput(in); err != nil { return "", err }
-    if err := runPrepWorker(ctx, in, "CAUTEM_VM_INIT_MODE=image-prep"); err != nil {
+    if err := runPrepWorker(ctx, in, "QUARSHELL_VM_INIT_MODE=image-prep"); err != nil {
         return "", err
     }
     if err := verifyExt4Directory(in.OutputDisk, "/image-rootfs"); err != nil {
@@ -186,7 +186,7 @@ ARM64/HVF и Linux KVM amd64/arm64. Пока хотя бы один target lane 
   их до старта broker/VM.
 - [ ] На macOS ARM64 запускать подписанный и проверенный worker bundle через
   отдельный supervisor path. Gateway preflight теперь требует
-  `CAUTEM_VM_WORKER_TEAM_ID`, проверяет подпись через `codesign --verify --strict`
+  `QUARSHELL_VM_WORKER_TEAM_ID`, проверяет подпись через `codesign --verify --strict`
   и совпадение Team ID; managed supervisor и live Gateway acceptance ещё не
   реализованы.
 - [ ] Не передавать host workspace mount. Хранить workspace в persistent guest
@@ -229,7 +229,7 @@ if !hostIsolation.Ready() || !hostSupervisor.Ready() {
 cd quarshell-driver && go test ./...
 cd ../quarshell-gateway && go test ./...
 cd ../quarshell-runtime && go test ./...
-cd .. && task vm:parity-check compat:gaps docs:strict
+cd .. && task vm:parity-check compat:inventory docs:strict
 ```
 
 **Локальный live acceptance на macOS Apple Silicon/HVF:**
@@ -249,14 +249,14 @@ PTY, identity, policy и SSH TCP roundtrip. Успех на macOS не заме�
 task vm:live-linux
 
 # Сквозной публичный Gateway/CLI тест с VM provider
-CAUTEM_VM_GATEWAY_ACCEPTANCE=1 task vm:gateway-acceptance
+QUARSHELL_VM_GATEWAY_ACCEPTANCE=1 task vm:gateway-acceptance
 ```
 
 `vm:live-linux` запускает существующий KVM acceptance script для amd64/arm64.
 Workflow `quarshell-driver/.github/workflows/live-vm-kvm.yml` теперь запускает
 оба native KVM lane на push и pull request; в настройках защиты ветки нужно
 сделать оба job обязательными и настроить self-hosted runners с меткой
-`cautem-kvm`. Gateway task
+`quarshell-kvm`. Gateway task
 `vm:gateway-acceptance` пока отсутствует: его нужно реализовать и включить в CI.
 Все driver test packages локально cross-compiled для `linux/amd64` и
 `linux/arm64` (`GOOS=linux GOARCH=... CGO_ENABLED=0 go test -run '^$' -exec

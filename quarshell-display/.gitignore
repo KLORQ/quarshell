@@ -1,7 +1,0 @@
-*.exe
-*.test
-*.out
-/osg
-/cautem-init
-/quarshell-gateway
-.DS_Store

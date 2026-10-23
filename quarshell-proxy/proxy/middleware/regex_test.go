@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/KLORQ/quarshell-core/openshell"
+	"github.com/KLORQ/quarshell-proto/compat/openshell"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -143,7 +143,7 @@ func TestRegexBuiltinWebSocketDirectionAndLimits(t *testing.T) {
 }
 
 func TestFromEnvironRegistersRegexBuiltinWithoutEndpoint(t *testing.T) {
-	pipeline := FromEnviron([]string{`CAUTEM_SUPERVISOR_MIDDLEWARES=[{"name":"openshell/regex","config":{"mode":"redact"}}]`})
+	pipeline := FromEnviron([]string{`QUARSHELL_SUPERVISOR_MIDDLEWARES=[{"name":"openshell/regex","config":{"mode":"redact"}}]`})
 	if pipeline == nil || len(pipeline.Stages) != 1 || pipeline.Stages[0].Name() != openshell.RegexMiddlewareName {
 		t.Fatalf("pipeline=%+v", pipeline)
 	}

@@ -1,22 +1,22 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
 # CLI
 
 ```text
-cautem sandbox create|list|get|stop|start|delete|exec|connect|upload|download|…
-cautem cp <local-path> <sandbox>:/path | <sandbox>:/path <local-path>
-cautem sandbox template create|list|get|delete
-cautem sandbox provider …
-cautem provider create|list|get|refresh|update|delete|profile …
-cautem profile …
-cautem gateway add|select|ensure|info|login|…
-cautem policy get|set|…
-cautem rule get|approve|reject|…
-cautem workspace|forward|service|settings|whoami|logs|term
-cautem health|init|doctor|status|version|install|completions|ssh-proxy
+quarshell sandbox create|list|get|stop|start|delete|exec|connect|upload|download|…
+quarshell cp <local-path> <sandbox>:/path | <sandbox>:/path <local-path>
+quarshell sandbox template create|list|get|delete
+quarshell sandbox provider …
+quarshell provider create|list|get|refresh|update|delete|profile …
+quarshell profile …
+quarshell gateway add|select|ensure|info|login|…
+quarshell policy get|set|…
+quarshell rule get|approve|reject|…
+quarshell workspace|forward|service|settings|whoami|logs|term
+quarshell health|init|doctor|status|version|install|completions|ssh-proxy
 ```
 
 `--gateway-endpoint URL` выбирает Gateway напрямую, без поиска имени в
@@ -29,21 +29,21 @@ endpoint имеет приоритет над сохранённым выбор�
 значение по умолчанию; в режиме `auto` непустой `NO_COLOR` отключает цвета,
 а непустой `FORCE_COLOR` включает их, если `NO_COLOR` не задан).
 
-`cautem forward service --target-port PORT [--target-host HOST] [--local
+`quarshell forward service --target-port PORT [--target-host HOST] [--local
 [BIND:]PORT] [SANDBOX]` открывает локальный TCP listener к loopback-сервису в
 sandbox. По умолчанию target host — `127.0.0.1`; `--local 0` просит ОС выбрать
 локальный порт.
 
-`cautem provider list [--page-size N] [--page-token TOKEN]
+`quarshell provider list [--page-size N] [--page-token TOKEN]
 [--label-selector EXPR] [--all-workspaces] [-o table|yaml|json]` возвращает
 одну страницу Gateway. Передайте `next_page_token` как `--page-token`; для
 all-workspaces нужен platform administrator. Значения provider credentials
 остаются скрыты.
-`cautem provider list-profiles [--workspace NAME|--global] [--page-size N]
+`quarshell provider list-profiles [--workspace NAME|--global] [--page-size N]
 [--page-token TOKEN] [-o table|yaml|json]` постранично выводит выбранный
 каталог профилей; те же параметры принимает `provider profile list`.
 
-`cautem term --theme auto|dark|light` выбирает акцентную палитру TUI;
+`quarshell term --theme auto|dark|light` выбирает акцентную палитру TUI;
 `QUARSHELL_THEME` задаёт значение по умолчанию. Режим `auto` использует
 `COLORFGBG`, если он задан, иначе выбирает тёмную тему.
 
@@ -62,11 +62,11 @@ all-workspaces нужен platform administrator. Значения provider cred
 | `--expose-authorization-mode strip|bearer-passthrough` | Выбрать обработку Bearer authorization в service proxy |
 | `--gpu` | NVIDIA CDI |
 
-`cautem sandbox create --help` показывает допустимые параметры создания.
+`quarshell sandbox create --help` показывает допустимые параметры создания.
 Создание всегда использует выбранный Gateway и OpenShell `CreateSandbox`.
 Локальная сборка, display, bind mount и Engine-специфичные create-флаги не
 принимаются. У каждого sandbox leaf есть собственная справка:
-`cautem sandbox <leaf> --help`.
+`quarshell sandbox <leaf> --help`.
 
 Укажите `--gateway-workspace NAME`, чтобы выбрать workspace. При создании из
 образа доступны CPU, memory, количество GPU, environment, labels, provider
@@ -76,7 +76,7 @@ attachments, policy, restart policy и JSON конфигурации driver.
 Gateway находится на этой машине, а compute driver поддерживает rootfs staging.
 Foreground-команда запускается после provisioning через native interactive
 exec; `--detach` оставляет её запущенной в Gateway. Для подключения IDE
-используйте `cautem sandbox connect NAME --editor vscode|cursor`.
+используйте `quarshell sandbox connect NAME --editor vscode|cursor`.
 
 `--expose PORT` сохраняет доступность sandbox supervisor. Gateway получает
 exposure вместе с запросом создания и просит Gateway удалить новый sandbox,
@@ -87,13 +87,13 @@ exposure вместе с запросом создания и просит Gatew
 Bearer header.
 
 Повторяйте `--forward PORT` при создании, чтобы после provisioning запустить
-фоновый локальный TCP forward. `cautem forward start [BIND:]PORT SANDBOX`
+фоновый локальный TCP forward. `quarshell forward start [BIND:]PORT SANDBOX`
 использует native OpenShell `ForwardTcp` relay к loopback-порту sandbox;
 `--forward` использует одинаковый порт на локальной и sandbox стороне.
 
 SSH helper из сгенерированных настроек `sandbox ssh-config` поддерживает
 текущий Gateway, именованный Gateway и явный URL Gateway с токеном sandbox.
-Точные варианты показывает `cautem ssh-proxy --help`.
+Точные варианты показывает `quarshell ssh-proxy --help`.
 
 Host bind mount, локальная сборка образа, display и переключатели локального
 runtime не входят в контракт OpenShell Gateway create. `--upload` передаёт
@@ -156,7 +156,7 @@ upload; каталог по умолчанию для upload — `/workspace`, �
 
 ## Settings
 
-`cautem settings get [SANDBOX] [--global] [--json]` читает эффективные
+`quarshell settings get [SANDBOX] [--global] [--json]` читает эффективные
 настройки последнего или указанного sandbox; `--global` читает настройки
 Gateway и не принимает имя sandbox. `settings set [SANDBOX] --key KEY
 --value VALUE` и `settings delete [SANDBOX] --key KEY` задают или удаляют
@@ -165,7 +165,7 @@ Gateway и не принимает имя sandbox. `settings set [SANDBOX] --key
 
 ## Service endpoints
 
-Используйте `cautem service expose SANDBOX PORT [NAME] [--authorization-mode strip|bearer-passthrough]`,
+Используйте `quarshell service expose SANDBOX PORT [NAME] [--authorization-mode strip|bearer-passthrough]`,
 `service list [SANDBOX] [--page-size N] [--page-token TOKEN] [--all-workspaces] [-o table|yaml|json]` и `service get|delete SANDBOX [NAME]`. Список возвращает одну страницу: table выводит следующий token, JSON/YAML включают `next_page_token`. Для `--all-workspaces` нужна роль platform administrator; флаг переопределяет выбранный workspace. Текущий Gateway
 поддерживает безопасный режим `strip`: перед proxy к приложению Authorization
 headers удаляются. `bearer-passthrough` передаёт приложению один корректный
@@ -176,7 +176,7 @@ workspace, domain и режим авторизации.
 
 ## Терминальный интерфейс
 
-`cautem term` обновляет список sandbox каждые две секунды. Выбирайте sandbox
+`quarshell term` обновляет список sandbox каждые две секунды. Выбирайте sandbox
 клавишами `↑`/`↓` или `j`/`k`, нажмите `/` для фильтра по имени, статусу или
 образу, `d` для просмотра подробностей. `enter` или `c` подключает к sandbox,
 `e` открывает интерактивную оболочку, `s` останавливает работающий sandbox,

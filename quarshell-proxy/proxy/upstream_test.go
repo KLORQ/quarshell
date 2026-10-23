@@ -152,9 +152,9 @@ func TestDialViaUpstreamProxyUsesAuthFileWithoutEmbeddingSecretInURL(t *testing.
 	t.Setenv("ALL_PROXY", "")
 	t.Setenv("NO_PROXY", "")
 	t.Setenv("no_proxy", "")
-	t.Setenv("CAUTEM_PROXY_AUTH_FILE", authPath)
-	t.Setenv("CAUTEM_PROXY_CONNECT_BY_HOSTNAME", "false")
-	t.Setenv("CAUTEM_PROXY_CA_BUNDLE", "")
+	t.Setenv("QUARSHELL_PROXY_AUTH_FILE", authPath)
+	t.Setenv("QUARSHELL_PROXY_CONNECT_BY_HOSTNAME", "false")
+	t.Setenv("QUARSHELL_PROXY_CA_BUNDLE", "")
 	conn, err := DialSSRF(context.Background(), "api.example.com", "443", SSRFOptions{LookupIPAddr: func(context.Context, string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP("8.8.8.8")}}, nil
 	}})
@@ -196,9 +196,9 @@ func TestDialViaHTTPSProxyUsesConfiguredCABundle(t *testing.T) {
 	t.Setenv("ALL_PROXY", "")
 	t.Setenv("NO_PROXY", "")
 	t.Setenv("no_proxy", "")
-	t.Setenv("CAUTEM_PROXY_AUTH_FILE", "")
-	t.Setenv("CAUTEM_PROXY_CONNECT_BY_HOSTNAME", "false")
-	t.Setenv("CAUTEM_PROXY_CA_BUNDLE", caPath)
+	t.Setenv("QUARSHELL_PROXY_AUTH_FILE", "")
+	t.Setenv("QUARSHELL_PROXY_CONNECT_BY_HOSTNAME", "false")
+	t.Setenv("QUARSHELL_PROXY_CA_BUNDLE", caPath)
 	conn, err := DialSSRF(context.Background(), "api.example.com", "443", SSRFOptions{LookupIPAddr: func(context.Context, string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP("8.8.8.8")}}, nil
 	}})
@@ -234,8 +234,8 @@ func TestDialViaUpstreamProxySupportsOperatorHostnameMode(t *testing.T) {
 	}
 	t.Setenv("NO_PROXY", "")
 	t.Setenv("no_proxy", "")
-	t.Setenv("CAUTEM_PROXY_AUTH_FILE", "")
-	t.Setenv("CAUTEM_PROXY_CA_BUNDLE", "")
+	t.Setenv("QUARSHELL_PROXY_AUTH_FILE", "")
+	t.Setenv("QUARSHELL_PROXY_CA_BUNDLE", "")
 	resolver := func(context.Context, string) ([]net.IPAddr, error) {
 		return []net.IPAddr{{IP: net.ParseIP("8.8.8.8")}}, nil
 	}
@@ -250,7 +250,7 @@ func TestDialViaUpstreamProxySupportsOperatorHostnameMode(t *testing.T) {
 	if got := <-target; got != "8.8.8.8:443" {
 		t.Fatalf("CONNECT target=%q, want validated IP", got)
 	}
-	t.Setenv("CAUTEM_PROXY_CONNECT_BY_HOSTNAME", "true")
+	t.Setenv("QUARSHELL_PROXY_CONNECT_BY_HOSTNAME", "true")
 	for _, allowedIPs := range [][]string{nil, {"8.8.8.8/32"}} {
 		conn, err := DialSSRF(context.Background(), "api.example.com", "443", SSRFOptions{AllowedIPs: allowedIPs, LookupIPAddr: resolver})
 		if err != nil {

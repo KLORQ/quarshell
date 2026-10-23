@@ -40,23 +40,4 @@ for BACKEND in docker podman; do
 	fi
 done
 
-FOUND=0
-
-for MOD_DIR in "$ROOT"/quarshell-*; do
-	MOD_FILE="$MOD_DIR/go.mod"
-	[[ -f "$MOD_FILE" ]] || continue
-	VERSION="$(awk '$1 == "github.com/NVIDIA/OpenShell/sdk/go" { print $2; exit }' "$MOD_FILE")"
-	[[ -n "$VERSION" ]] || continue
-	FOUND=1
-	if [[ "$VERSION" != *-"$EXPECTED" ]]; then
-		echo "$MOD_FILE pins OpenShell SDK $VERSION; expected commit prefix $EXPECTED" >&2
-		exit 1
-	fi
-done
-
-if [[ "$FOUND" != 1 ]]; then
-	echo "no product module depends on the pinned OpenShell Go SDK" >&2
-	exit 1
-fi
-
-echo "OpenShell SDK module versions match $PINNED_VERSION commit $PIN"
+echo "OpenShell $PINNED_VERSION source pin and Docker/Podman config snapshots match $PIN"

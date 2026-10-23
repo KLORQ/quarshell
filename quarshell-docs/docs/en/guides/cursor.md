@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -9,14 +9,14 @@ SPDX-License-Identifier: Apache-2.0
 
 ```bash
 task docker:agent:cursor
-# or: docker pull ghcr.io/cautem/cautem/sandboxes/cursor:latest
+# or: docker pull ghcr.io/quarshell/quarshell/sandboxes/cursor:latest
 ```
 
 ## Providers and policy
 
 ```bash
-CURSOR_API_KEY=… cautem provider create --name cursor --type cursor --credential CURSOR_API_KEY
-GITHUB_TOKEN=…   cautem provider create --name gh --type github --credential GITHUB_TOKEN
+CURSOR_API_KEY=… quarshell provider create --name cursor --type cursor --credential CURSOR_API_KEY
+GITHUB_TOKEN=…   quarshell provider create --name gh --type github --credential GITHUB_TOKEN
 
 ORG=YOUR_ORG
 sed "s/YOUR_ORG/${ORG}/g" quarshell-cli/policies/cursor-github-push.yaml \
@@ -33,7 +33,7 @@ Builtin `github` is mostly read/clone. Push needs a write-capable base policy
 ## Create
 
 ```bash
-cautem sandbox create \
+quarshell sandbox create \
   --name cursor \
   --from cursor \
   --upload "$PWD" \
@@ -46,23 +46,23 @@ cautem sandbox create \
 Verify:
 
 ```bash
-cautem sandbox exec cursor -- env | grep -E 'TOKEN|KEY|CURSOR' || true
-# expect: GITHUB_TOKEN=cautem:resolve:… ; no CURSOR_API_KEY
+quarshell sandbox exec cursor -- env | grep -E 'TOKEN|KEY|CURSOR' || true
+# expect: GITHUB_TOKEN=quarshell:resolve:… ; no CURSOR_API_KEY
 ```
 
 ## Login and run
 
 ```bash
-cautem sandbox connect cursor -- agent login
-cautem sandbox connect cursor -- agent
+quarshell sandbox connect cursor -- agent login
+quarshell sandbox connect cursor -- agent
 ```
 
-OAuth state lands under the persist volume (`/cautem/data`). After
+OAuth state lands under the persist volume (`/quarshell/data`). After
 `stop`/`start`, login usually survives until the volume is deleted.
 
 ```bash
-cautem logs cursor --tail --source proxy
-cautem term
+quarshell logs cursor --tail --source proxy
+quarshell term
 ```
 
 In the TUI, use the arrow keys or `j`/`k` to select a sandbox, `enter`/`c` to
@@ -84,8 +84,8 @@ The uploaded checkout lives under `/workspace`; the host working directory is
 not mounted into the sandbox. Run network and git commands through the sandbox:
 
 ```bash
-cautem sandbox exec cursor -- go test ./...
-cautem sandbox exec cursor -- gh repo view
+quarshell sandbox exec cursor -- go test ./...
+quarshell sandbox exec cursor -- gh repo view
 ```
 
 Host directories are not mounted into Gateway sandboxes. Use provider profiles

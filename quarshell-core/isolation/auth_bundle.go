@@ -103,7 +103,9 @@ func canonicalOpenShellGeneration(value string) bool {
 		return false
 	}
 	for _, b := range []byte(value) {
-		if !(b >= 'a' && b <= 'z' || b >= '0' && b <= '9' || b == '-') {
+		isLower := b >= 'a' && b <= 'z'
+		isDigit := b >= '0' && b <= '9'
+		if !isLower && !isDigit && b != '-' {
 			return false
 		}
 	}

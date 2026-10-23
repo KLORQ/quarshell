@@ -1,7 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2026 the cautem authors
+# SPDX-FileCopyrightText: Copyright (c) 2026 the quarshell authors
 # SPDX-License-Identifier: Apache-2.0
 #
-# gogpu-style CI: format, lint, cross-platform build + test
 name: CI
 
 env:
@@ -35,18 +34,15 @@ jobs:
       - name: Checkout quarshell-core
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-core
+          repository: KLORQ/quarshell-core
+          ref: v0.5.0
           path: quarshell-core
 
-      - name: Checkout quarshell-slogx
-        uses: actions/checkout@v4
-        with:
-          repository: cautem/quarshell-slogx
-          path: quarshell-slogx
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-proto
+          repository: KLORQ/quarshell-proto
+          ref: v0.2.3
           path: quarshell-proto
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -80,11 +76,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache: true
           cache-dependency-path: |
             quarshell-*/go.sum
-            quarshell-slogx/go.sum
       - name: Check gofmt
         run: |
           set -euo pipefail
@@ -112,18 +107,15 @@ jobs:
       - name: Checkout quarshell-core
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-core
+          repository: KLORQ/quarshell-core
+          ref: v0.5.0
           path: quarshell-core
 
-      - name: Checkout quarshell-slogx
-        uses: actions/checkout@v4
-        with:
-          repository: cautem/quarshell-slogx
-          path: quarshell-slogx
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-proto
+          repository: KLORQ/quarshell-proto
+          ref: v0.2.3
           path: quarshell-proto
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -157,11 +149,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache: true
           cache-dependency-path: |
             quarshell-*/go.sum
-            quarshell-slogx/go.sum
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
@@ -189,18 +180,15 @@ jobs:
       - name: Checkout quarshell-core
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-core
+          repository: KLORQ/quarshell-core
+          ref: v0.5.0
           path: quarshell-core
 
-      - name: Checkout quarshell-slogx
-        uses: actions/checkout@v4
-        with:
-          repository: cautem/quarshell-slogx
-          path: quarshell-slogx
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-proto
+          repository: KLORQ/quarshell-proto
+          ref: v0.2.3
           path: quarshell-proto
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -234,11 +222,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache: true
           cache-dependency-path: |
             quarshell-*/go.sum
-            quarshell-slogx/go.sum
       - name: Download modules
         run: go mod download
       - name: Build
@@ -264,18 +251,15 @@ jobs:
       - name: Checkout quarshell-core
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-core
+          repository: KLORQ/quarshell-core
+          ref: v0.5.0
           path: quarshell-core
 
-      - name: Checkout quarshell-slogx
-        uses: actions/checkout@v4
-        with:
-          repository: cautem/quarshell-slogx
-          path: quarshell-slogx
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
-          repository: cautem/quarshell-proto
+          repository: KLORQ/quarshell-proto
+          ref: v0.2.3
           path: quarshell-proto
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -309,11 +293,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.27.2"
+          go-version: "1.27.3"
           cache: true
           cache-dependency-path: |
             quarshell-*/go.sum
-            quarshell-slogx/go.sum
       - name: Download modules
         run: go mod download
       - name: Vet

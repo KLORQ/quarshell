@@ -20,10 +20,10 @@ import (
 	"sync"
 
 	"github.com/KLORQ/quarshell-core"
-	"github.com/KLORQ/quarshell-core/engine"
-	"github.com/KLORQ/quarshell-core/policy"
+	"github.com/KLORQ/quarshell-core/slogx"
+	"github.com/KLORQ/quarshell-policy/corepolicy"
+	"github.com/KLORQ/quarshell-policy/engine"
 	"github.com/KLORQ/quarshell-proxy/proxy/middleware"
-	"github.com/KLORQ/quarshell-slogx"
 )
 
 // EgressProxy applies policy and serves egress for a sandbox network.
@@ -105,7 +105,7 @@ func NewServer(eng engine.PolicyEngine, audit io.Writer) *Server {
 	if len(srv.tokenGrants) > 0 {
 		srv.tokenGrantResolver = NewSPIFFETokenGrantResolver()
 	}
-	if caPath := strings.TrimSpace(os.Getenv("CAUTEM_EGRESS_CA_BUNDLE")); caPath != "" {
+	if caPath := strings.TrimSpace(os.Getenv("QUARSHELL_EGRESS_CA_BUNDLE")); caPath != "" {
 		roots, err := x509.SystemCertPool()
 		if err != nil || roots == nil {
 			srv.configErr = fmt.Errorf("system certificate roots are unavailable")

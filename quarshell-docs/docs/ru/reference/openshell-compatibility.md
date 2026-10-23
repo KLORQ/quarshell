@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -22,7 +22,8 @@ Versioned feature matrix связывает каждую tracked feature с back
 или конфигурационной поверхностью, test references, уровнем evidence и gate
 result. `implemented`, `local_test`, `target_host_test` и `released` обозначают
 максимальный подтверждённый уровень; `gate_result` фиксирует pass, partial, fail
-или open. `task compat:gaps` проверяет ссылки на test-файлы и upstream pin. Пока
+или open. `task compat:inventory` проверяет реестр функций, матрицу конфигурации
+драйверов и VM parity, а `task compat:pin-check` сверяет upstream pin. Пока
 published-consumer gate падает, ни одна строка не заявляет `released`.
 
 Инвентарь Docker/Podman config строится по публичным driver structs из pinned
@@ -30,7 +31,7 @@ source и сверяется с локальными decoders. `value_behavior` 
 явные empty/zero значения и runtime effect для всех 54 полей: пять строк имеют
 статус `verified`, 49 — `partial`; каждая содержит ссылки на source/tests.
 Частичные строки перечисляют наблюдаемые отличия и оставшиеся host/runtime
-gates, не заявляя parity. Среди примеров — Cautem image/socket defaults,
+gates, не заявляя parity. Среди примеров — Quarshell image/socket defaults,
 Podman health-check lifecycle, presence proxy boolean и rootless ID mapping.
 Config corpus остаётся release blocker. Инвентарь также фиксирует
 неподдерживаемые runtime-image настройки и намеренный отказ от gateway client
@@ -48,10 +49,10 @@ credential, policy, backend, SDK, TUI и packaging возможностей, а 
 пока каждая обязательная строка не получит проходящие conformance evidence.
 
 До этого переключения Quarshell не поддерживает обратную совместимость с
-предыдущими релизами Cautem или Quarshell. Продукт выпускается только с
+предыдущими релизами Quarshell или Quarshell. Продукт выпускается только с
 каноническими `quarshell-*` module/package/config/environment/resource именами.
 Старые imports, aliases, dual readers, fallback settings, adoption прежних
-ресурсов и миграционный adapter Cautem-to-Quarshell не входят в продукт. Для
+ресурсов и миграционный adapter Quarshell-to-Quarshell не входят в продукт. Для
 старых установок потребуется чистая установка; нужные данные пользователь
 сохраняет отдельно. Продукт не удаляет молча посторонние старые ресурсы хоста.
 
@@ -76,10 +77,9 @@ provisioning-deadline enforcement; Go-репортёры в supervisor и peer r
 остаются gaps. RPC inventory содержит точные методы, направления stream, auth, handler,
 fixtures, тесты и evidence. Gap register содержит остаток работ:
 
-- [RPC inventory](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_rpc_inventory.json)
-- [Feature/API/test/evidence matrix](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_compatibility_matrix.json)
-- [Реестр gaps](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_compatibility_gaps.json)
-- [Инвентарь Docker/Podman config fields](https://github.com/KLORQ/quarshell-driver/blob/main/internal/configcompat/testdata/openshell-v0.1.4-driver-config.json)
+- [Реестр функций OpenShell](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/feature-inventory.yaml)
+- [Оставшиеся пробелы реализации и приёмки](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md)
+- [Инвентарь Docker/Podman config fields](https://github.com/KLORQ/quarshell/blob/main/quarshell-driver/internal/configcompat/testdata/openshell-v0.1.4-driver-config.json)
 - [Runtime acceptance и карта тестов](runtime-acceptance.md)
 - [Архитектура и backend SPI](../concepts/architecture.md)
 
@@ -90,14 +90,14 @@ fixtures, тесты и evidence. Gap register содержит остаток �
 ```sh
 task compat:pin-check
 task compat:proto
-task compat:gaps
+task compat:inventory
 ```
 
-Команды сверяют скачанный исходник, generated proto drift, RPC inventory и
-записанную baseline gaps. Они не находят поведение, которое ещё не добавили в
+Команды сверяют скачанный исходник, generated proto drift, реестр функций,
+матрицу конфигурации драйверов и VM parity. Они не находят поведение, которое ещё не добавили в
 inventory. Docker, Podman и MicroVM требуют отдельных host lanes из
 [матрицы acceptance](runtime-acceptance.md).
 
 Канонические module и package paths продукта используют имена `quarshell-*`.
-Предыдущие пути Cautem не входят в поддерживаемый контракт беты; см.
+Предыдущие пути Quarshell не входят в поддерживаемый контракт беты; см.
 [продуктовый и релизный контракт](renaming-and-release.md).

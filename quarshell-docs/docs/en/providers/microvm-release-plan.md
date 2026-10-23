@@ -122,7 +122,7 @@ type PrepInput struct {
 
 func prepareWorkloadInGuest(ctx context.Context, in PrepInput) (string, error) {
     if err := validatePrepInput(in); err != nil { return "", err }
-    if err := runPrepWorker(ctx, in, "CAUTEM_VM_INIT_MODE=image-prep"); err != nil {
+    if err := runPrepWorker(ctx, in, "QUARSHELL_VM_INIT_MODE=image-prep"); err != nil {
         return "", err
     }
     if err := verifyExt4Directory(in.OutputDisk, "/image-rootfs"); err != nil {
@@ -174,7 +174,7 @@ release gate closed until every target lane passes.
   verify them before starting the broker or VM.
 - [ ] On macOS ARM64, launch a signed and verified worker bundle through a
   separate supervisor path. Gateway preflight now requires
-  `CAUTEM_VM_WORKER_TEAM_ID`, verifies the code signature with
+  `QUARSHELL_VM_WORKER_TEAM_ID`, verifies the code signature with
   `codesign --verify --strict`, and matches the Team ID; the managed supervisor
   and live Gateway acceptance are still unimplemented.
 - [ ] Do not pass host workspace mounts. Keep workspace in a persistent guest
@@ -217,7 +217,7 @@ if !hostIsolation.Ready() || !hostSupervisor.Ready() {
 cd quarshell-driver && go test ./...
 cd ../quarshell-gateway && go test ./...
 cd ../quarshell-runtime && go test ./...
-cd .. && task vm:parity-check compat:gaps docs:strict
+cd .. && task vm:parity-check compat:inventory docs:strict
 ```
 
 **Local live acceptance on macOS Apple Silicon/HVF:**
@@ -237,13 +237,13 @@ Linux KVM or Gateway acceptance.
 task vm:live-linux
 
 # Public Gateway/CLI end-to-end test with the VM provider
-CAUTEM_VM_GATEWAY_ACCEPTANCE=1 task vm:gateway-acceptance
+QUARSHELL_VM_GATEWAY_ACCEPTANCE=1 task vm:gateway-acceptance
 ```
 
 `vm:live-linux` runs the existing KVM acceptance script for amd64/arm64.
 `quarshell-driver/.github/workflows/live-vm-kvm.yml` now runs both native KVM lanes
 on pushes and pull requests; configure both jobs as required branch checks and
-provide self-hosted runners labeled `cautem-kvm`. The Gateway task
+provide self-hosted runners labeled `quarshell-kvm`. The Gateway task
 `vm:gateway-acceptance` does not exist yet and must be implemented and added to
 CI. Required gates must fail rather than skip when host capabilities are
 missing. All driver test packages locally cross-compiled for `linux/amd64` and

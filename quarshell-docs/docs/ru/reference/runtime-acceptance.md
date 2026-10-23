@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2026 cautem
+SPDX-FileCopyrightText: Copyright (c) 2026 quarshell
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -27,7 +27,7 @@ SPDX-License-Identifier: Apache-2.0
 
 | Группа функций | Покрытие в checkout | Тесты / evidence | Оставшаяся проверка |
 |---|---|---|---|
-| Публичный control protocol | Inventory закреплён на v0.1.4: 83 public RPC и связанные compute, credential, middleware и interceptor services. Наличие handler проверяет только форму. | `quarshell-gateway/internal/httpapi/testdata/openshell_rpc_inventory.json`; `rpc_inventory_test.go` | Golden inputs/results на каждый метод, отмена stream, metadata и совпадение ошибок остаются открытыми. |
+| Публичный control protocol | Inventory закреплён на v0.1.4: 83 public RPC и связанные compute, credential, middleware и interceptor services. Наличие handler проверяет только форму. | [реестр функций](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/feature-inventory.yaml) | Golden inputs/results на каждый метод, отмена stream, metadata и совпадение ошибок остаются открытыми. |
 | Создание и inspect sandbox | Gateway один раз преобразует pinned OpenShell create request в `BackendCreateRequest`; preflight, create, lifecycle, rollback и recovery напрямую вызывают зарегистрированные модульные `driver.Backend`. VM exec, process/log/transfer, policy и platform watch используют объявленные native extensions. Плоских `Spec` и `Engine` adapters больше нет. | `rpc_sandbox_test.go`, `rpc_templates_test.go`, `runtime_recovery_test.go`, `rpc_exec_test.go`, `remote_compute_backend_test.go`, `rpc_watch_test.go`; backend contract и capability проверки Driver. | Полный per-method behavior corpus pinned CLI/backend ещё открыт; нужны дополнительные проверки отмены stream и event resume. Gateway create для VM остаётся fail-closed до реализации managed host supervisor и authenticated host/guest isolation contract. |
 | OCI image inputs | MicroVM принимает registry reference или staged rootfs tar. Tag разрешается в manifest digest; VM выбирает `linux/<host-arch>`, проверяет image config, digest/size compressed layers и применяет whiteout. Immutable ext4 base кешируется по source/selected manifest digest, platform, версии rootfs layout и digest guest agent. Квота кеша по умолчанию — 64 GiB; удаляются только образы без durable sandbox references и активных create leases. Для private registry используется Docker/Podman keychain; локальный acceptance проверяет Docker credential helper. OCI `Entrypoint`, `Cmd`, `Env`, `User` и `WorkingDir` применяются к in-memory launch spec; recovery повторно получает config по immutable platform manifest digest. Image env/user не попадают в durable state, reserved identity variables фильтруются, root identity отклоняется. Linux worker запускается в частных user/mount namespaces, изолирует распространение mounts и не наследует environment Gateway; namespace root отображается на host account Gateway и не является отдельным host UID. | `quarshell-driver-vm/vm/oci_image_test.go`, `quarshell-driver-vm/vm/launch_spec_test.go`, `quarshell-driver-vm/vm/live_acceptance_test.go`, `quarshell-driver-vm/vmguest/agent_linux_test.go`, `image_cache_test.go`, `rootfs_image_test.go`, `rootfs_path_test.go`, `worker_process_linux_test.go`, `vm_test.go` | Другие реализации credential helper и варианты TLS/auth на целевых host; отдельный host UID, fd-based mount allowlist, UID/GID mapping и persistence; Gateway/Linux KVM acceptance. |
 | Lifecycle, restart и host↔guest protocol | Для Docker/Podman есть package и Gateway coverage lifecycle, recovery и main-process restart policy. VM control frames используют protocol v1; обе стороны отклоняют пропущенную или неизвестную версию, guest возвращает свою версию. `start-workload` ждёт закрытый supervisor readiness marker, который создаётся после старта workload; путь marker удаляется из environment дочернего процесса. Start и worker recovery вращают per-sandbox token через durable pending record; replay со старым token разрешён только для того же кандидата и rotation ID. VM guest передаёт проверенную restart policy supervisor; live acceptance на macOS ARM64 подтвердил `on-failure` restart с текущими host и guest agent. Новый VM driver может восстановить launch spec уже работающей sandbox перед adoption worker, не сохраняя image env или identity в durable state. | `quarshell-driver-vm/vm/control_test.go`, `quarshell-driver-vm/vm/state_test.go`, `quarshell-driver-vm/vm/lifecycle_test.go`, `quarshell-driver-vm/vmguest/agent_linux_test.go`, `quarshell-runtime/internal/app/supervisor/run_test_unix_test.go`, `quarshell-driver/tests/e2e`, `quarshell-gateway/tests/e2e`, `rpc_main_process_test.go`, `task vm:live-darwin` | Negotiation обновления протокола и versioned service/worker control contracts; live outage Gateway/daemon и foreground attach. Gateway VM recovery открыт. |
@@ -70,7 +70,7 @@ acceptance на macOS ARM64.
 Последний `task check` прошёл после синхронизации `tools/modules.lock` и
 workflow refs с опубликованными core v0.3.0 и proto v0.2.0. Проверка включает
 workspace/image pins, форматирование, lint, vet/govulncheck и все Go tests.
-Также прошли `task compat:gaps` (13 из 18 open/blocked), `task docs:strict` и
+Также прошли `task compat:inventory` (13 из 18 open/blocked), `task docs:strict` и
 `go test -race ./internal/mounts ./internal/docker`. Также прошли
 `GOWORK=off task release:standalone` и `task release:artifacts`.
 `task e2e:docker-desktop` прошёл workspace и dual-stack host-boundary lanes на
@@ -166,7 +166,7 @@ Podman 5.8.7 и предшествующие ошибки вложенного P
 evidence и не подтверждают текущую конфигурацию.
 
 1. `task workspace:check`, `task check`, race/vet/vulnerability gates.
-2. `task compat:pin-check`, `task compat:proto`, `task compat:gaps`.
+2. `task compat:pin-check`, `task compat:proto`, `task compat:inventory`.
 3. `task e2e:docker` на поддерживаемой матрице Docker hosts.
 4. `task e2e:podman` на отдельных rootful и rootless Podman 6 runners; proxy,
    Gateway и все обязательные userns cases должны пройти, кроме двух указанных
@@ -178,6 +178,6 @@ evidence и не подтверждают текущую конфигураци�
 6. Standalone Go/Python consumers, published artifact smoke, strict docs build,
    SBOM и signature checks.
 
-Текущий [реестр совместимости](https://github.com/KLORQ/quarshell-gateway/blob/main/internal/httpapi/testdata/openshell_compatibility_gaps.json)
+Текущий [реестр совместимости](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md)
 содержит известные пробелы, но не доказывает, что внесено каждое исходное
 поведение. Открытые строки блокируют релиз, пока к ним не приложено test evidence.
