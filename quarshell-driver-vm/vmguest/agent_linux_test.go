@@ -571,6 +571,26 @@ func TestStartWorkloadWaitsForSupervisorReadiness(t *testing.T) {
 	}
 }
 
+func TestStartWorkloadReturnsWhenSupervisorExitsBeforeReadiness(t *testing.T) {
+	root := t.TempDir()
+	supervisorPath := filepath.Join(root, "fake-supervisor")
+	if err := os.WriteFile(supervisorPath, []byte("#!/bin/sh\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	server := &controlServer{
+		supervisorEnabled: true,
+		supervisorReady:   filepath.Join(root, "run", "supervisor.ready"),
+		workloadCommand: func([]string, bool) []string {
+			return []string{supervisorPath}
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := server.startWorkload(ctx, Request{Argv: []string{"ignored"}, WorkDir: root}); err == nil || !strings.Contains(err.Error(), "exited before") {
+		t.Fatalf("startWorkload() error=%v, want supervisor exit before readiness", err)
+	}
+}
+
 func TestNaturalWorkloadExitPowersOffGuest(t *testing.T) {
 	poweredOff := make(chan struct{}, 1)
 	workDir := t.TempDir()

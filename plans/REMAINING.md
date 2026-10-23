@@ -1,10 +1,10 @@
 # Quarshell — актуальный остаток
 
-Дата: 2026-10-23
+Дата: 2026-10-23 (актуализация 04:36 Samara)
 
 ## Приоритет текущей работы
 
-По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 04:12 Europe/Samara inventory: 25 implemented, 3 partial, 0 blocked, 2 unsupported, 0 open.
+По запросу владельца репозитория сначала закрывается весь VM-функционал из закреплённого OpenShell v0.1.4, включая связанный Gateway/runtime контракт. Источник объёма работ — `quarshell-driver-vm/vm/testdata/openshell-v0.1.4-parity.json` и закреплённый checkout `tools/upstream/openshell-v0.1.4`; статус G04 сам по себе не означает полный VM parity. Остальные M-пункты не вытесняют этот приоритет до разбора всех VM parity rows. На 2026-10-23 04:36 Europe/Samara inventory: 25 implemented, 3 partial, 0 blocked, 2 unsupported, 0 open. macOS/HVF live acceptance PASS на `8023af9`; hosted KVM доходит до гостевого старта, но supervisor readiness пока не подтверждён (run `39877080970`). Исправляется найденный deadlock в guest agent error path.
 
 Статусы: `[x]` готово, `[~]` частично, `[ ]` не начато/заблокировано.
 

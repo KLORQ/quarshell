@@ -510,6 +510,11 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 	done := make(chan struct{})
 	s.jobDone = done
 	onExit := func() {
+		// Signal process completion before taking s.mu. startWorkload holds the
+		// mutex while waiting for supervisor readiness and, on failure, waits
+		// for done after killing the child. Closing done after locking here
+		// would deadlock that cleanup path against this callback.
+		close(done)
 		s.mu.Lock()
 		naturalExit := false
 		if s.job == command {
@@ -521,7 +526,6 @@ func (s *controlServer) startWorkload(ctx context.Context, request Request) erro
 			s.workloadStartGate = nil
 		}
 		s.mu.Unlock()
-		close(done)
 		if naturalExit {
 			if request.AwaitMainProcessAttachment {
 				s.waitForTerminalAttachment(request.SessionID)
