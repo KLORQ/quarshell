@@ -17,14 +17,26 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestWorkerNamespacesCanConnectPrivateHostUnixSocket(t *testing.T) {
+func TestHostNamespaceCanConnectWorkerNamespaceUnixSocket(t *testing.T) {
 	if os.Getenv("CAUTEM_VM_SOCKET_NAMESPACE_CHILD") == "1" {
 		if os.Geteuid() != 0 || os.Getegid() != 0 {
 			t.Fatalf("worker namespace identity = %d:%d; want mapped namespace root", os.Geteuid(), os.Getegid())
 		}
-		connection, err := net.DialTimeout("unix", os.Getenv("CAUTEM_VM_NAMESPACE_SOCKET"), 2*time.Second)
+		path := os.Getenv("CAUTEM_VM_NAMESPACE_SOCKET")
+		listener, err := net.Listen("unix", path)
 		if err != nil {
-			t.Fatalf("connect host Unix socket from worker namespace (uid/euid %d/%d): %v", os.Getuid(), os.Geteuid(), err)
+			t.Fatalf("listen on worker namespace Unix socket: %v", err)
+		}
+		defer listener.Close()
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Fatalf("secure worker namespace Unix socket: %v", err)
+		}
+		if err := os.WriteFile(path+".ready", []byte("ready"), 0o600); err != nil {
+			t.Fatalf("publish worker namespace Unix socket readiness: %v", err)
+		}
+		connection, err := listener.Accept()
+		if err != nil {
+			t.Fatalf("accept host connection to worker namespace Unix socket: %v", err)
 		}
 		_ = connection.Close()
 		return
@@ -33,16 +45,8 @@ func TestWorkerNamespacesCanConnectPrivateHostUnixSocket(t *testing.T) {
 		t.Skip("worker namespace socket probe requires a non-root host identity")
 	}
 
-	socketPath := filepath.Join(t.TempDir(), "host.sock")
-	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
-	if err := os.Chmod(socketPath, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	command := exec.Command(os.Args[0], "-test.run=^TestWorkerNamespacesCanConnectPrivateHostUnixSocket$")
+	socketPath := filepath.Join(t.TempDir(), "worker.sock")
+	command := exec.Command(os.Args[0], "-test.run=^TestHostNamespaceCanConnectWorkerNamespaceUnixSocket$")
 	command.Env = append(os.Environ(),
 		"CAUTEM_VM_SOCKET_NAMESPACE_CHILD=1",
 		"CAUTEM_VM_NAMESPACE_SOCKET="+socketPath,
@@ -52,15 +56,39 @@ func TestWorkerNamespacesCanConnectPrivateHostUnixSocket(t *testing.T) {
 	var output bytes.Buffer
 	command.Stdout = &output
 	command.Stderr = &output
-	if err := command.Run(); err != nil {
-		t.Fatalf("worker namespace socket probe failed: %v\n%s", err, output.String())
+	if err := command.Start(); err != nil {
+		t.Fatalf("start worker namespace socket probe: %v", err)
 	}
-	_ = listener.(*net.UnixListener).SetDeadline(time.Now().Add(time.Second))
-	connection, err := listener.Accept()
+	commandDone := make(chan error, 1)
+	go func() { commandDone <- command.Wait() }()
+	readyPath := socketPath + ".ready"
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, err := os.Stat(readyPath); err == nil {
+			break
+		}
+		select {
+		case childErr := <-commandDone:
+			t.Fatalf("worker namespace socket probe exited before readiness: %v\n%s", childErr, output.String())
+		default:
+		}
+		if time.Now().After(deadline) {
+			_ = command.Process.Kill()
+			<-commandDone
+			t.Fatalf("worker namespace socket probe did not become ready\n%s", output.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	connection, err := net.DialTimeout("unix", socketPath, time.Second)
 	if err != nil {
-		t.Fatalf("accept worker namespace socket probe: %v", err)
+		_ = command.Process.Kill()
+		<-commandDone
+		t.Fatalf("connect from host namespace to worker namespace socket: %v", err)
 	}
 	_ = connection.Close()
+	if err := <-commandDone; err != nil {
+		t.Fatalf("worker namespace socket probe failed: %v\n%s", err, output.String())
+	}
 }
 
 func TestWorkerProcessAttributesRequirePrivateUserAndMountNamespaces(t *testing.T) {
