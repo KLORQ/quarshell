@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -52,6 +53,45 @@ func TestCheckPortsContainedSolver(t *testing.T) {
 	solver.answer = Unknown
 	if _, err := CheckPortsContained(context.Background(), []uint16{443}, []uint16{8443}, solver); !errors.Is(err, domain.ErrUnavailable) {
 		t.Fatalf("unknown = %v", err)
+	}
+}
+
+func TestSymbolicReportNeverAllowsUnknownSolverResults(t *testing.T) {
+	unsupportedErr := domain.Wrap(domain.ErrUnsupported, "prover.z3", "z3 binary is unavailable")
+	unavailableErr := domain.New(domain.CodeUnavailable, "prover.symbolic", "solver timed out")
+	cases := []struct {
+		name      string
+		contained bool
+		err       error
+		relation  Relation
+	}{
+		{name: "contained", contained: true, relation: Within},
+		{name: "outside", contained: false, relation: Exceeds},
+		{name: "unsupported solver", err: unsupportedErr, relation: Inconclusive},
+		{name: "inconclusive solver", err: unavailableErr, relation: Inconclusive},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			report := SymbolicReport(testCase.contained, testCase.err)
+			if report.Relation != testCase.relation {
+				t.Fatalf("SymbolicReport() = %+v, want relation %q", report, testCase.relation)
+			}
+			if report.Allows() != (testCase.relation == Within) {
+				t.Fatalf("SymbolicReport().Allows() = %v for relation %q", report.Allows(), report.Relation)
+			}
+		})
+	}
+}
+
+func TestMissingZ3IsUnsupportedAndCannotAllow(t *testing.T) {
+	solver := &Z3{Binary: filepath.Join(t.TempDir(), "missing-z3")}
+	contained, err := CheckPortsContained(context.Background(), []uint16{443}, []uint16{443}, solver)
+	if contained || !errors.Is(err, domain.ErrUnsupported) {
+		t.Fatalf("CheckPortsContained() = %v, %v; want unsupported and not contained", contained, err)
+	}
+	report := SymbolicReport(contained, err)
+	if report.Relation != Inconclusive || report.Allows() {
+		t.Fatalf("SymbolicReport() = %+v; unavailable solver must fail closed", report)
 	}
 }
 
