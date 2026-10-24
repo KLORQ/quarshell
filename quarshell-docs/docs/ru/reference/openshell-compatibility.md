@@ -77,8 +77,8 @@ provisioning-deadline enforcement; Go-репортёры в supervisor и peer r
 остаются gaps. RPC inventory содержит точные методы, направления stream, auth, handler,
 fixtures, тесты и evidence. Gap register содержит остаток работ:
 
-- [Реестр функций OpenShell](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/feature-inventory.yaml)
-- [Оставшиеся пробелы реализации и приёмки](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md)
+- [Реестр функций OpenShell](feature-inventory.yaml)
+- [Оставшиеся пробелы реализации и приёмки](https://github.com/KLORQ/quarshell/blob/main/plans/REMAINING.md)
 - [Инвентарь Docker/Podman config fields](https://github.com/KLORQ/quarshell/blob/main/quarshell-driver/internal/configcompat/testdata/openshell-v0.1.4-driver-config.json)
 - [Runtime acceptance и карта тестов](runtime-acceptance.md)
 - [Архитектура и backend SPI](../concepts/architecture.md)

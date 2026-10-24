@@ -275,10 +275,14 @@ class Client:
         timeout: float = 70.0,
         token: Optional[str] = None,
         workspace: str = "default",
+        grpc_endpoint: Optional[str] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.workspace = workspace or "default"
+        self.grpc_endpoint = (
+            grpc_endpoint or os.getenv("QUARSHELL_GATEWAY_GRPC_ENDPOINT") or self.base_url
+        ).strip()
         bearer = (
             token if token is not None else os.getenv("QUARSHELL_GATEWAY_TOKEN", "")
         ).strip()
@@ -301,18 +305,23 @@ class Client:
     def _rpc(self) -> grpc.Channel:
         if self._channel is not None:
             return self._channel
-        endpoint = urlparse(self.base_url)
+        endpoint = urlparse(self.grpc_endpoint)
+        secure = endpoint.scheme == "https"
+        if not endpoint.scheme:
+            endpoint = urlparse("//" + self.grpc_endpoint)
+            secure = urlparse(self.base_url).scheme == "https"
         if (
             not endpoint.hostname
             or endpoint.path
             or endpoint.query
             or endpoint.fragment
+            or endpoint.scheme not in ("", "http", "https")
         ):
-            raise ValueError("gateway URL must contain only scheme and authority")
+            raise ValueError("gateway gRPC endpoint must contain only scheme and authority")
         target = endpoint.netloc
-        if endpoint.scheme == "https":
+        if secure:
             self._channel = grpc.secure_channel(target, grpc.ssl_channel_credentials())
-        elif endpoint.scheme == "http":
+        else:
             host = endpoint.hostname.lower()
             if host != "localhost" and not host.endswith(".localhost"):
                 import ipaddress
@@ -322,8 +331,6 @@ class Client:
                         "unencrypted gRPC is allowed only for loopback gateways"
                     )
             self._channel = grpc.insecure_channel(target)
-        else:
-            raise ValueError(f"unsupported gateway URL scheme: {endpoint.scheme!r}")
         return self._channel
 
     def _call(self, method, request):

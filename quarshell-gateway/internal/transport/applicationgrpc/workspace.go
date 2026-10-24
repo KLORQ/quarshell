@@ -19,9 +19,13 @@ func (s *Server) CreateWorkspace(ctx context.Context, request *gatewayv1.CreateW
 	if s.Workspaces == nil {
 		return nil, status.Error(codes.Unavailable, "workspace service is not configured")
 	}
+	principal, ok := principalFromContext(ctx)
+	if !ok || principal.subject == "" {
+		return nil, status.Error(codes.Unauthenticated, "authentication required")
+	}
 	created, _, err := s.Workspaces.Create(ctx, workspace.CreateRequest{
 		ID: domain.WorkspaceID(request.GetName()), Name: request.GetName(), Labels: request.GetLabels(),
-		Owner: "gateway", IdempotencyKey: domain.OperationID(request.GetRequestId()),
+		Owner: principal.subject, IdempotencyKey: domain.OperationID(request.GetRequestId()),
 	})
 	if err != nil {
 		return nil, grpcError(err)
@@ -34,7 +38,11 @@ func (s *Server) GetWorkspace(ctx context.Context, request *gatewayv1.GetWorkspa
 	if s.Workspaces == nil {
 		return nil, status.Error(codes.Unavailable, "workspace service is not configured")
 	}
-	found, err := s.Workspaces.Get(ctx, domain.WorkspaceID(request.GetName()))
+	id := domain.WorkspaceID(request.GetName())
+	if err := s.authorizeWorkspace(ctx, id, workspace.ActionRead); err != nil {
+		return nil, err
+	}
+	found, err := s.Workspaces.Get(ctx, id)
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -49,6 +57,22 @@ func (s *Server) ListWorkspaces(ctx context.Context, request *gatewayv1.ListWork
 	items, err := s.Workspaces.List(ctx)
 	if err != nil {
 		return nil, grpcError(err)
+	}
+	principal, ok := principalFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "authentication required")
+	}
+	if !hasWorkspaceRole(principal, "platform_admin") {
+		visible := items[:0]
+		for _, item := range items {
+			if err := s.Workspaces.Authorize(ctx, item.ID, principal.subject, workspace.ActionRead); err == nil {
+				visible = append(visible, item)
+				continue
+			} else if !errors.Is(err, domain.ErrPermissionDenied) {
+				return nil, grpcError(err)
+			}
+		}
+		items = visible
 	}
 	start, end, next, err := page(len(items), request.GetPageSize(), request.GetPageToken())
 	if err != nil {
@@ -66,7 +90,11 @@ func (s *Server) DeleteWorkspace(ctx context.Context, request *gatewayv1.DeleteW
 	if s.Workspaces == nil {
 		return nil, status.Error(codes.Unavailable, "workspace service is not configured")
 	}
-	err := s.Workspaces.Delete(ctx, domain.WorkspaceID(request.GetName()), domain.OperationID(request.GetRequestId()))
+	id := domain.WorkspaceID(request.GetName())
+	if err := s.authorizeWorkspace(ctx, id, workspace.ActionManage); err != nil {
+		return nil, err
+	}
+	err := s.Workspaces.Delete(ctx, id, domain.OperationID(request.GetRequestId()))
 	if err != nil {
 		if request.GetAllowMissing() && domain.CodeOf(err) == domain.CodeNotFound {
 			return &gatewayv1.DeleteWorkspaceResponse{Outcome: gatewayv1.DeletionOutcome_DELETION_OUTCOME_ALREADY_ABSENT}, nil
@@ -81,7 +109,11 @@ func (s *Server) AddWorkspaceMember(ctx context.Context, request *gatewayv1.AddW
 	if s.Workspaces == nil {
 		return nil, status.Error(codes.Unavailable, "workspace service is not configured")
 	}
-	member, _, err := s.Workspaces.AddMember(ctx, domain.WorkspaceID(request.GetWorkspaceScope().GetWorkspace()), request.GetPrincipalSubject(), roleFromProto(request.GetRole()), domain.OperationID(request.GetRequestId()))
+	id := domain.WorkspaceID(request.GetWorkspaceScope().GetWorkspace())
+	if err := s.authorizeWorkspace(ctx, id, workspace.ActionManage); err != nil {
+		return nil, err
+	}
+	member, _, err := s.Workspaces.AddMember(ctx, id, request.GetPrincipalSubject(), roleFromProto(request.GetRole()), domain.OperationID(request.GetRequestId()))
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -93,7 +125,11 @@ func (s *Server) RemoveWorkspaceMember(ctx context.Context, request *gatewayv1.R
 	if s.Workspaces == nil {
 		return nil, status.Error(codes.Unavailable, "workspace service is not configured")
 	}
-	err := s.Workspaces.RemoveMember(ctx, domain.WorkspaceID(request.GetWorkspaceScope().GetWorkspace()), request.GetPrincipalSubject(), domain.OperationID(request.GetRequestId()))
+	id := domain.WorkspaceID(request.GetWorkspaceScope().GetWorkspace())
+	if err := s.authorizeWorkspace(ctx, id, workspace.ActionManage); err != nil {
+		return nil, err
+	}
+	err := s.Workspaces.RemoveMember(ctx, id, request.GetPrincipalSubject(), domain.OperationID(request.GetRequestId()))
 	if err != nil {
 		if request.GetAllowMissing() && domain.CodeOf(err) == domain.CodeNotFound {
 			return &gatewayv1.RemoveWorkspaceMemberResponse{Outcome: gatewayv1.DeletionOutcome_DELETION_OUTCOME_ALREADY_ABSENT}, nil
@@ -108,7 +144,11 @@ func (s *Server) ListWorkspaceMembers(ctx context.Context, request *gatewayv1.Li
 	if s.Workspaces == nil {
 		return nil, status.Error(codes.Unavailable, "workspace service is not configured")
 	}
-	items, err := s.Workspaces.ListMembers(ctx, domain.WorkspaceID(request.GetWorkspaceScope().GetWorkspace()))
+	id := domain.WorkspaceID(request.GetWorkspaceScope().GetWorkspace())
+	if err := s.authorizeWorkspace(ctx, id, workspace.ActionRead); err != nil {
+		return nil, err
+	}
+	items, err := s.Workspaces.ListMembers(ctx, id)
 	if err != nil {
 		return nil, grpcError(err)
 	}
@@ -121,6 +161,35 @@ func (s *Server) ListWorkspaceMembers(ctx context.Context, request *gatewayv1.Li
 		out = append(out, memberProto(item))
 	}
 	return &gatewayv1.ListWorkspaceMembersResponse{Members: out, NextPageToken: next}, nil
+}
+
+func (s *Server) authorizeWorkspace(ctx context.Context, id domain.WorkspaceID, action workspace.Action) error {
+	if !id.Valid() {
+		return status.Error(codes.InvalidArgument, "workspace scope is required")
+	}
+	principal, ok := principalFromContext(ctx)
+	if !ok || principal.subject == "" {
+		return status.Error(codes.Unauthenticated, "authentication required")
+	}
+	if hasWorkspaceRole(principal, "platform_admin") {
+		return nil
+	}
+	if s.Workspaces == nil {
+		return status.Error(codes.Unavailable, "workspace service is not configured")
+	}
+	if err := s.Workspaces.Authorize(ctx, id, principal.subject, action); err != nil {
+		return grpcError(err)
+	}
+	return nil
+}
+
+func hasWorkspaceRole(principal authenticatedPrincipal, want string) bool {
+	for _, role := range principal.roles {
+		if role == want {
+			return true
+		}
+	}
+	return false
 }
 
 func workspaceProto(item workspace.Workspace) *datamodelv1.Workspace {

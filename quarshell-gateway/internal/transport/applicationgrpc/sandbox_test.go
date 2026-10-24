@@ -9,6 +9,8 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -33,6 +35,16 @@ func TestSandboxRPC(t *testing.T) {
 	})
 	if err != nil || created.GetSandbox().GetMetadata().GetName() != "sb" {
 		t.Fatalf("CreateSandbox = %+v err=%v", created, err)
+	}
+	foreignSelector := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "other"}}
+	if _, err := server.GetSandbox(ctx, &gatewayv1.GetSandboxRequest{WorkspaceScope: foreignSelector, Name: "sb"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("foreign workspace lookup status=%s, want NotFound", status.Code(err))
+	}
+	if _, err := server.DeleteSandbox(ctx, &gatewayv1.DeleteSandboxRequest{WorkspaceScope: foreignSelector, Name: "sb"}); err != nil {
+		t.Fatalf("idempotent foreign workspace delete: %v", err)
+	}
+	if _, err := sandboxes.Get(ctx, domain.SandboxRef{Workspace: "ws", Sandbox: "sb"}); err != nil {
+		t.Fatalf("foreign workspace delete affected original sandbox: %v", err)
 	}
 	stored, err := sandboxes.Get(ctx, domain.SandboxRef{Workspace: "ws", Sandbox: "sb"})
 	if err != nil || stored.DriverConfigJSON != `{"vm":{"grpc_endpoint":"http://127.0.0.1:7444"}}` || !stored.AwaitMainProcessAttachment || !stored.TTY {

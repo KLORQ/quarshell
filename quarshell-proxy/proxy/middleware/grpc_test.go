@@ -19,6 +19,17 @@ type grpcResponseFixture struct {
 	middlewarev1.UnimplementedHttpResponsePreReturnServer
 }
 
+type blockingMiddlewareFixture struct {
+	middlewarev1.UnimplementedSupervisorMiddlewareServer
+	started chan struct{}
+}
+
+func (f blockingMiddlewareFixture) EvaluateHttpRequest(ctx context.Context, _ *middlewarev1.HttpRequestEvaluation) (*middlewarev1.HttpRequestResult, error) {
+	close(f.started)
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
 func (grpcResponseFixture) Evaluate(stream middlewarev1.HttpResponsePreReturn_EvaluateServer) error {
 	event, err := stream.Recv()
 	if err != nil || event.GetPreflight() == nil {
@@ -212,6 +223,42 @@ func TestGRPCStageFailsClosedWhenUnavailable(t *testing.T) {
 	decision, err := stage.Evaluate(context.Background(), Request{Host: "api.example", Port: 443, Method: "GET", Path: "/"})
 	if err != nil || decision.Allow {
 		t.Fatalf("unavailable middleware decision=%+v err=%v", decision, err)
+	}
+}
+
+func TestGRPCStageCancellationFailsClosedPromptly(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := grpc.NewServer()
+	fixture := blockingMiddlewareFixture{started: make(chan struct{})}
+	middlewarev1.RegisterSupervisorMiddlewareServer(server, fixture)
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() { server.Stop(); _ = listener.Close() })
+	stage, err := NewGRPCStage(GRPCStageConfig{Name: "guard", Endpoint: "http://" + listener.Addr().String(), Timeout: time.Second, FailClosed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan Decision, 1)
+	go func() {
+		decision, _ := stage.Evaluate(ctx, Request{Host: "api.example", Method: "GET", Path: "/"})
+		result <- decision
+	}()
+	select {
+	case <-fixture.started:
+	case <-time.After(time.Second):
+		t.Fatal("middleware request did not start")
+	}
+	cancel()
+	select {
+	case decision := <-result:
+		if decision.Allow || decision.Reason != "supervisor middleware unavailable" {
+			t.Fatalf("cancelled middleware decision=%+v; expected fail-closed denial", decision)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cancelled middleware request did not return promptly")
 	}
 }
 

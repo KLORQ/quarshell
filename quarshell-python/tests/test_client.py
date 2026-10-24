@@ -895,6 +895,39 @@ def test_token_defaults_to_gateway_environment(gateway, monkeypatch):
     assert control.compatibility_service.auth == ["Bearer env-token"]
 
 
+def test_grpc_endpoint_can_target_a_separate_gateway_listener(monkeypatch):
+    captured = []
+    class Channel:
+        def close(self):
+            pass
+
+    channel = Channel()
+    monkeypatch.setattr(grpc, "insecure_channel", lambda target: captured.append(target) or channel)
+    client = Client("http://127.0.0.1:7443", grpc_endpoint="127.0.0.1:7445")
+    try:
+        assert client._rpc() is channel
+    finally:
+        client.close()
+    assert captured == ["127.0.0.1:7445"]
+
+
+def test_grpc_endpoint_defaults_from_environment(monkeypatch):
+    captured = []
+    class Channel:
+        def close(self):
+            pass
+
+    channel = Channel()
+    monkeypatch.setenv("QUARSHELL_GATEWAY_GRPC_ENDPOINT", "127.0.0.1:7445")
+    monkeypatch.setattr(grpc, "insecure_channel", lambda target: captured.append(target) or channel)
+    client = Client("http://127.0.0.1:7443")
+    try:
+        assert client._rpc() is channel
+    finally:
+        client.close()
+    assert captured == ["127.0.0.1:7445"]
+
+
 def test_sandbox_name_is_sent_as_rpc_data(gateway):
     gateway_url, control = gateway
     with Client(gateway_url) as client:

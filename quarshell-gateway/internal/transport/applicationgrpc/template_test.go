@@ -8,6 +8,8 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/application/template"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestTemplateRPC(t *testing.T) {
@@ -24,6 +26,10 @@ func TestTemplateRPC(t *testing.T) {
 	})
 	if err != nil || created.GetTemplate().GetMetadata().GetName() != "tpl" {
 		t.Fatalf("Create = %+v err=%v", created, err)
+	}
+	foreign := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "other"}}
+	if _, err := server.GetSandboxTemplate(ctx, &gatewayv1.GetSandboxTemplateRequest{WorkspaceScope: foreign, Name: "tpl"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("foreign workspace template lookup status=%s, want NotFound", status.Code(err))
 	}
 	if _, err := server.GetSandboxTemplate(ctx, &gatewayv1.GetSandboxTemplateRequest{WorkspaceScope: selector, Name: "tpl"}); err != nil {
 		t.Fatalf("Get: %v", err)

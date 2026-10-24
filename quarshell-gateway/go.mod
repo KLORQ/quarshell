@@ -5,6 +5,7 @@ go 1.27.0
 toolchain go1.27.3
 
 require (
+	connectrpc.com/connect v1.21.0
 	github.com/KLORQ/quarshell-core v0.5.2
 	github.com/KLORQ/quarshell-driver v0.2.5
 	github.com/KLORQ/quarshell-driver-vm v0.1.11
@@ -23,7 +24,6 @@ require (
 )
 
 require (
-	connectrpc.com/connect v1.21.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect

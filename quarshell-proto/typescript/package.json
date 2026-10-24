@@ -34,6 +34,7 @@
     "generate": "node -e \"require('node:fs').rmSync('src/gen',{recursive:true,force:true})\" && cd .. && buf generate --template typescript/buf.gen.yaml",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && tsc -p tsconfig.json",
+    "test:gateway": "node tests/gateway-e2e.mjs",
     "check": "npm run generate && npm run build"
   },
   "dependencies": {

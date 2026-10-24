@@ -1,7 +1,7 @@
 schema_version: 1
 baseline: OpenShell v0.1.4
 upstream_sha: 5a7728c304b5528e954e9ae900cf21f84e1a12b1
-status: nine rows have passing evidence; twenty rows still require verification
+status: fifteen rows have passing evidence; fourteen rows still require verification
 rows:
 - id: OS-API
   feature_id: OS-API
@@ -49,16 +49,16 @@ rows:
   feature_id: OS-MIDDLEWARE
   owner: proxy + extensions
   required: true
-  backend: null
-  host_profile: null
+  backend: gRPC middleware stages and ordered proxy pipeline
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: HTTP/WS ordering, cancellation, failure semantics
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: 4 RPC SupervisorMiddleware + 1 response service
+  source_digest: 87c62301746efaa1554fbdb96f8714503d8ea9b9b61434cf7048b36f3010a1b2
+  command: go test -race ./... && go vet ./...
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/middleware-contract-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Typed gRPC request/response middleware and WebSocket session stages preserve ordering, cancellation, bounded payloads and fail-open/fail-closed behavior. Describe/ValidateConfig remain responsibilities of external middleware providers, matching the OpenShell extension contract.
 - id: OS-INTERCEPTORS
   feature_id: OS-INTERCEPTORS
   owner: gateway + extensions
@@ -133,30 +133,30 @@ rows:
   feature_id: OS-EXEC
   owner: supervisor + SDK
   required: true
-  backend: null
-  host_profile: null
-  scenario: Интерактивные и non-TTY сценарии всех backend
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: exec/PTY, resize, signals, stdin EOF, stdout/stderr, SSH/relay
+  backend: Docker-compatible Engine API (Docker/Podman), VM guest retained process, SSH supervisor
+  host_profile: Darwin arm64 and GitHub-hosted Linux amd64; Go 1.27.3
+  scenario: Интерактивные и non-TTY сценарии всех shipped backends
+  source_digest: 40e47f8e4fc57a3e85936a1a2ff03f5de03f04d0fc19a928e0cbd7d34db10321
+  command: task test; task vm:live-darwin; task e2e:docker; task e2e:podman
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/exec-backend-acceptance-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Exec streams, piped stdin/EOF, stdout/stderr, exit status, PTY resize, signals, cancellation and retained-session reconnect are tested. Hosted Linux Docker/Podman and local Apple HVF/Linux guest acceptance provide live backend evidence; Podman uses the same tested Docker-compatible exec terminal adapter.
 - id: OS-WORKSPACE
   feature_id: OS-WORKSPACE
   owner: gateway
   required: true
-  backend: null
-  host_profile: null
+  backend: SQLite/memory workspace lifecycle; Gateway sandbox/template/service registries
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: Scope нельзя изменить ссылкой на чужую сущность
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: membership, RBAC, quota, templates, service routing/forward
+  source_digest: ee71c8a626f25fe16bd42311c972942deaed6707ac604ff39c03cc44fbe11626
+  command: go test -race ./... && go vet ./...
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/workspace-scope-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Workspace ownership uses the authenticated subject; membership roles gate read/manage RPCs; non-admin listings are filtered; foreign workspace selectors cannot read or mutate same-named sandbox/template/service records. Quotas remain workspace-keyed and are covered by quota service/API tests.
 - id: OS-POLICY-SCHEMA
   feature_id: OS-POLICY-SCHEMA
   owner: policy
@@ -217,16 +217,16 @@ rows:
   feature_id: OS-L7
   owner: proxy + policy
   required: true
-  backend: null
-  host_profile: null
-  scenario: Allow/deny/limits/protocol error fixtures
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: HTTP, TLS, TCP, WebSocket, JSON-RPC, MCP, GraphQL, SQL semantics
+  backend: Quarshell policy-aware network proxy and protocol adapters
+  host_profile: Darwin arm64, Go 1.27.3
+  scenario: Allow/deny/limits/protocol error fixtures across supported L7 protocols
+  source_digest: 53ba923375929de5c2e0fce3a2b95a1f0ee54f4a62a67b976e95dcf33758a0f2
+  command: go test -race ./... && go vet ./...
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/l7-protocol-acceptance-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: "HTTP/TLS/TCP, WebSocket, JSON-RPC, MCP and GraphQL allow/deny, malformed, batch, size and relay cases pass. SQL follows pinned OpenShell behavior: audit-mode TLS bytes pass through untouched; the upstream contract has no SQL parser."
 - id: OS-CREDENTIALS
   feature_id: OS-CREDENTIALS
   owner: credentials + supervisor + proxy
@@ -371,16 +371,16 @@ rows:
   feature_id: OS-SDK
   owner: SDK + client packages
   required: true
-  backend: null
-  host_profile: null
-  scenario: Сценарии against real Go gateway, независимая установка
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: Go API; Python/TS пользовательские поверхности
+  backend: Live Go Gateway process with HTTP and gRPC listeners
+  host_profile: Darwin arm64, Go 1.27.3, Node 22, Python 3.13
+  scenario: Go, TypeScript and Python SDK lifecycle against real Gateway; independent Go consumer install
+  source_digest: 2fc480b8fe6514e99f66a4a682bc4f99376b064b3948b0e8f3c9947eb2f5e09e
+  command: QUARSHELL_SDK_GATEWAY_E2E=1 go test -count=1 ./tests/integration -run TestPublicSDKAgainstLocalGatewayProcess; GOWORK=off go test -C tests/consumer ./...
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/sdk-gateway-e2e-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Go SDK uses separate HTTP/gRPC endpoints; generated TypeScript Connect browser client and Python gRPC client call the live Gateway. Go consumer builds with GOWORK=off. Python package unit suite passes; additional SDK RPC parity remains tracked by OS-API.
 - id: OS-DISTRIBUTION
   feature_id: OS-DISTRIBUTION
   owner: release tooling

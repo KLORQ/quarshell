@@ -8,6 +8,8 @@ import (
 	"github.com/KLORQ/quarshell-gateway/internal/application/lifecycle"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestServiceRPC(t *testing.T) {
@@ -23,6 +25,10 @@ func TestServiceRPC(t *testing.T) {
 	})
 	if err != nil || exposed.GetEndpoint().GetName() != "web" {
 		t.Fatalf("ExposeService = %+v err=%v", exposed, err)
+	}
+	foreign := &datamodelv1.WorkspaceSelector{Selection: &datamodelv1.WorkspaceSelector_Workspace{Workspace: "other"}}
+	if _, err := server.GetService(ctx, &gatewayv1.GetServiceRequest{WorkspaceScope: foreign, Sandbox: "sb", Name: "web"}); status.Code(err) != codes.NotFound {
+		t.Fatalf("foreign workspace service lookup status=%s, want NotFound", status.Code(err))
 	}
 	if _, err := server.GetService(ctx, &gatewayv1.GetServiceRequest{WorkspaceScope: selector, Sandbox: "sb", Name: "web"}); err != nil {
 		t.Fatalf("GetService: %v", err)

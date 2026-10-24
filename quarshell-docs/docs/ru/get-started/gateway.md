@@ -23,8 +23,9 @@ curl --fail https://127.0.0.1:17670/v1/healthz
 
 Compose хранит состояние в volume `quarshell-gateway-data`. HTTP доступен на
 `127.0.0.1:17670`, gRPC — на `127.0.0.1:7445`.
-Для gRPC не настроен TLS listener. Оставьте порт `7445` на loopback или в
-доверенной приватной сети; не публикуйте его для недоверенных клиентов.
+Compose по умолчанию не настраивает TLS для gRPC. Gateway поддерживает gRPC
+over TLS при заданных `--tls-cert` и `--tls-key`. В стандартной конфигурации
+Compose оставьте порт `7445` на loopback или в доверенной приватной сети.
 
 ### Локальный бинарный файл
 
@@ -42,7 +43,6 @@ go -C quarshell-gateway run ./cmd/quarshell-gateway \
 чтобы использовать SQLite. Endpoint `/v1/healthz` возвращает только
 `{"status":"ok"}`.
 
-Профили UI и Dex сохранены из базового проекта, но не подключены к текущему
-Gateway с token-аутентификацией. Текущий scope описан в
-[README модуля Gateway](https://github.com/KLORQ/quarshell/blob/master/quarshell-gateway/README.md)
-и [списке оставшейся работы](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md).
+Профили UI и Dex Compose сохранены из базового проекта, но не подключены к
+текущему Gateway с token-аутентификацией. Текущий scope описан в
+[README модуля Gateway](https://github.com/KLORQ/quarshell/blob/main/quarshell-gateway/README.md).

@@ -93,14 +93,15 @@ CLI, Go и Python SDK, а также browser console используют native
 Gateway RPC для sandbox lifecycle, списка, логов, сервисов, workspace, provider
 profiles, policy, settings, identity, SSH-сессий и выполнения команд.
 `logs --all` перечисляет доступные пользователю workspace и одновременно
-открывает не более 24 потоков. Gateway не обслуживает first-party management
-Connect API.
+открывает не более 24 потоков. Native gRPC доступен на отдельном gRPC listener.
+Сгенерированный TypeScript-клиент использует OpenShell Connect transport на
+HTTP listener Gateway; оба транспорта вызывают одни RPC handlers.
 
-Browser console использует OIDC authorization code с PKCE и хранит access token
-только в памяти. Настройте публичный OIDC client, callback URL и совпадающую с
-Gateway token audience. Браузер не должен получать Gateway owner или sandbox
-supervisor credentials. HTTP оставлен для health и auth bootstrap; URL сервисов
-маршрутизируются по host.
+Сейчас Go Gateway проверяет management RPC по настроенному статическому Bearer
+token. Он пока не проверяет OIDC access tokens и не преобразует role/scope
+claims в RPC permissions. Поэтому browser PKCE login сам по себе не
+аутентифицирует запросы к Gateway. Не помещайте Gateway operator token или
+sandbox supervisor token в browser code.
 
 ## Когда обязателен
 
@@ -121,11 +122,11 @@ gateways:
     url: https://127.0.0.1:17670
 ```
 
-OIDC- и edge-учётные данные сохраняются после `quarshell gateway login`. Для local
-Gateway CLI читает `auth_token` из настроенного `data_dir`; Gateway не выдаёт
-токены через HTTP login endpoint. OIDC использует browser PKCE. Edge-аутентификация
-использует подтверждение через `/auth/connect` и передаёт gRPC через WebSocket
-`/_ws_tunnel`.
+Для local Gateway CLI читает `auth_token` из настроенного `data_dir`; Gateway
+не выдаёт токены через HTTP login endpoint. CLI может хранить OIDC- и
+edge-учётные данные для клиентских flow, но Go Gateway для management RPC пока
+принимает настроенный bearer token. Edge Gateway использует подтверждение через
+`/auth/connect` и передаёт gRPC через WebSocket `/_ws_tunnel`.
 
 ## Связанное
 
@@ -223,37 +224,19 @@ bodies не отправляются.
 Некорректный endpoint отключает export и записывается в Gateway log;
 сам Gateway продолжает обслуживать requests.
 
-Настройки OpenShell OIDC issuer, audience, JWKS cache TTL и role claim
-передаются JWT validator. Admin role может изменять gateway resources; user role
-имеет read-only доступ; admin также удовлетворяет user role. При указанном
-`scopes_claim` OpenShell Gateway RPC использует группы `sandbox:read/write`,
-`provider:read/write` и `config:read/write`; конкретные handlers также проверяют
-workspace и admin permissions. Полная per-method descriptor matrix ещё не
-реализована. Поддерживаются RSA, ECDSA P-256/P-384 и Ed25519 signing keys.
-Discovery требует HTTPS. Для разработки HTTP можно разрешить только для
-numeric loopback через `dangerously_allow_insecure_http`,
-`OPENSHELL_OIDC_DANGEROUSLY_ALLOW_INSECURE_HTTP` или
-`--oidc-dangerously-allow-insecure-http`. Origin `jwks_uri` должен совпадать
-с origin issuer либо быть явно указан в `jwks_allowed_origins`,
-`OPENSHELL_OIDC_JWKS_ALLOWED_ORIGINS` или `--oidc-jwks-allowed-origins`.
-Redirects JWKS отклоняются.
+TOML loader распознаёт OpenShell OIDC issuer, audience, JWKS и role claim, но Go
+Gateway пока не подключает их к RPC authentication. Проверка OIDC signature
+есть в runtime identity package, однако Gateway её не вызывает. Для текущего
+management API задайте `QUARSHELL_TOKEN`; настройки OIDC пока не включают
+аутентификацию Gateway.
 
-TLS загружает client CA и external cert/key pair из исходного gateway TOML.
-Если client CA настроен, TLS проверяет предъявленный client certificate, но
-не требует его; bearer-клиенты по-прежнему могут подключаться. mTLS
-authentication принимает проверенный client certificate как user identity.
-External certificate выбирается по точному или wildcard SNI имени.
-Автоматическая local PKI и hot reload сертификатов ещё не реализованы.
-Если client CA настроен, OIDC issuer отсутствует и `mtls_auth` не задан явно,
-OpenShell по умолчанию включает mTLS authentication.
-
-OpenShell operator authentication по умолчанию выключен. Включение:
-`[openshell.gateway.mtls_auth] operator_enabled = true`,
-`OPENSHELL_ENABLE_OPERATOR_AUTH=true` или
-`--enable-operator-auth true`; для запуска обязательны TLS и `tls_client_ca`.
-Проверенный client certificate с organizational unit `operator` получает
-административный доступ к Gateway, кроме peer- и sandbox-only RPC. Считайте
-владельца client CA доверенным издателем operator credentials.
+TLS может загрузить server certificate/key pair. Если задан `--tls-client-ca`,
+HTTP listener требует client certificate от этой CA. Сам certificate не
+преобразуется в Gateway user или operator role, поэтому management RPC всё
+равно требуют bearer token. gRPC listener использует server TLS certificate,
+но не запрашивает client certificate. Параметры OpenShell `mtls_auth` и
+operator-role пока не подключены к Gateway runtime. Автоматическая local PKI и
+hot reload сертификатов также не реализованы.
 
 Edge WebSocket tunnel по умолчанию выключен. Его можно включить через
 `enable_websocket_tunnel = true`, `OPENSHELL_ENABLE_WEBSOCKET_TUNNEL=true` или

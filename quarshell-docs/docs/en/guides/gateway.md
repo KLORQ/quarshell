@@ -91,14 +91,15 @@ The CLI, Go and Python SDKs, and browser console use native OpenShell Gateway
 RPCs for sandbox lifecycle, inventory, logs, services, workspaces, provider
 profiles, policy, settings, identity, SSH sessions, and command execution.
 `logs --all` enumerates caller-visible workspaces and opens at most 24 streams
-at once. The Gateway does not mount a first-party management Connect API.
+at once. Native gRPC is served on the separate gRPC listener. The generated
+TypeScript client uses the OpenShell Connect transport mounted on the Gateway
+HTTP listener; both transports reach the same RPC handlers.
 
-The browser console uses OIDC authorization code with PKCE and keeps the access
-token in memory. Configure an OIDC public client, callback URL, and a token
-audience matching the Gateway. Browser clients must never receive Gateway owner
-or sandbox supervisor credentials. Auth bootstrap and health remain HTTP;
-browser-facing service URLs use host routing.
-mode for the browser console.
+The Go Gateway currently authenticates management RPCs with its configured
+static bearer token. It does not yet validate OIDC access tokens or map OIDC
+role and scope claims to RPC permissions. A browser PKCE login therefore does
+not by itself authenticate to this Gateway. Never put the Gateway operator
+token or a sandbox supervisor token in browser code.
 
 ## When required
 
@@ -119,11 +120,12 @@ gateways:
     url: https://127.0.0.1:17670
 ```
 
-OIDC and edge credentials are stored after `quarshell gateway login`. Local
-gateways read `auth_token` from the configured Gateway `data_dir`; the Gateway
-does not mint tokens through an HTTP login endpoint. OIDC gateways use browser
-PKCE. Edge-authenticated gateways use the `/auth/connect` confirmation flow and
-carry gRPC over the `/_ws_tunnel` WebSocket endpoint.
+Local gateways read `auth_token` from the configured Gateway `data_dir`; the
+Gateway does not mint tokens through an HTTP login endpoint. The CLI can store
+OIDC or edge credentials for client-side flows, but the Go Gateway currently
+accepts its configured bearer token for management RPC authentication. Edge
+gateways use the `/auth/connect` confirmation flow and carry gRPC over the
+`/_ws_tunnel` WebSocket endpoint.
 
 ## Related
 
@@ -220,39 +222,21 @@ other headers, and bodies are omitted.
 An invalid endpoint disables trace export and is reported in the Gateway log;
 the Gateway continues serving requests.
 
-OpenShell OIDC issuer, audience, JWKS cache TTL, and role claim settings feed
-the JWT validator. Admin roles may write gateway resources; user roles are
-read-only; admins also satisfy the user role. When `scopes_claim` is set,
-OpenShell Gateway RPC methods that use scope checks map to the existing
-`sandbox:read/write`, `provider:read/write`, and `config:read/write` groups;
-individual handlers also enforce workspace and admin permissions. This is not
-yet a complete per-method descriptor matrix. OIDC signature validation
-supports the OpenShell RSA, P-256/P-384 ECDSA, and Ed25519 key families.
-Discovery must use HTTPS. Development can opt into HTTP for numeric loopback
-addresses with `dangerously_allow_insecure_http`,
-`OPENSHELL_OIDC_DANGEROUSLY_ALLOW_INSECURE_HTTP`, or
-`--oidc-dangerously-allow-insecure-http`. A discovery `jwks_uri` must share
-the issuer origin unless its origin is listed in `jwks_allowed_origins`,
-`OPENSHELL_OIDC_JWKS_ALLOWED_ORIGINS`, or
-`--oidc-jwks-allowed-origins`. JWKS redirects are rejected.
+The TOML loader recognizes the OpenShell OIDC issuer, audience, JWKS, and role
+claim fields, but the Go Gateway does not currently wire them into its RPC
+authentication path. OIDC signature validation exists in the runtime identity
+package; it is not active in the Gateway. Configure `QUARSHELL_TOKEN` for the
+current management API, and do not treat OIDC settings as an enabled Gateway
+authentication mechanism.
 
-TLS can load a client CA and an external certificate pair from the original
-gateway TOML. When a client CA is configured, TLS verifies any client
-certificate that is presented but does not require one; bearer clients can
-still connect. mTLS authentication accepts a verified client certificate as a
-user identity. External certificates are selected by configured exact or
-wildcard SNI names. Automatic local PKI generation and watched certificate
-reload are still pending.
-When a client CA is configured without an OIDC issuer or an explicit
-`mtls_auth` setting, OpenShell defaults mTLS authentication to enabled.
-
-OpenShell operator authentication is disabled by default. Enable it with
-`[openshell.gateway.mtls_auth] operator_enabled = true`,
-`OPENSHELL_ENABLE_OPERATOR_AUTH=true`, or
-`--enable-operator-auth true`; startup requires TLS and `tls_client_ca`. A
-verified client certificate with the `operator` organizational unit receives
-gateway-wide administrative authorization, except for peer and sandbox-only
-RPCs. Treat the client CA as a trusted operator credential issuer.
+TLS can load a server certificate/key pair. When `--tls-client-ca` is set, the
+HTTP listener requires a client certificate issued by that CA. The certificate
+is not mapped to a Gateway user or operator role, so management RPCs still
+require the configured bearer token. The gRPC listener uses the server TLS
+certificate but does not request client certificates. The parsed OpenShell
+`mtls_auth` operator-role settings are not wired into the Gateway runtime yet.
+Automatic local PKI generation and watched certificate reload are also
+pending.
 
 The edge WebSocket tunnel is disabled by default. Enable it with
 `enable_websocket_tunnel = true`, `OPENSHELL_ENABLE_WEBSOCKET_TUNNEL=true`, or

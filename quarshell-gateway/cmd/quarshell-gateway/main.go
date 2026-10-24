@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/KLORQ/quarshell-core/domain"
 	_ "github.com/KLORQ/quarshell-driver-vm/vm"
 	"github.com/KLORQ/quarshell-driver/driver"
@@ -43,6 +44,7 @@ import (
 	applicationgrpc "github.com/KLORQ/quarshell-gateway/internal/transport/applicationgrpc"
 	applicationhttp "github.com/KLORQ/quarshell-gateway/internal/transport/applicationhttp"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	gatewayv1connect "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1/gatewayv1connect"
 	runtimev1 "github.com/KLORQ/quarshell-proto/gen/go/quarshell/runtime/v1"
 	"google.golang.org/grpc"
 	grpcCredentials "google.golang.org/grpc/credentials"
@@ -383,7 +385,7 @@ func main() {
 	api.GatewayName = *name
 	api.Capabilities = []string{"workspaces", "sandboxes", "policies", "templates", "settings", "quotas", "providers", "services", "forwards", "tokens", "events"}
 
-	server := &http.Server{Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{ReadHeaderTimeout: 5 * time.Second}
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
 		log.Fatalf("listen: %v", err)
@@ -452,6 +454,18 @@ func main() {
 		}()
 		log.Printf("quarshell-gateway gRPC listening on %s", grpcListener.Addr())
 	}
+	httpHandler := api.Handler()
+	if grpcApplication != nil {
+		mux := http.NewServeMux()
+		path, connectHandler := gatewayv1connect.NewOpenShellHandler(
+			&applicationgrpc.OpenShellConnectAdapter{Server: grpcApplication},
+			connect.WithInterceptors(applicationgrpc.ConnectAuthInterceptor(*tokenValue, "gateway-client", tokens)),
+		)
+		mux.Handle(path, connectHandler)
+		mux.Handle("/", httpHandler)
+		httpHandler = mux
+	}
+	server.Handler = httpHandler
 	go func() {
 		<-ctx.Done()
 		if grpcApplication != nil {

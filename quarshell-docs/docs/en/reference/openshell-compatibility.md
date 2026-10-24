@@ -5,8 +5,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenShell compatibility
 
-Quarshell's compatibility target is the latest stable OpenShell release pinned
-for this work: [v0.1.4](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.4),
+Quarshell's compatibility baseline is the OpenShell release pinned for this
+work: [v0.1.4](https://github.com/NVIDIA/OpenShell/releases/tag/v0.1.4),
 commit `5a7728c304b5528e954e9ae900cf21f84e1a12b1`. The source tag is checked out
 under `tools/upstream/openshell-v0.1.4`; `UPSTREAM_VERSION` and `UPSTREAM_SHA`
 are the baseline for generated schemas, the RPC inventory and the gap register.
@@ -78,8 +78,8 @@ peer RPCs and supervisor reporting paths remain unimplemented or partial.
 The RPC inventory lists exact methods, stream direction, auth class, handler,
 fixtures, tests and evidence. The gap register records remaining work:
 
-- [Tracked OpenShell feature inventory](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/feature-inventory.yaml)
-- [Remaining implementation and acceptance gaps](https://github.com/KLORQ/sandbox.dev/blob/main/docs/ru/reference/remaining-migration-work.md)
+- [Tracked OpenShell feature inventory](feature-inventory.yaml)
+- [Remaining implementation and acceptance gaps](https://github.com/KLORQ/quarshell/blob/main/plans/REMAINING.md)
 - [Pinned Docker/Podman config field inventory](https://github.com/KLORQ/quarshell/blob/main/quarshell-driver/internal/configcompat/testdata/openshell-v0.1.4-driver-config.json)
 - [Runtime acceptance and test map](runtime-acceptance.md)
 - [Architecture and backend SPI](../concepts/architecture.md)
