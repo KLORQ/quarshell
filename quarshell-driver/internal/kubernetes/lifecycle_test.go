@@ -14,7 +14,7 @@ import (
 
 func TestQuarshellRuntimeParamsRecoverTrustedRestartSettings(t *testing.T) {
 	config := BackendConfig{
-		GatewayID: "gateway-1", ProxyImage: "ghcr.io/quarshell/proxy@sha256:" + strings.Repeat("a", 64),
+		GatewayID: "gateway-1", ProxyImage: "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:" + strings.Repeat("a", 64),
 		GRPCEndpoint: "gateway.example:7443",
 	}
 	config.applyDefaults()

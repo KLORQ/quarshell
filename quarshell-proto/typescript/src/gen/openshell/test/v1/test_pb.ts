@@ -13,7 +13,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file openshell/test/v1/test.proto.
  */
 export const file_openshell_test_v1_test: GenFile = /*@__PURE__*/
-  fileDesc("ChxvcGVuc2hlbGwvdGVzdC92MS90ZXN0LnByb3RvEhFvcGVuc2hlbGwudGVzdC52MSI4Cg1PYmplY3RGb3JUZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFY291bnQYAyABKA1CQ1pBZ2l0aHViLmNvbS9jYXV0ZW0vcXVhcnNoZWxsLXByb3RvL2dlbi9nby9vcGVuc2hlbGwvdGVzdC92MTt0ZXN0djFiBnByb3RvMw");
+  fileDesc("ChxvcGVuc2hlbGwvdGVzdC92MS90ZXN0LnByb3RvEhFvcGVuc2hlbGwudGVzdC52MSI4Cg1PYmplY3RGb3JUZXN0EgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDQoFY291bnQYAyABKA1CQlpAZ2l0aHViLmNvbS9LTE9SUS9xdWFyc2hlbGwtcHJvdG8vZ2VuL2dvL29wZW5zaGVsbC90ZXN0L3YxO3Rlc3R2MWIGcHJvdG8z");
 
 /**
  * Simple object for persistence tests.

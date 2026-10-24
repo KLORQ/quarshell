@@ -12,6 +12,8 @@ import (
 	sandboxapp "github.com/KLORQ/quarshell-gateway/internal/application/sandbox"
 	datamodelv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/datamodel/v1"
 	gatewayv1 "github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestExchangeProviderSubjectToken(t *testing.T) {
@@ -47,7 +49,7 @@ func TestExchangeProviderSubjectToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	sandboxCtx := context.WithValue(ctx, principalContextKey{}, authenticatedPrincipal{
-		identityProvider: "sandbox-token", sandbox: ref.Sandbox,
+		identityProvider: "sandbox-token", subject: "supervisor", sandbox: ref.Sandbox,
 		generation: started.RuntimeGeneration, credentialEpoch: started.CredentialEpoch,
 	})
 	response, err := server.ExchangeProviderSubjectToken(sandboxCtx, &gatewayv1.ExchangeProviderSubjectTokenRequest{
@@ -55,5 +57,25 @@ func TestExchangeProviderSubjectToken(t *testing.T) {
 	})
 	if err != nil || response.GetAccessToken() != "token" {
 		t.Fatalf("Exchange = %+v err=%v", response, err)
+	}
+	if _, err := server.ExchangeProviderSubjectToken(sandboxCtx, &gatewayv1.ExchangeProviderSubjectTokenRequest{
+		SandboxId: "other-sandbox", Provider: "p", CredentialKey: "access_token", SupervisorJwtSvid: "svid",
+	}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("cross-sandbox exchange status = %v err=%v", status.Code(err), err)
+	}
+	staleCtx := context.WithValue(ctx, principalContextKey{}, authenticatedPrincipal{
+		identityProvider: "sandbox-token", subject: "supervisor", sandbox: ref.Sandbox,
+		generation: started.RuntimeGeneration + 1, credentialEpoch: started.CredentialEpoch,
+	})
+	if _, err := server.ExchangeProviderSubjectToken(staleCtx, &gatewayv1.ExchangeProviderSubjectTokenRequest{
+		SandboxId: "sb", Provider: "p", CredentialKey: "access_token", SupervisorJwtSvid: "svid",
+	}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("stale-generation exchange status = %v err=%v", status.Code(err), err)
+	}
+	operatorCtx := context.WithValue(ctx, principalContextKey{}, authenticatedPrincipal{subject: "operator", roles: []string{"platform_admin"}})
+	if _, err := server.ExchangeProviderSubjectToken(operatorCtx, &gatewayv1.ExchangeProviderSubjectTokenRequest{
+		SandboxId: "sb", Provider: "p", CredentialKey: "access_token", SupervisorJwtSvid: "svid",
+	}); status.Code(err) != codes.Unauthenticated {
+		t.Fatalf("operator principal exchange status = %v err=%v", status.Code(err), err)
 	}
 }

@@ -102,7 +102,7 @@ go build -C quarshell-gateway -o quarshell-gateway ./cmd/quarshell-gateway
 Скачайте базовый образ — в нём есть всё, что нужно агенту в CLI:
 
 ```bash
-docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+docker pull ghcr.io/klorq/quarshell/sandboxes/base:latest
 export QUARSHELL_USE_GHCR=1
 ```
 

@@ -13,7 +13,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -22,6 +21,7 @@ import (
 	"github.com/KLORQ/quarshell-driver/driver"
 	podman "github.com/KLORQ/quarshell-driver/podman"
 	"github.com/KLORQ/quarshell-driver/tests/internal/testenv"
+	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/client"
 )
 
@@ -42,7 +42,7 @@ func TestPodmanCanonicalMainProcessTTYLifecycle(t *testing.T) {
 	name := "testcontainers-podman-main-tty"
 	handle, err := engine.Create(ctx, backendRequestFromSpec(sandboxFixtureSpec{
 		Name: name, Image: testenv.AlpineImage, Workspace: workspace,
-		Command: []string{"sh", "-c", "read value; printf 'QUARSHELL_PODMAN_TTY_REPLY:%s\\n' \"$value\"; exit 7"},
+		Command: []string{"sh", "-c", "read value; sleep 1; printf 'QUARSHELL_PODMAN_TTY_REPLY:%s\\n' \"$value\"; exit 7"},
 		TTY:     true, NoHarden: true,
 	}))
 	if err != nil {
@@ -606,6 +606,11 @@ func TestPodmanUsernsMatrixE2E(t *testing.T) {
 	if workspace == "" || image == "" {
 		t.Fatal("Podman userns matrix requires a workspace and QUARSHELL_E2E_SANDBOX_IMAGE")
 	}
+	engineClient, err := client.New(client.WithHost(endpoint), client.WithAPIVersionNegotiation())
+	if err != nil {
+		t.Fatalf("create Podman Engine client: %v", err)
+	}
+	defer engineClient.Close()
 	rootless := os.Getenv("QUARSHELL_PODMAN_ROOTLESS") == "1"
 	strict := os.Getenv("QUARSHELL_PODMAN_USERNS_STRICT") == "1"
 	for _, mode := range []string{"private", "auto", "host", "keep-id", "no-map"} {
@@ -634,6 +639,9 @@ func TestPodmanUsernsMatrixE2E(t *testing.T) {
 				Command: []string{"sh", "-c", "sleep 120"}, NoHarden: true,
 			}))
 			if err != nil {
+				if !rootless && mode == "auto" && strings.Contains(strings.ToLower(err.Error()), "not enough unused ids in user namespace") {
+					t.Skip("nested rootful Podman has no unused subordinate IDs for auto userns")
+				}
 				if mode == "no-map" && strings.Contains(strings.ToLower(err.Error()), "nomap is only supported in rootless mode") {
 					if strict && !rootless {
 						t.Skip("expected capability skip: no-map is only supported in rootless mode")
@@ -667,23 +675,71 @@ func TestPodmanUsernsMatrixE2E(t *testing.T) {
 			guestMarker := filepath.Join("/workspace", filepath.Base(ownershipDir), filepath.Base(marker))
 			probe := `set -eu
 uid=$(id -u); gid=$(id -g)
-mapped_uid=$(awk -v id="$uid" '$1 <= id && id < $1 + $3 { print $2 + id - $1; found=1; exit } END { if (!found) exit 1 }' /proc/self/uid_map)
-mapped_gid=$(awk -v id="$gid" '$1 <= id && id < $1 + $3 { print $2 + id - $1; found=1; exit } END { if (!found) exit 1 }' /proc/self/gid_map)
 {
-	printf 'identity=%s:%s mapped=%s:%s\n' "$uid" "$gid" "$mapped_uid" "$mapped_gid"
-	cat /proc/self/uid_map /proc/self/gid_map
+	printf 'identity=%s:%s\n' "$uid" "$gid"
+	printf 'uid_map\n'
+	cat /proc/self/uid_map
+	printf 'gid_map\n'
+	cat /proc/self/gid_map
 } > "$1"`
-			result, err := engine.Exec(ctx, handle.ID, driver.ExecRequest{Argv: []string{"sh", "-c", probe, "sh", guestMarker}})
-			if err != nil || result.ExitCode != 0 {
-				t.Fatalf("%s userns identity probe: result=%+v err=%v", mode, result, err)
+			exec, err := engineClient.ExecCreate(ctx, string(handle.ID), client.ExecCreateOptions{
+				Cmd: []string{"sh", "-c", probe, "sh", guestMarker}, User: "1000:1000", AttachStdout: true, AttachStderr: true,
+			})
+			if err != nil {
+				t.Fatalf("create %s userns identity probe: %v", mode, err)
+			}
+			attached, err := engineClient.ExecAttach(ctx, exec.ID, client.ExecAttachOptions{})
+			if err != nil {
+				t.Fatalf("attach %s userns identity probe: %v", mode, err)
+			}
+			_, copyErr := stdcopy.StdCopy(io.Discard, io.Discard, attached.Reader)
+			attached.Close()
+			if copyErr != nil {
+				t.Fatalf("read %s userns identity probe: %v", mode, copyErr)
+			}
+			execState, err := engineClient.ExecInspect(ctx, exec.ID, client.ExecInspectOptions{})
+			if err != nil || execState.ExitCode != 0 {
+				t.Fatalf("%s userns identity probe exit=%d err=%v", mode, execState.ExitCode, err)
 			}
 			var guestUID, guestGID, mappedUID, mappedGID uint64
+			var uidMapped, gidMapped bool
 			probeOutput, err := os.ReadFile(marker)
 			if err != nil {
 				t.Fatalf("read host-side %s userns probe output: %v", mode, err)
 			}
-			if n, err := fmt.Sscanf(string(probeOutput), "identity=%d:%d mapped=%d:%d", &guestUID, &guestGID, &mappedUID, &mappedGID); err != nil || n != 4 {
+			if n, err := fmt.Sscanf(string(probeOutput), "identity=%d:%d", &guestUID, &guestGID); err != nil || n != 2 {
 				t.Fatalf("%s userns identity probe output %q: scanned %d fields, err=%v", mode, probeOutput, n, err)
+			}
+			var mapSection string
+			for _, line := range strings.Split(string(probeOutput), "\n") {
+				if line == "uid_map" {
+					mapSection = "uid"
+					continue
+				}
+				if line == "gid_map" {
+					mapSection = "gid"
+					continue
+				}
+				fields := strings.Fields(line)
+				if len(fields) != 3 {
+					continue
+				}
+				containerID, e1 := strconv.ParseUint(fields[0], 10, 64)
+				hostID, e2 := strconv.ParseUint(fields[1], 10, 64)
+				size, e3 := strconv.ParseUint(fields[2], 10, 64)
+				if e1 != nil || e2 != nil || e3 != nil || size == 0 {
+					continue
+				}
+				if mapSection == "uid" && guestUID >= containerID && guestUID-containerID < size {
+					mappedUID = hostID + guestUID - containerID
+					uidMapped = true
+				} else if mapSection == "gid" && guestGID >= containerID && guestGID-containerID < size {
+					mappedGID = hostID + guestGID - containerID
+					gidMapped = true
+				}
+			}
+			if !uidMapped || !gidMapped {
+				t.Fatalf("%s userns maps do not include workload identity: %q", mode, probeOutput)
 			}
 			if guestUID != 1000 || guestGID != 1000 {
 				t.Fatalf("%s workload identity = %d:%d; fixture requires 1000:1000", mode, guestUID, guestGID)
@@ -698,7 +754,7 @@ mapped_gid=$(awk -v id="$gid" '$1 <= id && id < $1 + $3 { print $2 + id - $1; fo
 			if err != nil {
 				t.Fatalf("stat host-side %s ownership marker: %v; probe=%q", mode, err, probeOutput)
 			}
-			owner, ok := info.Sys().(*syscall.Stat_t)
+			owner, ok := hostFileOwner(info)
 			if !ok {
 				t.Fatalf("host-side %s ownership marker has unsupported stat type %T", mode, info.Sys())
 			}
@@ -711,8 +767,8 @@ mapped_gid=$(awk -v id="$gid" '$1 <= id && id < $1 + $3 { print $2 + id - $1; fo
 				expectedUID = rootlessHostID(mode, mappedUID, subordinateStart)
 				expectedGID = rootlessHostID(mode, mappedGID, subordinateStart)
 			}
-			if uint64(owner.Uid) != expectedUID || uint64(owner.Gid) != expectedGID {
-				t.Fatalf("%s bind ownership mismatch: guest maps workload 1000:1000 to host %d:%d, file owner is %d:%d; maps=%q", mode, expectedUID, expectedGID, owner.Uid, owner.Gid, probeOutput)
+			if owner.uid != expectedUID || owner.gid != expectedGID {
+				t.Fatalf("%s bind ownership mismatch: guest maps workload 1000:1000 to host %d:%d, file owner is %d:%d; maps=%q", mode, expectedUID, expectedGID, owner.uid, owner.gid, probeOutput)
 			}
 		})
 	}

@@ -63,7 +63,7 @@ const (
 	SandboxPidsLimit int64 = 2048
 
 	// GHCR: separate image per flavor (like openshell-community/sandboxes/<name>).
-	GHCROrg        = "ghcr.io/quarshell"
+	GHCROrg        = "ghcr.io/klorq"
 	GHCRGateway    = GHCROrg + "/quarshell/gateway"
 	GHCRSandboxes  = GHCROrg + "/quarshell/sandboxes"
 	ImageBaseRef   = GHCRSandboxes + "/base:latest"

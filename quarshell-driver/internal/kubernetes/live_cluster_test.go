@@ -317,7 +317,7 @@ func TestLiveAgentSandboxCreateSequence(t *testing.T) {
 	runtimeParams.ServiceAccountName = "default"
 	runtimeParams.GatewayEndpoint = ""
 	runtimeParams.ImagePullSecrets = nil
-	runtimeParams.QuarshellProxyImage = "ghcr.io/quarshell/quarshell-proxy@sha256:" + strings.Repeat("b", 64)
+	runtimeParams.QuarshellProxyImage = "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:" + strings.Repeat("b", 64)
 	runtimeParams.QuarshellGatewayURL = "http://gateway.invalid:7443"
 	runtimeParams.QuarshellGatewayGRPCEndpoint = "gateway.invalid:7443"
 

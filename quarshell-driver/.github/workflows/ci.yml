@@ -35,20 +35,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-core
-          ref: v0.5.0
+          ref: v0.5.2
           path: quarshell-core
 
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proto
-          ref: v0.2.3
+          ref: v0.2.8
           path: quarshell-proto
       - name: Checkout quarshell-proxy workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proxy
-          ref: v0.1.2
+          ref: v0.1.5
           path: quarshell-proxy
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -114,20 +114,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-core
-          ref: v0.5.0
+          ref: v0.5.2
           path: quarshell-core
 
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proto
-          ref: v0.2.3
+          ref: v0.2.8
           path: quarshell-proto
       - name: Checkout quarshell-proxy workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proxy
-          ref: v0.1.2
+          ref: v0.1.5
           path: quarshell-proxy
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -193,20 +193,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-core
-          ref: v0.5.0
+          ref: v0.5.2
           path: quarshell-core
 
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proto
-          ref: v0.2.3
+          ref: v0.2.8
           path: quarshell-proto
       - name: Checkout quarshell-proxy workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proxy
-          ref: v0.1.2
+          ref: v0.1.5
           path: quarshell-proxy
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -270,20 +270,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-core
-          ref: v0.5.0
+          ref: v0.5.2
           path: quarshell-core
 
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proto
-          ref: v0.2.3
+          ref: v0.2.8
           path: quarshell-proto
       - name: Checkout quarshell-proxy workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proxy
-          ref: v0.1.2
+          ref: v0.1.5
           path: quarshell-proxy
       - name: Write go.work
         working-directory: ${{ github.workspace }}
@@ -368,27 +368,34 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-core
-          ref: v0.5.0
+          ref: v0.5.2
           path: quarshell-core
+
+      - name: Checkout quarshell-driver-vm
+        uses: actions/checkout@v4
+        with:
+          repository: KLORQ/quarshell-driver-vm
+          ref: v0.1.12
+          path: quarshell-driver-vm
 
       - name: Checkout quarshell-runtime helpers
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-runtime
-          ref: v0.1.2
+          ref: v0.1.6
           path: quarshell-runtime
 
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proto
-          ref: v0.2.3
+          ref: v0.2.8
           path: quarshell-proto
       - name: Checkout quarshell-proxy workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proxy
-          ref: v0.1.2
+          ref: v0.1.5
           path: quarshell-proxy
       - name: Write go.work
         working-directory: ${{ github.workspace }}

@@ -8,7 +8,7 @@ entrypoint. Build it locally from the workspace with `task docker:proxy`; the
 default tag is `quarshell-proxy:local`. It runs as UID 10001, keeps its policy in
 `/etc/quarshell/policy.yaml`, and writes audit files below `/tmp/quarshell-logs`.
 The CLI release workflow publishes a linux/amd64 and linux/arm64 manifest at
-`ghcr.io/quarshell/quarshell/sandboxes/proxy:<version>` after the matching CLI
+`ghcr.io/klorq/quarshell/sandboxes/proxy:<version>` after the matching CLI
 release. Kubernetes deployments should pin the published image by digest once
 the runtime Pod template is enabled.
 

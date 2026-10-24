@@ -8,7 +8,7 @@ Status: pre-stable API · Current module tag: `v0.1.1` · Dependencies are liste
 |----|------|-------|
 | G1 | **Auth** | OIDC / mTLS for agents and CLI |
 | G2 | **Proposals API** | Complete store/approve/reject + CLI `quarshell rule` |
-| G3 | **Helm / image** | Versioned chart + `ghcr.io/quarshell/gateway` |
+| G3 | **Helm / image** | Versioned chart + `ghcr.io/klorq/quarshell/gateway` |
 | G4 | **Relay polish** | Long-poll exec reliability under load |
 
 

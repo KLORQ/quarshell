@@ -5,7 +5,8 @@
 плана (`plans/openshell-go-2026-10-21/PLAN.md`, раздел 2).
 
 ```bash
-python3 tools/generate-openshell-inventory.py
+go run tools/cmd/quarshell-tools/*.go inventory --write
+go run tools/cmd/quarshell-tools/*.go inventory --check
 ```
 
 Выходные файлы:
@@ -14,8 +15,12 @@ python3 tools/generate-openshell-inventory.py
   docs, installers, текущий module DAG;
 - `features.yaml` — feature matrix и coverage records.
 
-Сгенерированные `*.json` и `*.yaml` не коммитятся: source of truth — upstream
-checkout и план. Перегенерация обязательна после изменения плана или baseline.
+Сгенерированные `*.json` и `*.yaml` коммитятся как reviewable snapshots;
+source of truth — pinned upstream checkout и feature register. Перегенерация и
+`--check` обязательны после изменения baseline или соответствующей матрицы.
 
-Статус: `unverified`. Это inventory, а не доказательство поведения. Для каждой
-строки нужен отдельный acceptance fixture.
+Inventory выводится из закреплённого upstream checkout и feature register.
+Source mapping подтверждает только наличие кандидата на реализацию, не parity.
+Для статуса `implemented` нужны привязанные к исходнику тесты/evidence; для
+`released` нужен consumer acceptance без workspace replacements. Текущий gap
+plan и ограничения: [`../REMAINING.md`](../REMAINING.md).

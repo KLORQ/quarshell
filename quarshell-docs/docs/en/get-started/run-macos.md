@@ -64,7 +64,7 @@ you use Quarshell.
 ## 3. Pull the sandbox image
 
 ```sh
-docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+docker pull ghcr.io/klorq/quarshell/sandboxes/base:latest
 export QUARSHELL_USE_GHCR=1
 ```
 
@@ -146,7 +146,7 @@ export QUARSHELL_GATEWAY_RUNTIME=podman
 quarshell gateway ensure
 ```
 
-Use `podman pull ghcr.io/quarshell/quarshell/sandboxes/base:latest` for the image,
+Use `podman pull ghcr.io/klorq/quarshell/sandboxes/base:latest` for the image,
 then keep `QUARSHELL_USE_GHCR=1` set in this shell.
 
 ## Troubleshooting

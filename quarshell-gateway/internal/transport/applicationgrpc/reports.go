@@ -11,30 +11,63 @@ import (
 
 // ReportProviderReadiness applies one supervisor readiness observation.
 func (s *Server) ReportProviderReadiness(ctx context.Context, request *gatewayv1.ReportProviderReadinessRequest) (*gatewayv1.ReportProviderReadinessResponse, error) {
-	if s.Sandboxes == nil || s.ProviderBindings == nil {
+	if s.Sandboxes == nil || s.ProviderBindings == nil || s.SupervisorHub == nil {
 		return nil, status.Error(codes.Unavailable, "provider readiness runtime is not configured")
 	}
 	ref, err := s.sandboxByID(ctx, request.GetSandboxId())
 	if err != nil {
 		return nil, err
 	}
+	observation := request.GetObservation()
+	if observation == nil || observation.GetSequence() == 0 || observation.GetSessionId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "provider readiness observation, session_id and positive sequence are required")
+	}
+	if _, ok := gatewayv1.ProviderReadinessReason_name[int32(observation.GetReason())]; !ok {
+		return nil, status.Error(codes.InvalidArgument, "provider readiness reason is invalid")
+	}
+	if s.readinessSession(string(ref.Sandbox)) != observation.GetSessionId() {
+		return nil, status.Error(codes.FailedPrecondition, "provider readiness report is not from the active supervisor session")
+	}
+	instanceID, connectionEpoch, connected := s.SupervisorHub.SupervisorSession(string(ref.Sandbox))
+	if !connected {
+		return nil, status.Error(codes.FailedPrecondition, "sandbox supervisor relay is not connected")
+	}
+	principal, _ := sandboxPrincipalFromContext(ctx)
+	if err := s.Sandboxes.ValidateSupervisorSession(ctx, ref, principal.generation, principal.credentialEpoch, instanceID, connectionEpoch); err != nil {
+		return nil, status.Error(codes.Aborted, "sandbox supervisor session ownership changed")
+	}
 	bindings, err := s.ProviderBindings.List(ctx, ref)
 	if err != nil {
 		return nil, grpcError(err)
 	}
-	observation := request.GetObservation()
 	ready := observation.GetCredentialsInstalled() && observation.GetPolicyActive() && observation.GetLaunchEnvironmentInstalled()
 	for _, binding := range bindings {
 		if ready {
 			_, err = s.ProviderBindings.Ack(ctx, ref, binding.Provider, binding.Revision)
+		} else if readinessFailure(observation.GetReason()) {
+			_, err = s.ProviderBindings.Fail(ctx, ref, binding.Provider, binding.Revision, observation.GetReason().String())
 		} else {
-			_, err = s.ProviderBindings.Fail(ctx, ref, binding.Provider, binding.Revision, "provider readiness incomplete")
+			// Startup observations commonly report that credentials, policy or
+			// process setup is still pending. Do not turn that transient state into
+			// a terminal failure; only explicit installation failures do that.
+			continue
 		}
 		if err != nil {
 			return nil, grpcError(err)
 		}
 	}
 	return &gatewayv1.ReportProviderReadinessResponse{AcceptedSequence: observation.GetSequence()}, nil
+}
+
+func readinessFailure(reason gatewayv1.ProviderReadinessReason) bool {
+	switch reason {
+	case gatewayv1.ProviderReadinessReason_PROVIDER_READINESS_REASON_CREDENTIAL_INSTALL_FAILED,
+		gatewayv1.ProviderReadinessReason_PROVIDER_READINESS_REASON_POLICY_ACTIVATION_FAILED,
+		gatewayv1.ProviderReadinessReason_PROVIDER_READINESS_REASON_PROCESS_INSTALL_FAILED:
+		return true
+	default:
+		return false
+	}
 }
 
 // ReportEndpointStatus accepts an endpoint observation batch.

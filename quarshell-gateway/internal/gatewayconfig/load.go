@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -136,7 +137,7 @@ func validateVMProxyConfig(config map[string]any) error {
 	}
 	if raw, exists := config["proxy_auth_file"]; exists {
 		path, ok := raw.(string)
-		if !ok || strings.TrimSpace(path) == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		if !ok || strings.TrimSpace(path) == "" || !pathpkg.IsAbs(path) || pathpkg.Clean(path) != path {
 			return fmt.Errorf("proxy_auth_file must be a non-empty absolute clean path")
 		}
 		if !hasProxy {
@@ -167,7 +168,7 @@ func validateVMProxyConfig(config map[string]any) error {
 	}
 	if raw, exists := config["proxy_ca_bundle"]; exists {
 		path, ok := raw.(string)
-		if !ok || strings.TrimSpace(path) == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		if !ok || strings.TrimSpace(path) == "" || !pathpkg.IsAbs(path) || pathpkg.Clean(path) != path {
 			return fmt.Errorf("proxy_ca_bundle must be a non-empty absolute clean path")
 		}
 		if !hasProxy {

@@ -341,12 +341,17 @@ func (s *ChunkService) History(ctx context.Context, scope Scope) ([]Revision, []
 }
 
 func putChunkHistory(tx lifecycle.WriteTx, chunk Chunk, now time.Time) error {
+	records, err := tx.List(chunkHistoryKind)
+	if err != nil {
+		return err
+	}
 	entry := ChunkHistory{Scope: chunk.Scope, Chunk: chunk.ID, Source: chunk.Source, Status: chunk.Status, Author: chunk.Author, Reason: chunk.Reason, UpdatedAt: now}
 	encoded, err := json.Marshal(entry)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Put(chunkHistoryKind, chunkKey(chunk.Scope, chunk.ID)+"~"+strconv.FormatInt(now.UnixNano(), 10), 0, encoded)
+	sequence := strconv.Itoa(len(records))
+	_, err = tx.Put(chunkHistoryKind, chunkKey(chunk.Scope, chunk.ID)+"~"+strconv.FormatInt(now.UnixNano(), 10)+"-"+sequence, 0, encoded)
 	return err
 }
 

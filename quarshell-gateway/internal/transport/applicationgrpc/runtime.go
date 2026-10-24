@@ -217,6 +217,12 @@ func (s *Server) ConnectSupervisor(stream gatewayv1.OpenShell_ConnectSupervisorS
 	if err != nil || current.RuntimeGenerationOrInitial() != principal.generation || credentialEpoch(current.CredentialEpoch) != principal.credentialEpoch || current.State != "running" {
 		return status.Error(codes.PermissionDenied, "sandbox generation is not running")
 	}
+	if hello.GetSupportsSessionRedirect() && s.ReplicaRouting != nil {
+		if replica, redirect := s.ReplicaRouting.Redirect(hello.GetSandboxId(), hello.GetRedirected(), s.draining.Load()); redirect {
+			_ = stream.Send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_SessionRedirect{SessionRedirect: &gatewayv1.SessionRedirect{PeerEndpoint: replica.Endpoint, OwnerReplicaId: replica.ID}}})
+			return nil
+		}
+	}
 	sessionID := randomSessionID()
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
@@ -244,7 +250,11 @@ func (s *Server) ConnectSupervisor(stream gatewayv1.OpenShell_ConnectSupervisorS
 		unregister()
 		return nil
 	}
-	defer unregister()
+	s.setReadinessSession(string(principal.sandbox), sessionID)
+	defer func() {
+		s.clearReadinessSession(string(principal.sandbox), sessionID)
+		unregister()
+	}()
 	if err := stream.Send(&gatewayv1.GatewayMessage{Payload: &gatewayv1.GatewayMessage_SessionAccepted{SessionAccepted: &gatewayv1.SessionAccepted{SessionId: sessionID, HeartbeatInterval: durationpb.New(15 * time.Second)}}}); err != nil {
 		return err
 	}

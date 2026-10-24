@@ -3,7 +3,7 @@
 // Run it from any directory below the workspace with:
 //
 //	go run tools/cmd/quarshell-tools/*.go workspace [--check|--modules]
-//	go run tools/cmd/quarshell-tools/*.go pins [--check]
+//	go run tools/cmd/quarshell-tools/*.go pins [--check] [--ref origin/main]
 //	go run tools/cmd/quarshell-tools/*.go dag [--strict]
 package main
 
@@ -371,15 +371,30 @@ var refLine = regexp.MustCompile(`^\s*ref:\s*([^\s#]+)`)
 func pinsCommand(root string, args []string) error {
 	flags := flag.NewFlagSet("pins", flag.ContinueOnError)
 	check := flags.Bool("check", false, "fail on stale workflow checkout refs")
+	ref := flags.String("ref", "", "read workflow files from a Git ref (check mode only)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 {
-		return errors.New("usage: pins [--check]")
+	if flags.NArg() != 0 || (*ref != "" && !*check) {
+		return errors.New("usage: pins [--check] [--ref origin/main]")
 	}
 	pins, err := publishedPins(root)
 	if err != nil {
 		return err
+	}
+	if *check && *ref == "" && hasGitModuleCheckouts(root, pins) {
+		*ref = "origin/main"
+	}
+	if *ref != "" {
+		changed, repositories, err := checkWorkflowRef(root, *ref, pins)
+		if err != nil {
+			return err
+		}
+		if changed > 0 {
+			return fmt.Errorf("%d workflow checkout(s) on %s do not match tools/modules.lock", changed, *ref)
+		}
+		fmt.Printf("checked %d default branches against tools/modules.lock: PASS\n", repositories)
+		return nil
 	}
 	paths, err := filepath.Glob(filepath.Join(root, "quarshell-*", ".github", "workflows", "*.y*ml"))
 	if err != nil {
@@ -395,14 +410,65 @@ func pinsCommand(root string, args []string) error {
 		changed += count
 	}
 	if *check && changed > 0 {
-		return fmt.Errorf("%d inter-repository checkout(s) do not match tools/modules.lock", changed)
+		return fmt.Errorf("%d workflow checkout(s) do not match tools/modules.lock", changed)
 	}
 	if *check {
-		fmt.Printf("found %d inter-repository checkout(s) requiring updates\n", changed)
+		fmt.Printf("found %d workflow checkout(s) requiring updates\n", changed)
 	} else {
-		fmt.Printf("pinned %d inter-repository checkout(s)\n", changed)
+		fmt.Printf("pinned %d workflow checkout(s)\n", changed)
 	}
 	return nil
+}
+
+func hasGitModuleCheckouts(root string, pins map[string]string) bool {
+	for name := range pins {
+		if _, err := os.Stat(filepath.Join(root, name, ".git")); err != nil {
+			return false
+		}
+	}
+	return len(pins) > 0
+}
+
+func checkWorkflowRef(root, ref string, pins map[string]string) (int, int, error) {
+	modules := make([]string, 0, len(pins))
+	for name := range pins {
+		modules = append(modules, name)
+	}
+	slices.Sort(modules)
+	changed, repositories := 0, 0
+	for _, name := range modules {
+		modulePath := filepath.Join(root, name)
+		if _, err := os.Stat(filepath.Join(modulePath, ".git")); err != nil {
+			return changed, repositories, fmt.Errorf("missing Git checkout for %s; run tools/checkout-modules.sh", name)
+		}
+		if ref == "origin/main" {
+			fetch := exec.Command("git", "-C", modulePath, "fetch", "--quiet", "--depth", "1", "origin", "+refs/heads/main:refs/remotes/origin/main")
+			if output, err := fetch.CombinedOutput(); err != nil {
+				return changed, repositories, fmt.Errorf("fetch %s main: %w: %s", name, err, strings.TrimSpace(string(output)))
+			}
+		}
+		list := exec.Command("git", "-C", modulePath, "ls-tree", "-r", "--name-only", ref, "--", ".github/workflows")
+		output, err := list.CombinedOutput()
+		if err != nil {
+			return changed, repositories, fmt.Errorf("list %s workflows at %s: %w: %s", name, ref, err, strings.TrimSpace(string(output)))
+		}
+		var workflowCount int
+		for _, name := range strings.Split(string(output), "\n") {
+			if name == "" || !(strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")) {
+				continue
+			}
+			show := exec.Command("git", "-C", modulePath, "show", ref+":"+name)
+			content, err := show.CombinedOutput()
+			if err != nil {
+				return changed, repositories, fmt.Errorf("read %s:%s: %w: %s", filepath.Base(modulePath), name, err, strings.TrimSpace(string(content)))
+			}
+			_, count := pinWorkflowContent(content, pins, true)
+			changed += count
+			workflowCount++
+		}
+		repositories++
+	}
+	return changed, repositories, nil
 }
 
 func pinWorkflow(path string, pins map[string]string, check bool) (int, error) {
@@ -410,6 +476,18 @@ func pinWorkflow(path string, pins map[string]string, check bool) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	updated, changed := pinWorkflowContent(content, pins, check)
+	if changed == 0 || check {
+		return changed, nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return changed, os.WriteFile(path, updated, info.Mode().Perm())
+}
+
+func pinWorkflowContent(content []byte, pins map[string]string, check bool) ([]byte, int) {
 	lines := strings.SplitAfter(string(content), "\n")
 	replace := make(map[int]string)
 	insert := make(map[int]string)
@@ -461,7 +539,7 @@ func pinWorkflow(path string, pins map[string]string, check bool) (int, error) {
 		}
 	}
 	if changed == 0 || check {
-		return changed, nil
+		return content, changed
 	}
 	var output strings.Builder
 	for i, line := range lines {
@@ -473,11 +551,7 @@ func pinWorkflow(path string, pins map[string]string, check bool) (int, error) {
 			output.WriteString(insertion)
 		}
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
-	return changed, os.WriteFile(path, []byte(output.String()), info.Mode().Perm())
+	return []byte(output.String()), changed
 }
 
 func lineEnding(line string) string {

@@ -16,7 +16,9 @@ import (
 var generatedDirectories = map[string]bool{
 	".pytest_cache": true, "__pycache__": true, "build": true,
 	"dist": true, "node_modules": true, "playwright-report": true,
-	".release-dry-run": true, "site": true, "target": true,
+	".release-dry-run": true, "release-dry-run": true,
+	"release-packages": true, ".gode": true,
+	"site": true, "target": true,
 	"test-results": true,
 }
 
@@ -144,7 +146,8 @@ func cleanGeneratedCommand(root string, args []string) error {
 func cleanupRoots(root string) ([]string, error) {
 	repos := []string{
 		"quarshell-cli", "quarshell-core", "quarshell-docs",
-		"quarshell-driver", "quarshell-gateway", "quarshell-org-profile", "quarshell-proto",
+		"quarshell-driver", "quarshell-driver-vm", "quarshell-gateway",
+		"quarshell-org-profile", "quarshell-proto",
 		"quarshell-policy", "quarshell-proxy", "quarshell-python", "quarshell-runtime",
 		"quarshell-sdk", "quarshell-ui",
 		"quarshell-python-beta-locked-acceptance",

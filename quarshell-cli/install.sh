@@ -124,8 +124,14 @@ main() {
     info "this platform release does not include the Gateway binary"
   fi
   if [ -d "$_payload/libexec/quarshell" ]; then
-    $_sudo mkdir -p "$_dir/libexec/quarshell"
-    $_sudo cp -R "$_payload/libexec/quarshell/." "$_dir/libexec/quarshell/"
+    _prefix_dir=$(dirname "$_dir")
+    for _helper in "$_payload"/libexec/quarshell/*/*; do
+      [ -f "$_helper" ] || continue
+      _relative=${_helper#"$_payload"/}
+      _helper_dir=$_prefix_dir/$(dirname "$_relative")
+      $_sudo mkdir -p "$_helper_dir"
+      $_sudo install -m 755 "$_helper" "$_prefix_dir/$_relative"
+    done
   fi
   if [ -d "$_payload/providers" ]; then
     $_sudo mkdir -p "$_dir/providers"

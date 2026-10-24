@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/KLORQ/quarshell-core/isolation"
@@ -62,7 +63,7 @@ func readSupervisorAuthBundle(path string) (isolation.HostAuthBundle, error) {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: %s must be a clean absolute path", EnvSupervisorAuthBundleFile)
 	}
 	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm() != 0o600 || info.Size() <= 0 || info.Size() > isolation.MaxAuthBundleBytes {
+	if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || !privateFileMode(info.Mode()) || info.Size() <= 0 || info.Size() > isolation.MaxAuthBundleBytes {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: supervisor auth bundle must be a private regular mode-0600 file")
 	}
 	file, err := os.Open(path)
@@ -71,7 +72,7 @@ func readSupervisorAuthBundle(path string) (isolation.HostAuthBundle, error) {
 	}
 	defer file.Close()
 	opened, err := file.Stat()
-	if err != nil || !os.SameFile(info, opened) || !opened.Mode().IsRegular() || opened.Mode().Perm() != 0o600 {
+	if err != nil || !os.SameFile(info, opened) || !opened.Mode().IsRegular() || !privateFileMode(opened.Mode()) {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: supervisor auth bundle changed while being opened")
 	}
 	data, err := io.ReadAll(io.LimitReader(file, isolation.MaxAuthBundleBytes+1))
@@ -83,7 +84,7 @@ func readSupervisorAuthBundle(path string) (isolation.HostAuthBundle, error) {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: supervisor auth bundle requires a clean isolation descriptor path")
 	}
 	descriptorInfo, err := os.Lstat(descriptorPath)
-	if err != nil || !descriptorInfo.Mode().IsRegular() || descriptorInfo.Mode()&os.ModeSymlink != 0 || descriptorInfo.Mode().Perm() != 0o600 || descriptorInfo.Size() <= 0 || descriptorInfo.Size() > isolation.MaxDescriptorBytes {
+	if err != nil || !descriptorInfo.Mode().IsRegular() || descriptorInfo.Mode()&os.ModeSymlink != 0 || !privateFileMode(descriptorInfo.Mode()) || descriptorInfo.Size() <= 0 || descriptorInfo.Size() > isolation.MaxDescriptorBytes {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: isolation descriptor must be a private regular mode-0600 file")
 	}
 	descriptorFile, err := os.Open(descriptorPath)
@@ -92,7 +93,7 @@ func readSupervisorAuthBundle(path string) (isolation.HostAuthBundle, error) {
 	}
 	defer descriptorFile.Close()
 	descriptorOpened, err := descriptorFile.Stat()
-	if err != nil || !os.SameFile(descriptorInfo, descriptorOpened) || descriptorOpened.Mode().Perm() != 0o600 {
+	if err != nil || !os.SameFile(descriptorInfo, descriptorOpened) || !privateFileMode(descriptorOpened.Mode()) {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: isolation descriptor changed while being opened")
 	}
 	descriptorData, err := io.ReadAll(io.LimitReader(descriptorFile, isolation.MaxDescriptorBytes+1))
@@ -111,4 +112,10 @@ func readSupervisorAuthBundle(path string) (isolation.HostAuthBundle, error) {
 		return isolation.HostAuthBundle{}, fmt.Errorf("proxy: supervisor auth bundle does not match sandbox admission")
 	}
 	return bundle, nil
+}
+
+// Windows reports ACL-backed files with synthetic permission bits, so Unix
+// mode checks apply only where chmod permissions are meaningful.
+func privateFileMode(mode os.FileMode) bool {
+	return runtime.GOOS == "windows" || mode.Perm() == 0o600
 }

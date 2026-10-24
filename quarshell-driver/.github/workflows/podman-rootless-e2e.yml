@@ -28,19 +28,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-core
-          ref: v0.5.0
+          ref: v0.5.2
           path: quarshell-core
       - name: Checkout quarshell-proto workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proto
-          ref: v0.2.3
+          ref: v0.2.8
           path: quarshell-proto
       - name: Checkout quarshell-proxy workspace dependency
         uses: actions/checkout@v4
         with:
           repository: KLORQ/quarshell-proxy
-          ref: v0.1.2
+          ref: v0.1.5
           path: quarshell-proxy
       - name: Configure Go workspace
         working-directory: ${{ github.workspace }}
@@ -67,6 +67,7 @@ jobs:
                 printf '  %s %s => ./%s\n' "$module" "$version" "$d"
               done
             done
+            echo ')'
           } > "$workspace/go.work"
           echo "Wrote go.work:" && cat "$workspace/go.work"
       - uses: actions/setup-go@v5
@@ -90,13 +91,13 @@ jobs:
             --security-opt label=disable -e STORAGE_DRIVER=vfs \
             -p 127.0.0.1:18501:18501 quarshell-podman6-e2e:local \
             sh -lc '
-              id podman >/dev/null 2>&1 || useradd --create-home --uid 1000 podman
+              id podman >/dev/null 2>&1 || useradd --create-home --uid 2000 podman
               sed -i "/^podman:/d" /etc/subuid /etc/subgid
               printf "podman:200000:65536\\n" >> /etc/subuid
               printf "podman:200000:65536\\n" >> /etc/subgid
-              mkdir -p /run/user/1000 /tmp/quarshell-rootless-workspace
-              chown -R podman:podman /run/user/1000 /tmp/quarshell-rootless-workspace
-              chmod 700 /run/user/1000
+              mkdir -p /run/user/2000 /tmp/quarshell-rootless-workspace
+              chown -R podman:podman /run/user/2000 /tmp/quarshell-rootless-workspace
+              chmod 700 /run/user/2000
               touch /tmp/quarshell-rootless-ready
               exec sleep infinity
             ' >/dev/null
@@ -112,8 +113,8 @@ jobs:
             docker logs quarshell-podman-rootless >&2
             exit 1
           fi
-          docker exec --user podman -d \
-            -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/1000 \
+          docker exec --user 2000:2000 -d \
+            -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/2000 \
             -e STORAGE_DRIVER=vfs quarshell-podman-rootless \
             sh -lc 'while true; do podman system service --time=0 tcp:0.0.0.0:18501 >>/tmp/podman-rootless-service.log 2>&1 & pid=$!; echo "$pid" >/tmp/podman-rootless-service.pid; wait "$pid"; sleep 2; done'
           ready=0
@@ -129,12 +130,12 @@ jobs:
             docker exec quarshell-podman-rootless cat /tmp/podman-rootless-service.log >&2 || true
             exit 1
           fi
-          version="$(docker exec --user podman -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/1000 quarshell-podman-rootless podman --version)"
+          version="$(docker exec --user 2000:2000 -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/2000 quarshell-podman-rootless podman --version)"
           if [[ "$version" != "podman version 6.1.4" ]]; then
             echo "required Podman version is 6.1.4; found $version" >&2
             exit 1
           fi
-          docker exec --user podman -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/1000 \
+          docker exec --user 2000:2000 -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/2000 \
             quarshell-podman-rootless podman pull registry.fedoraproject.org/fedora:45
           docker cp "$RUNNER_TEMP/podman-rootless.test" quarshell-podman-rootless:/tmp/podman-rootless.test
       - name: Run required rootless service recovery scenario
@@ -142,9 +143,9 @@ jobs:
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/podman-rootless-e2e.log"
-          docker exec --user podman \
+          docker exec --user 2000:2000 \
             -e HOME=/home/podman \
-            -e XDG_RUNTIME_DIR=/run/user/1000 \
+            -e XDG_RUNTIME_DIR=/run/user/2000 \
             -e STORAGE_DRIVER=vfs \
             -e DOCKER_HOST=tcp://127.0.0.1:18501 \
             -e QUARSHELL_PODMAN_ROOTLESS=1 \
@@ -158,9 +159,9 @@ jobs:
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/podman-rootless-lifecycle.log"
-          docker exec --user podman \
+          docker exec --user 2000:2000 \
             -e HOME=/home/podman \
-            -e XDG_RUNTIME_DIR=/run/user/1000 \
+            -e XDG_RUNTIME_DIR=/run/user/2000 \
             -e STORAGE_DRIVER=vfs \
             -e DOCKER_HOST=tcp://127.0.0.1:18501 \
             -e QUARSHELL_PODMAN_ROOTLESS=1 \
@@ -174,19 +175,20 @@ jobs:
         run: |
           set -euo pipefail
           log="$RUNNER_TEMP/podman-rootless-userns.log"
-          version="$(docker exec --user podman -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/1000 quarshell-podman-rootless podman --version)"
+          version="$(docker exec --user 2000:2000 -e HOME=/home/podman -e XDG_RUNTIME_DIR=/run/user/2000 quarshell-podman-rootless podman --version)"
           if [[ "$version" != "podman version 6.1.4" ]]; then
             echo "required Podman version is 6.1.4; found $version" >&2
             exit 1
           fi
-          docker exec --user podman \
+          docker exec --user 2000:2000 \
             -e HOME=/home/podman \
-            -e XDG_RUNTIME_DIR=/run/user/1000 \
+            -e XDG_RUNTIME_DIR=/run/user/2000 \
             -e STORAGE_DRIVER=vfs \
             -e DOCKER_HOST=tcp://127.0.0.1:18501 \
             -e QUARSHELL_PODMAN_ROOTLESS=1 \
             -e QUARSHELL_PODMAN_USERNS_E2E=1 \
             -e QUARSHELL_PODMAN_USERNS_STRICT=1 \
+            -e QUARSHELL_PODMAN_ROOTLESS_SUBUID_START=200000 \
             -e QUARSHELL_PODMAN_WORKSPACE=/tmp/quarshell-rootless-workspace \
             -e QUARSHELL_E2E_SANDBOX_IMAGE=registry.fedoraproject.org/fedora:45 \
             quarshell-podman-rootless /tmp/podman-rootless.test \

@@ -173,12 +173,14 @@ func (*MainProcessServiceSignalResponse) Descriptor() ([]byte, []int) {
 }
 
 type MainProcessTTYStart struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Workspace     string                 `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
-	Sandbox       string                 `protobuf:"bytes,2,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
-	Cols          uint32                 `protobuf:"varint,3,opt,name=cols,proto3" json:"cols,omitempty"`
-	Rows          uint32                 `protobuf:"varint,4,opt,name=rows,proto3" json:"rows,omitempty"`
-	NonTty        bool                   `protobuf:"varint,5,opt,name=non_tty,json=nonTty,proto3" json:"non_tty,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Workspace string                 `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Sandbox   string                 `protobuf:"bytes,2,opt,name=sandbox,proto3" json:"sandbox,omitempty"`
+	Cols      uint32                 `protobuf:"varint,3,opt,name=cols,proto3" json:"cols,omitempty"`
+	Rows      uint32                 `protobuf:"varint,4,opt,name=rows,proto3" json:"rows,omitempty"`
+	NonTty    bool                   `protobuf:"varint,5,opt,name=non_tty,json=nonTty,proto3" json:"non_tty,omitempty"`
+	// Stable per-reader identity used to resume output after Gateway handoff.
+	ReaderId      string `protobuf:"bytes,6,opt,name=reader_id,json=readerId,proto3" json:"reader_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -246,6 +248,13 @@ func (x *MainProcessTTYStart) GetNonTty() bool {
 		return x.NonTty
 	}
 	return false
+}
+
+func (x *MainProcessTTYStart) GetReaderId() string {
+	if x != nil {
+		return x.ReaderId
+	}
+	return ""
 }
 
 type MainProcessTTYResize struct {
@@ -506,13 +515,14 @@ const file_quarshell_runtime_v1_main_process_proto_rawDesc = "" +
 	"\tworkspace\x18\x01 \x01(\tR\tworkspace\x12\x18\n" +
 	"\asandbox\x18\x02 \x01(\tR\asandbox\x12?\n" +
 	"\x06signal\x18\x03 \x01(\x0e2'.quarshell.runtime.v1.MainProcessSignalR\x06signal\"\"\n" +
-	" MainProcessServiceSignalResponse\"\x8e\x01\n" +
+	" MainProcessServiceSignalResponse\"\xab\x01\n" +
 	"\x13MainProcessTTYStart\x12\x1c\n" +
 	"\tworkspace\x18\x01 \x01(\tR\tworkspace\x12\x18\n" +
 	"\asandbox\x18\x02 \x01(\tR\asandbox\x12\x12\n" +
 	"\x04cols\x18\x03 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x04 \x01(\rR\x04rows\x12\x17\n" +
-	"\anon_tty\x18\x05 \x01(\bR\x06nonTty\">\n" +
+	"\anon_tty\x18\x05 \x01(\bR\x06nonTty\x12\x1b\n" +
+	"\treader_id\x18\x06 \x01(\tR\breaderId\">\n" +
 	"\x14MainProcessTTYResize\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x02 \x01(\rR\x04rows\"\xd0\x01\n" +

@@ -172,18 +172,32 @@ func (s *Server) ExchangeProviderSubjectToken(ctx context.Context, request *gate
 	if s.OAuthExchange == nil {
 		return nil, status.Error(codes.Unimplemented, "provider subject token exchange requires an OAuth client")
 	}
+	principal, ok := sandboxPrincipalFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "sandbox principal required")
+	}
 	if request.GetSandboxId() == "" || request.GetProvider() == "" || request.GetCredentialKey() == "" || request.GetSupervisorJwtSvid() == "" {
 		return nil, status.Error(codes.InvalidArgument, "sandbox_id, provider, credential_key and supervisor_jwt_svid are required")
 	}
+	if request.GetSandboxId() != string(principal.sandbox) {
+		return nil, status.Error(codes.PermissionDenied, "provider token exchange sandbox does not match authenticated sandbox")
+	}
 	if s.Credentials == nil {
 		return nil, status.Error(codes.Unavailable, "credential store is not configured")
+	}
+	if s.Sandboxes == nil {
+		return nil, status.Error(codes.Unavailable, "sandbox service is not configured")
 	}
 	ref, err := s.sandboxByID(ctx, request.GetSandboxId())
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.Credentials.Get(ctx, ref.Workspace, domain.ProviderID(request.GetProvider()), request.GetCredentialKey()); err != nil {
+	secret, err := s.Credentials.Get(ctx, ref.Workspace, domain.ProviderID(request.GetProvider()), request.GetCredentialKey())
+	if err != nil {
 		return nil, grpcError(err)
+	}
+	if !secret.ExpiresAt.IsZero() && !s.now().Before(secret.ExpiresAt) {
+		return nil, status.Error(codes.NotFound, "provider credential is expired: "+request.GetCredentialKey())
 	}
 	issued, err := s.OAuthExchange.Exchange(ctx, request.GetSupervisorJwtSvid())
 	if err != nil {
@@ -191,7 +205,7 @@ func (s *Server) ExchangeProviderSubjectToken(ctx context.Context, request *gate
 	}
 	response := &gatewayv1.ExchangeProviderSubjectTokenResponse{AccessToken: issued.Value, TokenType: "Bearer"}
 	if !issued.ExpiresAt.IsZero() {
-		response.ExpiresAfter = durationpb.New(time.Until(issued.ExpiresAt))
+		response.ExpiresAfter = durationpb.New(issued.ExpiresAt.Sub(s.now()))
 	}
 	return response, nil
 }

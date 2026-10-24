@@ -34,6 +34,8 @@ message MainProcessTTYStart {
   uint32 cols = 3;
   uint32 rows = 4;
   bool non_tty = 5;
+  // Stable per-reader identity used to resume output after Gateway handoff.
+  string reader_id = 6;
 }
 
 message MainProcessTTYResize {

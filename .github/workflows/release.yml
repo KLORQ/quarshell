@@ -23,7 +23,7 @@ jobs:
         run: bash tools/release-dry-run.sh
       - name: Verify checksums and manifest
         run: |
-          shasum -a 256 -c release-dry-run/SHA256SUMS
+          (cd release-dry-run && shasum -a 256 -c SHA256SUMS)
           go run tools/cmd/quarshell-tools/*.go release-verify release-dry-run
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:

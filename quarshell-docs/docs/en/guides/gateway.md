@@ -48,6 +48,29 @@ trusted development environment.
 | Sandboxes | Registry and lifecycle management through RPC; bounded log ring |
 | Sidecar | Resolves secrets over `host.quarshell.internal` |
 
+### Supervisor replicas
+
+For multiple Gateways, set the replica ID to the pod name. In Kubernetes, use
+SRV discovery through a headless Service (the Helm chart configures it
+automatically):
+
+For multiple pods, configure shared PostgreSQL with `database.existingSecret`
+and set `persistence.enabled=false`. SQLite state is local to one replica.
+
+```bash
+QUARSHELL_GATEWAY_REPLICA_ID=gateway-0 \
+QUARSHELL_GATEWAY_REPLICA_DISCOVERY_SRV='_grpc._tcp.gateway-headless.namespace.svc.cluster.local' \
+quarshell-gateway
+```
+
+The ring uses 128 virtual nodes per replica and OpenShell-compatible SHA-256
+placement. A Gateway sends `SessionRedirect` before registering a local
+supervisor owner. During shutdown, it redirects new connections to another
+replica. SRV membership refreshes every five seconds; transient DNS failures
+preserve the last valid ring. Other environments can provide the same static
+`QUARSHELL_GATEWAY_REPLICA_PEERS` list to each replica. With routing unset, the
+Gateway keeps single-replica behavior.
+
 ## HTTP API reference
 
 The [OpenAPI document](https://github.com/KLORQ/quarshell/blob/main/quarshell-gateway/api/openapi.yaml)

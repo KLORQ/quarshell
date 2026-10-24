@@ -1,6 +1,7 @@
 package podman_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/KLORQ/quarshell-core/resourceadmission"
 	podman "github.com/KLORQ/quarshell-driver/podman"
 	"github.com/KLORQ/quarshell-driver/tests/internal/testenv"
+	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/client"
 )
 
@@ -21,12 +23,17 @@ func TestPodmanLegacyRejectsUnsupportedNetworkBeforeWorkloadStart(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	service, endpoint, workspace := testenv.RunPodmanDaemon(ctx, t)
-	code, versionOutput, err := service.Exec(ctx, []string{"podman", "--version"})
+	t.Setenv("DOCKER_HOST", endpoint)
+	code, versionStream, err := service.Exec(ctx, []string{"podman", "--version"})
 	if err != nil {
 		t.Fatalf("inspect legacy Podman version: %v", err)
 	}
-	versionBytes, err := io.ReadAll(versionOutput)
-	if err != nil || code != 0 || strings.TrimSpace(string(versionBytes)) != "podman version 5.8.7" {
+	var versionOutput bytes.Buffer
+	if _, err := stdcopy.StdCopy(&versionOutput, io.Discard, versionStream); err != nil {
+		t.Fatalf("read legacy Podman version: %v", err)
+	}
+	versionBytes := versionOutput.Bytes()
+	if code != 0 || strings.TrimSpace(string(versionBytes)) != "podman version 5.8.7" {
 		t.Fatalf("legacy Podman version = %q (exit %d), err=%v; want exact 5.8.7", versionBytes, code, err)
 	}
 
@@ -35,18 +42,6 @@ func TestPodmanLegacyRejectsUnsupportedNetworkBeforeWorkloadStart(t *testing.T) 
 		t.Fatalf("create legacy Podman API client: %v", err)
 	}
 	defer engineClient.Close()
-	pull, err := engineClient.ImagePull(ctx, testenv.AlpineImage, client.ImagePullOptions{})
-	if err != nil {
-		t.Fatalf("pull preloaded workload image: %v", err)
-	}
-	if _, err := io.Copy(io.Discard, pull); err != nil {
-		_ = pull.Close()
-		t.Fatalf("finish workload image pull: %v", err)
-	}
-	if err := pull.Close(); err != nil {
-		t.Fatalf("close workload image pull: %v", err)
-	}
-
 	proxyBinary, err := os.Executable()
 	if err != nil {
 		t.Fatalf("resolve executable proxy fixture: %v", err)

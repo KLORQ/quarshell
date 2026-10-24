@@ -179,6 +179,33 @@ func TestRecordMainProcessExitPersistsCanonicalTerminalResult(t *testing.T) {
 	}
 }
 
+func TestRecordMainProcessExitAcceptsLateReportAfterWorkerStop(t *testing.T) {
+	stateRoot := t.TempDir()
+	store, err := openStateStore(stateRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.create("late-terminal-result", "fixture:latest", time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Status = "stopped"
+	if err := store.save(state); err != nil {
+		t.Fatal(err)
+	}
+	d := NewWithHostConfig(HostConfig{StateDir: stateRoot})
+	if err := d.RecordMainProcessExit(context.Background(), core.ID(state.ID), "instance-1", 137); err != nil {
+		t.Fatalf("late supervisor exit report: %v", err)
+	}
+	recorded, err := store.load(state.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recorded.Status != "stopped" || recorded.MainProcessExitCode == nil || *recorded.MainProcessExitCode != 137 {
+		t.Fatalf("late VM terminal result = %+v", recorded)
+	}
+}
+
 func TestVMStartExecCopyLogsStopDeleteLifecycle(t *testing.T) {
 	root, err := os.MkdirTemp("/tmp", "vm-life-")
 	if err != nil {
@@ -619,5 +646,26 @@ func TestWatchWorkerDoesNotActOnReplacementProcessHandle(t *testing.T) {
 
 	if driver.workers["sandbox"] != newWorker {
 		t.Fatal("old worker watcher removed or replaced the current worker handle")
+	}
+}
+
+func TestGuestControlLivenessRequiresSustainedLoss(t *testing.T) {
+	start := time.Unix(100, 0)
+	liveness := guestControlLiveness{grace: 2 * time.Second}
+	probeErr := errors.New("guest control unavailable")
+	if liveness.observe(start, probeErr) {
+		t.Fatal("first missed guest probe should start the grace period")
+	}
+	if liveness.observe(start.Add(time.Second), probeErr) {
+		t.Fatal("transient guest control loss should not stop the worker")
+	}
+	if liveness.observe(start.Add(1500*time.Millisecond), nil) {
+		t.Fatal("a recovered guest probe should reset the grace period")
+	}
+	if liveness.observe(start.Add(3*time.Second), probeErr) {
+		t.Fatal("first probe after recovery should start a new grace period")
+	}
+	if !liveness.observe(start.Add(5*time.Second), probeErr) {
+		t.Fatal("sustained guest control loss should stop the worker")
 	}
 }

@@ -16,8 +16,8 @@ func TestDriverCreateRunsQuarshellCreateSequence(t *testing.T) {
 		t.Fatalf("write policy fixture: %v", err)
 	}
 	config := BackendConfig{
-		GatewayID: "gateway-1", ProxyImage: "ghcr.io/quarshell/quarshell-proxy@sha256:" + strings.Repeat("a", 64),
-		SandboxRuntimeImage: "ghcr.io/quarshell/runtime@sha256:" + strings.Repeat("b", 64),
+		GatewayID: "gateway-1", ProxyImage: "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:" + strings.Repeat("a", 64),
+		SandboxRuntimeImage: "ghcr.io/klorq/quarshell/runtime@sha256:" + strings.Repeat("b", 64),
 		GRPCEndpoint:        "gateway.example:7443",
 	}
 	config.applyDefaults()
@@ -86,8 +86,8 @@ func TestDriverCreateRunsQuarshellCreateSequence(t *testing.T) {
 func TestKubernetesBackendRegistrationUsesValidatedConfig(t *testing.T) {
 	backend, registered, err := driver.OpenRegisteredBackendWithConfig("kubernetes", map[string]any{
 		internalGatewayIDConfigKey: "gateway-1",
-		"proxy_image":              "ghcr.io/quarshell/proxy@sha256:" + strings.Repeat("a", 64),
-		"sandbox_runtime_image":    "ghcr.io/quarshell/runtime@sha256:" + strings.Repeat("b", 64),
+		"proxy_image":              "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:" + strings.Repeat("a", 64),
+		"sandbox_runtime_image":    "ghcr.io/klorq/quarshell/runtime@sha256:" + strings.Repeat("b", 64),
 		"grpc_endpoint":            "gateway.example:7443",
 	})
 	if err != nil || !registered || backend == nil {

@@ -3,10 +3,12 @@
 package vmguest
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -43,6 +45,77 @@ func TestGuestControlRequiresPerSandboxToken(t *testing.T) {
 	}
 	if response.Version != ProtocolVersion {
 		t.Fatalf("response version=%d; want %d", response.Version, ProtocolVersion)
+	}
+}
+
+func TestGuestLoopbackDialBridgesTCPInsideBoundary(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		payload, _ := io.ReadAll(connection)
+		_, _ = connection.Write(append([]byte("echo:"), payload...))
+	}()
+	guestControl, hostControl := net.Pipe()
+	defer hostControl.Close()
+	address := listener.Addr().(*net.TCPAddr)
+	server := &controlServer{}
+	go server.dialLoopback(guestControl, "127.0.0.1", uint32(address.Port))
+	ack, err := ReadFrame(hostControl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var response Response
+	if err := json.Unmarshal(ack, &response); err != nil || response.Error != "" {
+		t.Fatalf("loopback connect response = %+v, err=%v", response, err)
+	}
+	writeTerminalFrame(hostControl, TerminalFrame{Type: "data", Data: []byte("request")})
+	writeTerminalFrame(hostControl, TerminalFrame{Type: "eof"})
+	var got []byte
+	for {
+		payload, readErr := ReadFrame(hostControl)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			t.Fatal(err)
+		}
+		if frame.Type == "data" {
+			got = append(got, frame.Data...)
+		}
+		if frame.Type == "eof" {
+			break
+		}
+		if frame.Type == "error" {
+			t.Fatalf("loopback bridge error: %s", frame.Data)
+		}
+	}
+	if string(got) != "echo:request" {
+		t.Fatalf("loopback bridged output = %q", got)
+	}
+}
+
+func TestGuestLoopbackDialRejectsNonLoopbackTargets(t *testing.T) {
+	server := &controlServer{token: strings.Repeat("a", 64)}
+	for _, target := range []struct {
+		host string
+		port uint32
+	}{{host: "0.0.0.0", port: 80}, {host: "example.com", port: 80}, {host: "127.0.0.1", port: 0}, {host: "::1", port: 65536}} {
+		err := server.validateRequest(Request{
+			Version: ProtocolVersion, AuthToken: server.token, Operation: "dial-loopback",
+			TargetHost: target.host, TargetPort: target.port,
+		})
+		if err == nil {
+			t.Errorf("accepted loopback target %s:%d", target.host, target.port)
+		}
 	}
 }
 
@@ -166,6 +239,233 @@ func TestRetainedMainProcessStreamsPipesAndAcceptsInput(t *testing.T) {
 	}
 }
 
+func TestRetainedMainProcessReplaysOutputFromPriorAttachment(t *testing.T) {
+	const sessionID = "cccccccccccccccccccccccccccccccc"
+	stdinReader, stdinWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("/bin/sh", "-c", "printf 'before\\n'; IFS= read -r value; printf 'after:%s\\n' \"$value\"")
+	command.Stdin, command.Stdout, command.Stderr = stdinReader, stdoutWriter, stderrWriter
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	_ = stdinReader.Close()
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	server := &controlServer{mainProcesses: make(map[string]*retainedMainProcess)}
+	if err := server.retainMainProcess(sessionID, command, stdinWriter, stdoutReader, stderrReader, false, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	firstGuest, firstHost := net.Pipe()
+	go server.attachMainProcess(firstGuest, sessionID)
+	if _, err := ReadFrame(firstHost); err != nil {
+		t.Fatalf("read first attachment handshake: %v", err)
+	}
+	firstOutput, err := ReadFrame(firstHost)
+	if err != nil {
+		t.Fatalf("read initial main-process output: %v", err)
+	}
+	var firstFrame TerminalFrame
+	if err := json.Unmarshal(firstOutput, &firstFrame); err != nil || firstFrame.Type != "stdout" || string(firstFrame.Data) != "before\n" || firstFrame.Sequence != 1 {
+		t.Fatalf("initial main-process output frame=%+v err=%v", firstFrame, err)
+	}
+	_ = firstHost.Close()
+
+	deadline := time.Now().Add(time.Second)
+	for {
+		process := server.mainProcesses[sessionID]
+		process.mu.Lock()
+		detached := process.connection == nil
+		process.mu.Unlock()
+		if detached {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("main process did not detach after transport loss")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	secondGuest, secondHost := net.Pipe()
+	defer secondHost.Close()
+	go server.attachMainProcessFromCursor(secondGuest, sessionID, firstFrame.Sequence, true)
+	if _, err := ReadFrame(secondHost); err != nil {
+		t.Fatalf("read reattached main-process handshake: %v", err)
+	}
+	input, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("again\n")})
+	if err := WriteFrame(secondHost, input); err != nil {
+		t.Fatalf("send reattached main-process input: %v", err)
+	}
+	var after string
+	for {
+		payload, err := ReadFrame(secondHost)
+		if err != nil {
+			t.Fatalf("read main-process output after reconnect: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			t.Fatal(err)
+		}
+		switch frame.Type {
+		case "stdout":
+			after += string(frame.Data)
+			if frame.Sequence != 2 {
+				t.Fatalf("reattached output sequence = %d, want 2", frame.Sequence)
+			}
+		case "exit":
+			if frame.ExitCode != 0 || after != "after:again\n" {
+				t.Fatalf("reattached main process result = exit %d, output %q", frame.ExitCode, after)
+			}
+			return
+		}
+	}
+}
+
+func TestRetainedMainProcessAllowsOutputReadersWithOneInputOwner(t *testing.T) {
+	const sessionID = "dddddddddddddddddddddddddddddddd"
+	stdinReader, stdinWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command("/bin/sh", "-c", "printf 'before\\n'; IFS= read -r value; printf 'after:%s\\n' \"$value\"")
+	command.Stdin, command.Stdout, command.Stderr = stdinReader, stdoutWriter, stderrWriter
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	_ = stdinReader.Close()
+	_ = stdoutWriter.Close()
+	_ = stderrWriter.Close()
+	server := &controlServer{mainProcesses: make(map[string]*retainedMainProcess)}
+	if err := server.retainMainProcess(sessionID, command, stdinWriter, stdoutReader, stderrReader, false, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	firstGuest, firstHost := net.Pipe()
+	defer firstHost.Close()
+	go server.attachMainProcess(firstGuest, sessionID)
+	var firstHandshake Response
+	payload, err := ReadFrame(firstHost)
+	if err != nil || json.Unmarshal(payload, &firstHandshake) != nil || !firstHandshake.InputOwner {
+		t.Fatalf("first attachment did not acquire stdin: response=%+v err=%v", firstHandshake, err)
+	}
+	if _, err := ReadFrame(firstHost); err != nil {
+		t.Fatalf("read initial output for first attachment: %v", err)
+	}
+
+	secondGuest, secondHost := net.Pipe()
+	defer secondHost.Close()
+	go server.attachMainProcess(secondGuest, sessionID)
+	var secondHandshake Response
+	payload, err = ReadFrame(secondHost)
+	if err != nil || json.Unmarshal(payload, &secondHandshake) != nil || secondHandshake.InputOwner {
+		t.Fatalf("second attachment did not remain read-only: response=%+v err=%v", secondHandshake, err)
+	}
+	if _, err := ReadFrame(secondHost); err != nil {
+		t.Fatalf("read replay output for second attachment: %v", err)
+	}
+	ignored, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("ignored\n")})
+	if err := WriteFrame(secondHost, ignored); err != nil {
+		t.Fatalf("send read-only attachment input: %v", err)
+	}
+	actual, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("owner-input\n")})
+	if err := WriteFrame(firstHost, actual); err != nil {
+		t.Fatalf("send owner input: %v", err)
+	}
+
+	readResult := func(connection net.Conn) string {
+		t.Helper()
+		var output string
+		for {
+			payload, readErr := ReadFrame(connection)
+			if readErr != nil {
+				t.Fatalf("read attached process output: %v", readErr)
+			}
+			var frame TerminalFrame
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				t.Fatal(err)
+			}
+			switch frame.Type {
+			case "stdout":
+				output += string(frame.Data)
+			case "exit":
+				if frame.ExitCode != 0 {
+					t.Fatalf("attached process exit code=%d", frame.ExitCode)
+				}
+				return output
+			}
+		}
+	}
+	if output := readResult(firstHost); output != "after:owner-input\n" {
+		t.Fatalf("input owner output=%q", output)
+	}
+	if output := readResult(secondHost); output != "after:owner-input\n" {
+		t.Fatalf("read-only attachment output=%q", output)
+	}
+}
+
+func TestRetainedMainProcessReportsLaggedOutputCursor(t *testing.T) {
+	process := &retainedMainProcess{
+		id: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", pid: 1,
+		outputChanged: make(chan struct{}), attachmentChanged: make(chan struct{}),
+	}
+	guest, host := net.Pipe()
+	defer host.Close()
+	go process.attach(guest)
+	if _, err := ReadFrame(host); err != nil {
+		t.Fatalf("read output subscriber handshake: %v", err)
+	}
+	process.publish(TerminalFrame{Type: "stdout", Data: []byte("first")})
+	first, err := ReadFrame(host)
+	var firstFrame TerminalFrame
+	if err != nil || json.Unmarshal(first, &firstFrame) != nil || string(firstFrame.Data) != "first" {
+		t.Fatalf("first output frame=%+v err=%v", firstFrame, err)
+	}
+	chunk := bytes.Repeat([]byte("x"), 32<<10)
+	for i := 0; i < retainedMainProcessOutputLimit/(32<<10)+4; i++ {
+		process.publish(TerminalFrame{Type: "stdout", Data: chunk})
+	}
+	if err := host.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		encoded, err := ReadFrame(host)
+		if err != nil {
+			t.Fatalf("slow output subscriber did not receive a lag marker: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(encoded, &frame); err != nil {
+			t.Fatalf("decode slow output frame: %v", err)
+		}
+		if frame.Type == "lagged" {
+			if frame.LostChunks == 0 {
+				t.Fatal("slow output subscriber received an empty lag marker")
+			}
+			return
+		}
+		if frame.Type != "stdout" {
+			t.Fatalf("unexpected frame before lag marker: %+v", frame)
+		}
+	}
+}
+
 func TestStartWorkloadRetainsNonTTYCanonicalProcessOutput(t *testing.T) {
 	workDir := t.TempDir()
 	if err := os.Chmod(workDir, 0o777); err != nil {
@@ -235,7 +535,7 @@ func TestGuestControlExecStreamSupportsSeparateOutputAndStdinEOF(t *testing.T) {
 	request, err := json.Marshal(Request{
 		Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-stream",
 		Argv:    []string{"/bin/sh", "-c", "read value; printf 'stdout:%s' \"$value\"; printf 'stderr:%s' \"$value\" >&2; exit 9"},
-		WorkDir: t.TempDir(), NoLoginShell: true,
+		WorkDir: t.TempDir(), NoLoginShell: true, SessionID: strings.Repeat("1", 32),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -301,7 +601,7 @@ func TestGuestControlExecStreamDrainsFastProcessOutput(t *testing.T) {
 		request, err := json.Marshal(Request{
 			Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-stream",
 			Argv:    []string{"/bin/sh", "-c", "i=0; while [ $i -lt 1000 ]; do printf x; printf y >&2; i=$((i + 1)); done"},
-			WorkDir: t.TempDir(), NoLoginShell: true,
+			WorkDir: t.TempDir(), NoLoginShell: true, SessionID: fmt.Sprintf("%032x", iteration+1),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -355,14 +655,15 @@ func TestGuestControlExecStreamDrainsFastProcessOutput(t *testing.T) {
 	}
 }
 
-func TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect(t *testing.T) {
+func TestGuestControlExecStreamRetainsProcessAfterDisconnectAndReattaches(t *testing.T) {
 	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("c", 64)}
 	guest, host := net.Pipe()
 	done := make(chan struct{})
 	go func() { server.serve(guest); close(done) }()
 	request, err := json.Marshal(Request{
 		Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-stream",
-		Argv: []string{"/bin/sh", "-c", "sleep 60 & echo $!; wait"}, WorkDir: t.TempDir(), NoLoginShell: true,
+		Argv:    []string{"/bin/sh", "-c", "sleep 60 & child=$!; echo $child; read value; kill $child; wait $child 2>/dev/null || true; printf 'done:%s' \"$value\""},
+		WorkDir: t.TempDir(), NoLoginShell: true, SessionID: strings.Repeat("2", 32),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -408,13 +709,56 @@ func TestGuestControlExecStreamTerminatesProcessGroupOnDisconnect(t *testing.T) 
 		if err != nil {
 			t.Fatalf("inspect disconnected exec child %d: %v", childPID, err)
 		}
-		if !alive {
+		if alive {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("exec child %d survived transport loss", childPID)
+			t.Fatalf("exec child %d did not survive transport loss", childPID)
 		}
 		time.Sleep(10 * time.Millisecond)
+	}
+
+	reattachGuest, reattachedHost := net.Pipe()
+	defer reattachedHost.Close()
+	reattachDone := make(chan struct{})
+	go func() { server.serve(reattachGuest); close(reattachDone) }()
+	attachRequest, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "attach-exec-stream", SessionID: strings.Repeat("2", 32)})
+	if err := WriteFrame(reattachedHost, attachRequest); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := ReadFrame(reattachedHost)
+	var attached Response
+	if err != nil || json.Unmarshal(encoded, &attached) != nil || attached.Error != "" || !attached.InputOwner {
+		t.Fatalf("reattached exec stream response=%+v err=%v", attached, err)
+	}
+	input, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("resumed\n")})
+	if err := WriteFrame(reattachedHost, input); err != nil {
+		t.Fatal(err)
+	}
+	var resumed string
+	for {
+		encoded, err = ReadFrame(reattachedHost)
+		if err != nil {
+			t.Fatalf("read reattached exec output: %v", err)
+		}
+		var frame TerminalFrame
+		if err := json.Unmarshal(encoded, &frame); err != nil {
+			t.Fatal(err)
+		}
+		switch frame.Type {
+		case "stdout":
+			resumed += string(frame.Data)
+		case "exit":
+			if frame.ExitCode != 0 || !strings.Contains(resumed, "done:resumed") {
+				t.Fatalf("reattached exec result exit=%d output=%q", frame.ExitCode, resumed)
+			}
+			select {
+			case <-reattachDone:
+			case <-time.After(time.Second):
+				t.Fatal("reattached exec stream handler did not terminate")
+			}
+			return
+		}
 	}
 }
 
@@ -703,6 +1047,85 @@ func TestStartWorkloadWaitsForSupervisorReadiness(t *testing.T) {
 	}
 }
 
+func TestRetainedExecProcessWaitSignalAndTerminateAreStable(t *testing.T) {
+	t.Run("repeated wait", func(t *testing.T) {
+		server := &controlServer{}
+		process := startRetainedTestProcess(t, server, strings.Repeat("3", 32), "/bin/sh", "-c", "exit 13")
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		for attempt := 0; attempt < 2; attempt++ {
+			code, err := process.waitForExit(ctx)
+			if err != nil || code != 13 {
+				t.Fatalf("wait attempt %d = (%d, %v), want stable exit 13", attempt, code, err)
+			}
+		}
+	})
+
+	t.Run("detached signal", func(t *testing.T) {
+		server := &controlServer{}
+		process := startRetainedTestProcess(t, server, strings.Repeat("4", 32), "/bin/sh", "-c", "exec sleep 60")
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := process.signal("terminate"); err != nil {
+			t.Fatalf("signal detached process: %v", err)
+		}
+		code, err := process.waitForExit(ctx)
+		if err != nil || code != 128+int(syscall.SIGTERM) {
+			t.Fatalf("signal exit = (%d, %v), want %d", code, err, 128+int(syscall.SIGTERM))
+		}
+	})
+
+	t.Run("detached terminate", func(t *testing.T) {
+		server := &controlServer{}
+		process := startRetainedTestProcess(t, server, strings.Repeat("5", 32), "/bin/sh", "-c", "sleep 60 & wait")
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := process.terminate(ctx); err != nil {
+			t.Fatalf("terminate detached process group: %v", err)
+		}
+		code, err := process.waitForExit(ctx)
+		if err != nil || code < 128 {
+			t.Fatalf("terminated process wait = (%d, %v), want a signal exit status", code, err)
+		}
+	})
+}
+
+func startRetainedTestProcess(t *testing.T, server *controlServer, id string, argv ...string) *retainedMainProcess {
+	t.Helper()
+	command := exec.Command(argv[0], argv[1:]...)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	childStdin, stdin, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, childStdout, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, childStderr, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	command.Stdin, command.Stdout, command.Stderr = childStdin, childStdout, childStderr
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	_ = childStdin.Close()
+	_ = childStdout.Close()
+	_ = childStderr.Close()
+	t.Cleanup(func() { _ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL) })
+	if err := server.retainMainProcess(id, command, stdin, stdout, stderr, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	server.mainProcessMu.Lock()
+	process := server.mainProcesses[id]
+	server.mainProcessMu.Unlock()
+	if process == nil {
+		t.Fatal("retained process was not registered")
+	}
+	return process
+}
+
 func TestStartWorkloadReturnsWhenSupervisorExitsBeforeReadiness(t *testing.T) {
 	root := t.TempDir()
 	supervisorPath := filepath.Join(root, "fake-supervisor")
@@ -725,7 +1148,7 @@ func TestStartWorkloadReturnsWhenSupervisorExitsBeforeReadiness(t *testing.T) {
 
 func TestRetainedTerminalOutputTailIsBounded(t *testing.T) {
 	server := &controlServer{terminals: map[string]*retainedTerminal{
-		"startup": {id: "startup", output: []byte("supervisor-startup-error")},
+		"startup": {id: "startup", output: []TerminalFrame{{Type: "output", Data: []byte("supervisor-startup-error")}}},
 	}}
 	if got := server.retainedTerminalOutputTail("startup", 7); got != "p-error" {
 		t.Fatalf("output tail=%q, want bounded suffix", got)
@@ -1230,6 +1653,7 @@ func TestGuestRetainedTerminalCanReattachAfterTransportLoss(t *testing.T) {
 		t.Fatalf("initial terminal handshake = %+v, err=%v", handshake, err)
 	}
 	var ready strings.Builder
+	var cursor uint64
 	for !strings.Contains(ready.String(), "ready") {
 		payload, err = ReadFrame(firstHost)
 		if err != nil {
@@ -1241,6 +1665,7 @@ func TestGuestRetainedTerminalCanReattachAfterTransportLoss(t *testing.T) {
 		}
 		if frame.Type == "output" {
 			ready.Write(frame.Data)
+			cursor = frame.Sequence
 		}
 	}
 	_ = firstHost.Close()
@@ -1266,7 +1691,7 @@ func TestGuestRetainedTerminalCanReattachAfterTransportLoss(t *testing.T) {
 	secondGuest, secondHost := net.Pipe()
 	defer secondHost.Close()
 	go server.serve(secondGuest)
-	attach, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "attach-terminal", SessionID: sessionID})
+	attach, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "attach-terminal", SessionID: sessionID, OutputCursor: cursor, OutputCursorSet: true})
 	if err := WriteFrame(secondHost, attach); err != nil {
 		t.Fatal(err)
 	}
@@ -1290,6 +1715,9 @@ func TestGuestRetainedTerminalCanReattachAfterTransportLoss(t *testing.T) {
 		}
 		switch frame.Type {
 		case "output":
+			if frame.Sequence <= cursor {
+				t.Fatalf("reattached PTY output cursor = %d, want > %d", frame.Sequence, cursor)
+			}
 			output.Write(frame.Data)
 		case "exit":
 			if frame.ExitCode != 0 || !strings.Contains(output.String(), "received:reattached") {
@@ -1300,9 +1728,81 @@ func TestGuestRetainedTerminalCanReattachAfterTransportLoss(t *testing.T) {
 	}
 }
 
+func TestGuestRetainedTerminalAllowsMultipleOutputReadersWithOneInputOwner(t *testing.T) {
+	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("c", 64)}
+	const sessionID = "retained-terminal-readers"
+	attach := func() (net.Conn, Response) {
+		guest, host := net.Pipe()
+		go server.serve(guest)
+		request, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "exec-terminal", SessionID: sessionID,
+			Argv:    []string{"/bin/sh", "-c", "printf ready; IFS= read -r line; printf 'received:%s' \"$line\""},
+			WorkDir: t.TempDir(), NoLoginShell: true, Columns: 80, Rows: 24})
+		if err := WriteFrame(host, request); err != nil {
+			t.Fatal(err)
+		}
+		payload, err := ReadFrame(host)
+		var response Response
+		if err != nil || json.Unmarshal(payload, &response) != nil || response.Error != "" {
+			t.Fatalf("terminal attach response=%+v err=%v", response, err)
+		}
+		return host, response
+	}
+	owner, ownerHandshake := attach()
+	defer owner.Close()
+	if !ownerHandshake.InputOwner {
+		t.Fatal("first terminal attachment did not receive stdin ownership")
+	}
+	reader, readerHandshake := func() (net.Conn, Response) {
+		guest, host := net.Pipe()
+		go server.serve(guest)
+		request, _ := json.Marshal(Request{Version: ProtocolVersion, AuthToken: server.token, Operation: "attach-terminal", SessionID: sessionID})
+		if err := WriteFrame(host, request); err != nil {
+			t.Fatal(err)
+		}
+		payload, err := ReadFrame(host)
+		var response Response
+		if err != nil || json.Unmarshal(payload, &response) != nil || response.Error != "" {
+			t.Fatalf("second terminal attachment response=%+v err=%v", response, err)
+		}
+		return host, response
+	}()
+	defer reader.Close()
+	if readerHandshake.InputOwner {
+		t.Fatal("second terminal attachment unexpectedly received stdin ownership")
+	}
+	readOutput := func(connection net.Conn, want string) {
+		t.Helper()
+		for {
+			payload, err := ReadFrame(connection)
+			if err != nil {
+				t.Fatalf("read terminal output: %v", err)
+			}
+			var frame TerminalFrame
+			if err := json.Unmarshal(payload, &frame); err != nil {
+				t.Fatal(err)
+			}
+			if frame.Type == "output" && strings.Contains(string(frame.Data), want) {
+				return
+			}
+		}
+	}
+	readOutput(owner, "ready")
+	readOutput(reader, "ready")
+	ignored, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("wrong\n")})
+	if err := WriteFrame(reader, ignored); err != nil {
+		t.Fatal(err)
+	}
+	input, _ := json.Marshal(TerminalFrame{Type: "stdin", Data: []byte("right\n")})
+	if err := WriteFrame(owner, input); err != nil {
+		t.Fatal(err)
+	}
+	readOutput(owner, "received:right")
+	readOutput(reader, "received:right")
+}
+
 func TestGuestRetainedTerminalCanBeTerminatedWhileDetached(t *testing.T) {
 	server := &controlServer{uid: uint32(os.Getuid()), gid: uint32(os.Getgid()), token: strings.Repeat("f", 64)}
-	const sessionID = "detached-terminal-terminate-test"
+	const sessionID = "f1111111111111111111111111111111"
 	guest, host := net.Pipe()
 	go server.serve(guest)
 	request, _ := json.Marshal(Request{
@@ -1359,6 +1859,12 @@ func TestGuestRetainedTerminalCanBeTerminatedWhileDetached(t *testing.T) {
 		if finished {
 			if code != 128+int(syscall.SIGTERM) {
 				t.Fatalf("terminated process exit code = %d, want %d", code, 128+int(syscall.SIGTERM))
+			}
+			for attempt := 0; attempt < 2; attempt++ {
+				waited, waitErr := process.waitForExit(context.Background())
+				if waitErr != nil || waited != code {
+					t.Fatalf("retained terminal Wait attempt %d = (%d, %v), want stable %d", attempt, waited, waitErr, code)
+				}
 			}
 			return
 		}

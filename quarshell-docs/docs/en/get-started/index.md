@@ -105,7 +105,7 @@ Engine details: [Docker](../providers/docker/index.md) ·
 Pull the base image — it has the CLI tooling an agent needs:
 
 ```bash
-docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+docker pull ghcr.io/klorq/quarshell/sandboxes/base:latest
 export QUARSHELL_USE_GHCR=1
 ```
 

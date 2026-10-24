@@ -62,19 +62,19 @@ need. The product will not silently delete unrelated old host resources.
 |---|---|
 | Wire schema | Generated from the pinned v0.1.4 source; drift and method counts are checked. Required upstream service and field names remain unchanged on the compatibility endpoint. |
 | Public RPC handlers | Registered. A set of gaps still returns explicit unsupported/precondition results; per-method behavior is incomplete. |
-| Docker and Podman | Broad lifecycle, policy, exec, transfer and credential coverage exists. Live target-host acceptance, published binaries, host networking, ownership and outage recovery remain release gates. |
+| Docker and Podman | GitHub-hosted Linux lifecycle and egress acceptance pass for Docker and rootful/rootless Podman. Full 54-field config parity, raw-socket/DNS/Unix-socket host bypasses, outage recovery and clean published install remain open. |
 | Logs and platform watch | Gateway invokes native Backend log and platform-event extensions. Remote compute plugins implement the same Backend contract; no Engine-to-Backend compatibility adapter remains. Streams are sandbox-scoped, while durable cursor and reconnect parity remain open. |
 | Provider labels | Stored and returned; `ListProviders.label_selector` filters before pagination and rejects invalid selectors. |
 | Operator credential export | `GetProviderCredentials` requires a verified mTLS peer certificate with the `operator` OU; bearer credentials are rejected for this method. Deployment and lifetime/refresh parity still need acceptance. |
 | Stable placeholders and credential endpoint bindings | Not supported by the current runtime. Lint advertises support as false, and `GetSandboxProviderEnvironment` returns `CREDENTIALS_WITHHELD` instead of plaintext until the runtime can return policy-bound metadata. This is a release blocker. |
-| MicroVM | macOS ARM64/HVF live acceptance verifies authenticated OCI import, digest-pinned recovery, image config, PTY/stdin/resize/Ctrl-C and driver recovery. Gateway runtime validation remains fail-closed; Linux KVM and Gateway-to-VM acceptance, workspace mounts/ownership, dedicated host UID, policy status reporting and registry auth variants remain open. |
+| MicroVM | Hosted Linux KVM lifecycle and nested Docker/rootful/rootless Podman acceptance pass; local Apple Silicon/HVF lifecycle and Gateway composition also pass. Full product Gateway-to-VM auth/activation, multi-Gateway rollout, the at-least-once cursor boundary, install/upgrade rollback and remaining credential/reporting cases still need feature-level acceptance. GPU/VFIO remains hardware-dependent and unsupported. |
 | CLI and SDK | Top-level dispatch and command-specific help for every sandbox leaf are tested; help fixtures enumerate the accepted flags. The `sandbox create` parser also has acceptance, value-preservation, canonical-argv and malformed-input tests for every documented flag. Other nested parser behavior, output/timeout behavior, Python API and standalone/published consumers remain open. |
 
 Provider readiness receipts, status queries and session-bound supervisor
 observation reporting are implemented. MCP endpoint status reporting and its
 durable per-sandbox snapshot are implemented. Sandbox-configuration admission
-reporting is implemented without provisioning-deadline enforcement; the Go
-supervisor reporters and peer relay paths remain gaps.
+reporting is implemented without provisioning-deadline enforcement; several
+peer RPCs and supervisor reporting paths remain unimplemented or partial.
 The RPC inventory lists exact methods, stream direction, auth class, handler,
 fixtures, tests and evidence. The gap register records remaining work:
 

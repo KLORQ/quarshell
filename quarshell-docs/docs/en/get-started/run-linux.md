@@ -88,10 +88,10 @@ quarshell status
 For Docker:
 
 ```sh
-docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+docker pull ghcr.io/klorq/quarshell/sandboxes/base:latest
 ```
 
-For Podman, run `podman pull ghcr.io/quarshell/quarshell/sandboxes/base:latest`.
+For Podman, run `podman pull ghcr.io/klorq/quarshell/sandboxes/base:latest`.
 Resolve the `base` alias to
 the published image and create a policy file:
 

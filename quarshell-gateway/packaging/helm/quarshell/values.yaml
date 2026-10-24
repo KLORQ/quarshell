@@ -4,13 +4,20 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/quarshell/quarshell/gateway
+  repository: ghcr.io/klorq/quarshell/gateway
   pullPolicy: IfNotPresent
   tag: "latest"
 
 service:
   type: ClusterIP
   port: 7443
+
+grpc:
+  port: 7444
+
+replicaRouting:
+  enabled: true
+  discoveryInterval: 5s
 
 persistence:
   enabled: true
@@ -68,7 +75,7 @@ supervisor:
   topology: combined
   sideloadMethod: ""
   image:
-    repository: ghcr.io/quarshell/quarshell/supervisor
+    repository: ghcr.io/klorq/quarshell/supervisor
     tag: ""
     pullPolicy: IfNotPresent
 
@@ -78,5 +85,5 @@ gpu:
 
 sandbox:
   namespace: quarshell-sandboxes
-  image: ghcr.io/quarshell/quarshell/sandboxes/base:latest
+  image: ghcr.io/klorq/quarshell/sandboxes/base:latest
   createNamespace: true

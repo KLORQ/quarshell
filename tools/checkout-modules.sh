@@ -4,6 +4,8 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 locked_modules=0
 while read -r module revision; do
+  module="${module%$'\r'}"
+  revision="${revision%$'\r'}"
   [[ -z "$module" || "$module" == \#* ]] && continue
   [[ "$module" =~ ^quarshell-[a-z]+(-[a-z]+)*$ ]] || { echo "invalid module: $module" >&2; exit 1; }
   [[ "$revision" =~ ^v0\.[0-9]+\.[0-9]+$ ]] || { echo "invalid pre-stable version: $revision" >&2; exit 1; }

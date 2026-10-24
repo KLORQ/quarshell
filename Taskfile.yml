@@ -474,7 +474,7 @@ tasks:
     cmds:
       - |
         set -euo pipefail
-        REG="${QUARSHELL_GHCR:-ghcr.io/quarshell/quarshell}"
+        REG="${QUARSHELL_GHCR:-ghcr.io/klorq/quarshell}"
         pull_tag() {
           local remote="$1" local="$2"
           echo "pull $remote → $local"

@@ -28,7 +28,7 @@ See the [architecture](https://klorq.github.io/sandbox.dev/concepts/architecture
 
 | Category | Capabilities |
 |----------|--------------|
-| **Images** | `sandboxes/{base,gui,gpu,gui-gpu}` on `ghcr.io/quarshell/quarshell` |
+| **Images** | `sandboxes/{base,gui,gpu,gui-gpu}` on `ghcr.io/klorq/quarshell` |
 | **Init** | `quarshell-init` — Landlock, seccomp, workspace mount |
 | **Supervisor** | `quarshell-supervisor` — PID 1 workload lifecycle and sandbox-side loopback dial socket for `ForwardTcp` |
 | **Relay** | `relaytarget` — validates and dials loopback TCP targets inside the sandbox network namespace over the private shared Unix socket |
@@ -45,10 +45,10 @@ Build from this checkout in the sibling `go.work` workspace. The published alpha
 **Images (after CI publish):**
 
 ```text
-ghcr.io/quarshell/quarshell/sandboxes/base:latest
-ghcr.io/quarshell/quarshell/sandboxes/gui:latest
-ghcr.io/quarshell/quarshell/sandboxes/gpu:latest
-ghcr.io/quarshell/quarshell/sandboxes/gui-gpu:latest # experimental GUI+GPU; hardware acceleration unverified
+ghcr.io/klorq/quarshell/sandboxes/base:latest
+ghcr.io/klorq/quarshell/sandboxes/gui:latest
+ghcr.io/klorq/quarshell/sandboxes/gpu:latest
+ghcr.io/klorq/quarshell/sandboxes/gui-gpu:latest # experimental GUI+GPU; hardware acceleration unverified
 ```
 
 **Requirements:** Go 1.27+

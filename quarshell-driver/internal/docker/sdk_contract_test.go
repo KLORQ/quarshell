@@ -70,14 +70,14 @@ func TestImageHasGUIRecognizesPublishedGUIImages(t *testing.T) {
 	for _, image := range []string{
 		"quarshell-sandbox:gui",
 		"quarshell-sandbox:gui-gpu",
-		"ghcr.io/quarshell/quarshell/sandboxes/gui:latest",
-		"ghcr.io/quarshell/quarshell/sandboxes/gui-gpu:latest",
+		"ghcr.io/klorq/quarshell/sandboxes/gui:latest",
+		"ghcr.io/klorq/quarshell/sandboxes/gui-gpu:latest",
 	} {
 		if !imageHasGUI(image) {
 			t.Errorf("imageHasGUI(%q) = false", image)
 		}
 	}
-	if imageHasGUI("ghcr.io/quarshell/quarshell/sandboxes/gpu:latest") {
+	if imageHasGUI("ghcr.io/klorq/quarshell/sandboxes/gpu:latest") {
 		t.Fatal("compute-only GPU image was recognized as GUI")
 	}
 }

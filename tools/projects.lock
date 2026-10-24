@@ -1,0 +1,5 @@
+# Non-Go project checkouts, pinned to immutable commits.
+# name repository commit
+quarshell-docs KLORQ/sandbox.dev 1b96e3342dec0fadc2e83a1b7aedc9f45966a01d
+quarshell-python KLORQ/quarshell-python ee608a9a523cafaa32adfb5a7041d0bd9b2bde16
+quarshell-ui KLORQ/quarshell-ui 4ea22475986153556ca0d5eb3b3f22da019893c1

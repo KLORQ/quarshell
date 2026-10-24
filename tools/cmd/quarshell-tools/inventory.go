@@ -39,12 +39,13 @@ type openshellInventory struct {
 // inventoryCommand validates the pinned source snapshot and projects its
 // reviewed feature/coverage records to the JSON-compatible YAML consumed by docs.
 func inventoryCommand(root string, args []string) error {
-	write := false
+	write := true
 	for _, arg := range args {
 		switch arg {
 		case "--write":
 			write = true
 		case "--check":
+			write = false
 		default:
 			return fmt.Errorf("inventory: unknown argument %q", arg)
 		}
@@ -239,7 +240,7 @@ func openshellSourceDigest(root string) (string, int, error) {
 func renderFeatureInventoryYAML(data openshellInventory) ([]byte, error) {
 	var b strings.Builder
 	b.WriteString("# Generated from the plan's OS-* feature table and pinned OpenShell inventory.\n")
-	b.WriteString("# JSON-compatible YAML keeps generation dependency-free; edit the plan/source, then regenerate.\n")
+	b.WriteString("# JSON-compatible YAML is projected from the pinned source-linked inventory.\n")
 	b.WriteString("schema_version: 1\nbaseline: \"OpenShell v0.1.4\"\nnamespace_owner: \"KLORQ; module prefix github.com/KLORQ/quarshell-*\"\ninventory: \"openshell-v0.1.4-inventory.json\"\nfeatures:\n")
 	featureKeys := []string{"id", "scope", "owner", "acceptance", "status", "baseline"}
 	for _, feature := range data.OrderedFeatures {

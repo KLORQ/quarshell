@@ -19,7 +19,7 @@ func TestPublishedImage(t *testing.T) {
 			t.Fatalf("PublishedImage(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, in := range []string{"", "debian:bookworm", "quarshell-sandbox:mine", "ghcr.io/quarshell/quarshell/sandboxes/base:latest"} {
+	for _, in := range []string{"", "debian:bookworm", "quarshell-sandbox:mine", "ghcr.io/klorq/quarshell/sandboxes/base:latest"} {
 		if got, ok := PublishedImage(in); ok {
 			t.Fatalf("PublishedImage(%q) = %q, want no mapping", in, got)
 		}

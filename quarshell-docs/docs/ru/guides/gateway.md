@@ -49,6 +49,30 @@ backup `state.json` либо одновременно PostgreSQL и катало
 | Sandboxes | Управление реестром и жизненным циклом через RPC; ограниченный буфер логов |
 | Sidecar | Resolve секретов через `host.quarshell.internal` |
 
+### Supervisor replicas
+
+Для нескольких Gateway задайте ID, совпадающий с именем pod. В Kubernetes
+используйте SRV discovery через headless Service (Helm chart настраивает его
+автоматически):
+
+Для нескольких pod также задайте общий PostgreSQL через `database.existingSecret`
+и отключите файловый PVC (`persistence.enabled=false`). Локальная SQLite база
+не разделяется между репликами.
+
+```bash
+QUARSHELL_GATEWAY_REPLICA_ID=gateway-0 \
+QUARSHELL_GATEWAY_REPLICA_DISCOVERY_SRV='_grpc._tcp.gateway-headless.namespace.svc.cluster.local' \
+quarshell-gateway
+```
+
+Ring использует 128 виртуальных узлов на реплику и SHA-256, совместимый с
+OpenShell. Gateway отправляет `SessionRedirect` до регистрации локального
+supervisor owner. При shutdown реплика перенаправляет новые подключения на
+другую реплику. SRV membership перечитывается каждые пять секунд; при ошибке
+DNS сохраняется последний корректный ring. В других средах можно указать
+одинаковый статический `QUARSHELL_GATEWAY_REPLICA_PEERS` на всех репликах.
+Если routing не настроен, Gateway работает в одноузловом режиме.
+
 ## Справка по HTTP API
 
 [Спецификация OpenAPI](https://github.com/KLORQ/quarshell/blob/main/quarshell-gateway/api/openapi.yaml)

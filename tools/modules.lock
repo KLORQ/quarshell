@@ -1,11 +1,10 @@
-# Published pre-stable module versions. Keep these synchronized with go.mod and workflow checkout refs.
-quarshell-cli v0.1.3
-quarshell-core v0.5.0
-quarshell-driver v0.2.0
-quarshell-driver-vm v0.1.4
-quarshell-gateway v0.1.4
-quarshell-policy v0.2.0
-quarshell-proto v0.2.3
-quarshell-proxy v0.1.2
-quarshell-runtime v0.1.2
-quarshell-sdk v0.1.2
+quarshell-cli v0.1.7
+quarshell-core v0.5.2
+quarshell-driver v0.2.10
+quarshell-driver-vm v0.1.12
+quarshell-gateway v0.1.11
+quarshell-policy v0.2.2
+quarshell-proto v0.2.8
+quarshell-proxy v0.1.5
+quarshell-runtime v0.1.6
+quarshell-sdk v0.1.7

@@ -54,7 +54,7 @@ func TestResolveImageExperimentalGUIGPU(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if remote != "ghcr.io/quarshell/quarshell/sandboxes/gui-gpu:latest" {
+	if remote != "ghcr.io/klorq/quarshell/sandboxes/gui-gpu:latest" {
 		t.Fatalf("published GUI+GPU image = %q", remote)
 	}
 }

@@ -708,6 +708,7 @@ func (d *Driver) startLocked(ctx context.Context, store *stateStore, state sandb
 	state.Status = "running"
 	state.MainProcessTTYSessionID = mainProcessTTYSessionID
 	state.MainProcessSessionID = mainProcessTTYSessionID
+	state.MainProcessTTY = spec.TTY
 	state.WorkloadUID = startResponse.WorkloadUID
 	state.WorkloadGID = startResponse.WorkloadGID
 	state.MainProcessExitCode = nil
@@ -747,16 +748,18 @@ func (d *Driver) RecordMainProcessExit(ctx context.Context, id core.ID, instance
 		}
 		return nil
 	}
-	if state.Status != "running" {
+	if state.Status != "running" && state.Status != "stopped" {
 		return fmt.Errorf("vm driver: cannot record main process exit while sandbox is %q", state.Status)
 	}
 	code := exitCode
 	state.MainProcessExitCode = &code
 	state.MainProcessInstanceID = instanceID
-	if exitCode == 0 {
-		state.Status = "completed"
-	} else {
-		state.Status = "error"
+	if state.Status == "running" {
+		if exitCode == 0 {
+			state.Status = "completed"
+		} else {
+			state.Status = "error"
+		}
 	}
 	state.UpdatedAt = time.Now().UTC()
 	return store.save(state)
@@ -1226,8 +1229,49 @@ func (d *Driver) waitForExistingGuest(ctx context.Context, id, socket string) er
 	}
 }
 
+type guestControlLiveness struct {
+	grace            time.Duration
+	unavailableSince time.Time
+}
+
+func (l *guestControlLiveness) observe(now time.Time, probeErr error) bool {
+	if probeErr == nil {
+		l.unavailableSince = time.Time{}
+		return false
+	}
+	if l.unavailableSince.IsZero() {
+		l.unavailableSince = now
+	}
+	return now.Sub(l.unavailableSince) >= l.grace
+}
+
 func (d *Driver) watchWorker(id, root string, command *exec.Cmd, done <-chan error) {
-	<-done
+	_, guestSocket, _ := workerSocketPaths(root, id)
+	probeTicker := time.NewTicker(250 * time.Millisecond)
+	defer probeTicker.Stop()
+	liveness := guestControlLiveness{grace: 2 * time.Second}
+	for {
+		select {
+		case <-done:
+			goto workerExited
+		case <-probeTicker.C:
+			probeCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+			_, probeErr := d.exchangeControl(probeCtx, id, guestSocket, controlRequest{Operation: "ping"})
+			cancel()
+			if liveness.observe(time.Now(), probeErr) {
+				// Some KVM/libkrun combinations leave the worker process alive
+				// after the guest has powered itself off. A sustained loss of the
+				// authenticated guest control endpoint is the host-visible proof
+				// that the VM can no longer serve work; reap that worker so durable
+				// lifecycle state converges to stopped.
+				_ = killWorkerProcessGroup(command)
+				<-done
+				goto workerExited
+			}
+		}
+	}
+
+workerExited:
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.workers[id] != command {

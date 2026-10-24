@@ -99,10 +99,10 @@ func TestRenderQuarshellProxyPodRejectsMutableImagesAndInvalidEndpoints(t *testi
 		mutate func(*quarshellProxyPodRenderParams)
 	}{
 		{name: "mutable image", mutate: func(params *quarshellProxyPodRenderParams) {
-			params.ProxyImage = "ghcr.io/quarshell/quarshell-proxy:latest"
+			params.ProxyImage = "ghcr.io/klorq/quarshell/sandboxes/proxy:latest"
 		}},
 		{name: "malformed image digest", mutate: func(params *quarshellProxyPodRenderParams) {
-			params.ProxyImage = "ghcr.io/quarshell/quarshell-proxy@sha256:latest"
+			params.ProxyImage = "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:latest"
 		}},
 		{name: "invalid gateway url", mutate: func(params *quarshellProxyPodRenderParams) { params.GatewayURL = "https://user:secret@gateway.example" }},
 		{name: "invalid grpc endpoint", mutate: func(params *quarshellProxyPodRenderParams) {
@@ -126,7 +126,7 @@ func testQuarshellProxyPodRenderParams() quarshellProxyPodRenderParams {
 		Namespace: namespace, SandboxResourceName: "team-a-demo",
 		SandboxResourceAPIVersion: sandboxAPIGroup + "/" + sandboxAPIVersionV1Beta1,
 		SandboxResourceUID:        "cr-uid-123", SandboxID: "sandbox-123", SandboxName: "demo", Generation: "gen7",
-		ProxyImage:         "ghcr.io/quarshell/quarshell-proxy@sha256:" + strings.Repeat("a", 64),
+		ProxyImage:         "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:" + strings.Repeat("a", 64),
 		ServiceAccountName: "sandbox-driver", ImagePullSecrets: []string{"registry-auth"},
 		GatewayURL: "https://gateway.example:443", GatewayGRPCEndpoint: "gateway.example:7443", GatewayTLS: true,
 		BoundaryPort: 5500, ControlUID: 10001, ControlGID: 10001,

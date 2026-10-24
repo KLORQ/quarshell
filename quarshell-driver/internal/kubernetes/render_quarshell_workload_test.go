@@ -136,7 +136,7 @@ func TestQuarshellWorkloadEnvironmentRejectsCredentialAndProxyOverrides(t *testi
 
 func TestRenderQuarshellAgentSandboxResourceRejectsUnpinnedHelperImage(t *testing.T) {
 	params := testQuarshellWorkloadRenderParams()
-	params.Base.SandboxRuntimeImage = "ghcr.io/quarshell/quarshell/sandboxes/base:latest"
+	params.Base.SandboxRuntimeImage = "ghcr.io/klorq/quarshell/sandboxes/base:latest"
 	if _, err := renderQuarshellAgentSandboxResource(SandboxDriverConfig{}, params); err == nil || !strings.Contains(err.Error(), "digest") {
 		t.Fatalf("renderQuarshellAgentSandboxResource() error = %v; want digest pin requirement", err)
 	}
@@ -144,7 +144,7 @@ func TestRenderQuarshellAgentSandboxResourceRejectsUnpinnedHelperImage(t *testin
 
 func testQuarshellWorkloadRenderParams() quarshellWorkloadRenderParams {
 	base := testAgentSandboxRenderParams()
-	base.SandboxRuntimeImage = "ghcr.io/quarshell/quarshell/sandboxes/base@sha256:" + strings.Repeat("a", 64)
+	base.SandboxRuntimeImage = "ghcr.io/klorq/quarshell/sandboxes/base@sha256:" + strings.Repeat("a", 64)
 	base.SandboxRuntimeImagePullPolicy = "IfNotPresent"
 	return quarshellWorkloadRenderParams{
 		Base: base, Command: []string{"python3", "-m", "http.server"}, Env: []string{"APP_MODE=demo"}, BoundaryPort: 5500,

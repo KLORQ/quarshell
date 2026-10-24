@@ -54,7 +54,7 @@ func TestQuarshellAgentSandboxCreateSequenceUsesSplitGenerationSecrets(t *testin
 	runtimeParams.SandboxResourceUID = ""
 	runtimeParams.SupervisorImage = ""
 	runtimeParams.GatewayEndpoint = ""
-	runtimeParams.QuarshellProxyImage = "ghcr.io/quarshell/quarshell-proxy@sha256:" + strings.Repeat("b", 64)
+	runtimeParams.QuarshellProxyImage = "ghcr.io/klorq/quarshell/sandboxes/proxy@sha256:" + strings.Repeat("b", 64)
 	runtimeParams.QuarshellGatewayURL = "http://gateway.example:443"
 	runtimeParams.QuarshellGatewayGRPCEndpoint = "gateway.example:7443"
 	backend.supervisor.Image = runtimeParams.QuarshellProxyImage

@@ -16,10 +16,9 @@ import (
 
 const containerTimeout = 2 * time.Minute
 
-// AlpineImage uses the Docker Official Images mirror on Public ECR. Its tag
-// manifest is byte-for-byte identical to docker.io/library/alpine:3.22, while
-// avoiding Docker Hub pull throttling in nested test daemons.
-const AlpineImage = "public.ecr.aws/docker/library/alpine:3.22"
+// AlpineImage uses the public image maintained for Podman's own E2E suite,
+// avoiding Docker Hub throttling and Public ECR timeouts in nested engines.
+const AlpineImage = "quay.io/libpod/alpine@sha256:fa93b01658e3a5a1686dc3ae55f170d8de487006fb53a28efcd12ab0710a2e5f"
 
 // RequireContainers makes container-backed suites opt-in and gives every
 // container a bounded lifetime. The normal module test command remains usable
@@ -115,6 +114,7 @@ func RunPodmanDaemon(ctx context.Context, t *testing.T) (testcontainers.Containe
 		testcontainers.WithEnv(map[string]string{"STORAGE_DRIVER": "vfs"}),
 		testcontainers.WithHostConfigModifier(func(config *container.HostConfig) {
 			config.Privileged = true
+			config.Binds = append(config.Binds, workspace+":"+workspace)
 		}),
 		// Keep the API endpoint stable while allowing recovery tests to kill
 		// and restart only the Podman service inside the fixture.
@@ -131,9 +131,8 @@ func RunPodmanDaemon(ctx context.Context, t *testing.T) (testcontainers.Containe
 			t.Errorf("terminate Podman fixture: %v", err)
 		}
 	})
-	// Podman resolves bind sources in its own container namespace. Create the
-	// same canonical path there; the fixture workspace data is only consumed by
-	// nested sandbox containers, so it does not need a host bind mount.
+	// Keep the test process and nested Podman daemon on the same workspace path
+	// so host-side ownership probes observe files created by sandbox containers.
 	if _, _, err := container.Exec(ctx, []string{"mkdir", "-p", "--", workspace}); err != nil {
 		t.Fatalf("create Podman fixture workspace: %v", err)
 	}

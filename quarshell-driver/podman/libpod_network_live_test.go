@@ -1,6 +1,7 @@
 package podman
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moby/moby/api/pkg/stdcopy"
 	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -47,12 +49,16 @@ func TestPodmanNativeBlackholeRouteCreateInspectE2E(t *testing.T) {
 			t.Errorf("terminate Podman network probe service: %v", err)
 		}
 	})
-	code, versionOutput, err := service.Exec(ctx, []string{"podman", "--version"})
+	code, versionStream, err := service.Exec(ctx, []string{"podman", "--version"})
 	if err != nil {
 		t.Fatalf("inspect Podman network probe version: %v", err)
 	}
-	versionBytes, err := io.ReadAll(versionOutput)
-	if err != nil || code != 0 || strings.TrimSpace(string(versionBytes)) != "podman version 6.1.4" {
+	var versionOutput bytes.Buffer
+	if _, err := stdcopy.StdCopy(&versionOutput, io.Discard, versionStream); err != nil {
+		t.Fatalf("read Podman network probe version: %v", err)
+	}
+	versionBytes := versionOutput.Bytes()
+	if code != 0 || strings.TrimSpace(string(versionBytes)) != "podman version 6.1.4" {
 		t.Fatalf("Podman network probe version = %q (exit %d), err=%v; want exact 6.1.4", versionBytes, code, err)
 	}
 	port, err := service.MappedPort(ctx, "18500/tcp")

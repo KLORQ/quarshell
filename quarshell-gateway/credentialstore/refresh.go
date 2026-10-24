@@ -47,8 +47,9 @@ func (s *RefreshService) Refresh(ctx context.Context, id domain.CredentialID) (u
 		err       error
 	}
 	done := make(chan result, 1)
+	refresher := s.Refresher
 	go func() {
-		material, expiresAt, err := s.Refresher.Refresh(refreshCtx, current)
+		material, expiresAt, err := refresher.Refresh(refreshCtx, current)
 		done <- result{material: material, expiresAt: expiresAt, err: err}
 	}()
 	select {

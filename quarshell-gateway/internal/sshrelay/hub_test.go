@@ -259,6 +259,7 @@ func TestOpenChannelClaimRecordsDurationHistogram(t *testing.T) {
 	h := NewHub()
 	h.sessions["sandbox"] = &session{done: make(chan struct{})}
 	h.sessions["sandbox"].open = func(channel, _ string) error {
+		time.Sleep(time.Millisecond)
 		stream, err := h.AcceptRelay("sandbox", channel)
 		if stream != nil {
 			_ = stream.Close()

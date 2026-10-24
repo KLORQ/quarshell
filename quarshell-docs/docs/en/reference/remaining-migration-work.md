@@ -4,19 +4,31 @@ title: Remaining OpenShell migration work
 
 # Remaining OpenShell migration work
 
-Quarshell is still a pre-stable port of OpenShell. Matching RPC names and
-message shapes does not establish behavioral parity, so the project does not
-claim full compatibility yet.
+Quarshell targets pinned OpenShell `v0.1.4`. Compatibility remains partial until
+behavioral acceptance covers every required RPC, provider, runtime, client and
+backend feature. Matching schemas and registered handlers are not sufficient.
 
-The current acceptance plan tracks unfinished behavior across the public
-control API, peer connections, credentials, provider lifecycle, runtime and
-supervisor control, CLI and SDK behavior, package installation, and platform
-backends. VM work still has partial acceptance rows. MXC and physical GPU/VFIO
-support depend on platform hardware and SDK availability.
+The current hosted root CI, Linux KVM lifecycle, nested Docker and rootful/rootless
+Podman acceptance pass. Local macOS/HVF lifecycle and Gateway composition pass.
+These results close the old KVM-environment gate, not every VM parity row.
 
-The [feature inventory](feature-inventory.yaml) records implementation and
-evidence status per feature. The [detailed migration register](https://github.com/KLORQ/quarshell-workspace/blob/main/plans/REMAINING.md)
-contains the active engineering checklist in Russian.
+Remaining work is grouped into these tracks:
 
-Until the remaining behavior and platform acceptance rows are closed, all Go
-module versions remain pre-stable 0.x.
+- Gateway authentication, token/OAuth lifecycle, incomplete peer RPCs and
+  functional acceptance for every public RPC.
+- Multi-Gateway ownership/reconnect behavior and the at-least-once stream cursor
+  boundary.
+- Linux seccomp notification, descendant lifecycle and raw-socket/DNS/Unix-socket
+  bypass checks.
+- Kubernetes real-cluster acceptance and full Docker/Podman config/network
+  parity.
+- Remaining VM feature rows, Windows MXC runtime acceptance, and GPU/VFIO
+  hardware support.
+- CLI/TUI, SDK, Python/TypeScript client and symbolic prover behavior.
+- Published-consumer install, upgrade/rollback, images, and signed macOS release.
+
+See the [current engineering plan](https://github.com/KLORQ/quarshell-workspace/blob/main/plans/REMAINING.md),
+the [OpenShell compatibility table](openshell-compatibility.md), and the
+[runtime acceptance matrix](runtime-acceptance.md) for feature owners and
+acceptance evidence. MXC and GPU/VFIO remain blocked until compatible hardware
+and runtime dependencies are available.

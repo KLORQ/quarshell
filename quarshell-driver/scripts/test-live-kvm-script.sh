@@ -8,16 +8,24 @@ python3 "$script_dir/test-vm-engine-fixtures.py"
 "$script_dir/test-build-podman6-fixture.sh"
 workflow_file="$script_dir/../.github/workflows/live-vm-kvm.yml"
 if grep -Eq '^  pull_request(_target)?:' "$workflow_file"; then
-  echo "privileged self-hosted KVM workflow must not run untrusted pull request code" >&2
+  echo "privileged live KVM workflow must not run untrusted pull request code" >&2
   exit 1
 fi
+if grep -F -- 'self-hosted' "$workflow_file" >/dev/null; then
+  echo "live KVM workflow must use GitHub-hosted runners" >&2
+  exit 1
+fi
+grep -F -- 'runs-on: ubuntu-24.04' "$workflow_file" >/dev/null
+grep -F -- 'sudo udevadm trigger --settle --name-match=kvm' "$workflow_file" >/dev/null
+grep -F -- 'exec 3<>/dev/kvm' "$workflow_file" >/dev/null
+grep -F -- 'Build pinned libkrun runtime' "$workflow_file" >/dev/null
 grep -F -- 'if: always()' "$workflow_file" >/dev/null
-grep -F -- 'rm -rf "${{ runner.temp }}/quarshell-vm-runtime"' "$workflow_file" >/dev/null
+grep -F -- '"${{ runner.temp }}/quarshell-vm-runtime"' "$workflow_file" >/dev/null
 if grep -F -- "if: matrix.arch == 'amd64'" "$workflow_file" >/dev/null; then
   echo "engine-in-MicroVM acceptance must run on every declared KVM architecture" >&2
   exit 1
 fi
-grep -F -- 'name: engines-in-microvm-${{ matrix.arch }}-${{ github.run_id }}' "$workflow_file" >/dev/null
+grep -F -- 'name: engines-in-microvm-amd64-${{ github.run_id }}' "$workflow_file" >/dev/null
 temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/quarshell-kvm-script-test.XXXXXX")
 cleanup() { rm -rf "$temporary_dir"; }
 assert_single_force_cleanup() {
@@ -92,6 +100,25 @@ if [ "${1:-}" = env ]; then
     GOARCH) echo "${QUARSHELL_TEST_GOARCH:-amd64}" ;;
     *) exit 2 ;;
   esac
+  exit 0
+fi
+if [ "${1:-}" = build ]; then
+  output=
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then
+      shift
+      output=${1:-}
+      break
+    fi
+    shift
+  done
+  if [ -z "$output" ]; then
+    echo "mock go build did not receive -o" >&2
+    exit 3
+  fi
+  mkdir -p "$(dirname "$output")"
+  printf '#!/bin/sh\nexit 0\n' >"$output"
+  chmod 0755 "$output"
   exit 0
 fi
 if [ "${1:-}" = test ] && [ "${QUARSHELL_VM_TEST_ROOTFS_TAR##*/}" = alpine-rootfs.tar ]; then

@@ -1,5 +1,5 @@
 # Generated from the plan's OS-* feature table and pinned OpenShell inventory.
-# JSON-compatible YAML keeps generation dependency-free; edit the plan/source, then regenerate.
+# JSON-compatible YAML is projected from the pinned source-linked inventory.
 schema_version: 1
 baseline: "OpenShell v0.1.4"
 namespace_owner: "KLORQ; module prefix github.com/KLORQ/quarshell-*"

@@ -18,14 +18,19 @@ use (
 )
 
 replace (
-	github.com/KLORQ/quarshell-cli v0.1.3 => ./quarshell-cli
-	github.com/KLORQ/quarshell-core v0.5.0 => ./quarshell-core
-	github.com/KLORQ/quarshell-driver v0.2.0 => ./quarshell-driver
-	github.com/KLORQ/quarshell-driver-vm v0.1.4 => ./quarshell-driver-vm
-	github.com/KLORQ/quarshell-gateway v0.1.4 => ./quarshell-gateway
-	github.com/KLORQ/quarshell-policy v0.2.0 => ./quarshell-policy
-	github.com/KLORQ/quarshell-proto v0.2.3 => ./quarshell-proto
-	github.com/KLORQ/quarshell-proxy v0.1.2 => ./quarshell-proxy
-	github.com/KLORQ/quarshell-runtime v0.1.2 => ./quarshell-runtime
-	github.com/KLORQ/quarshell-sdk v0.1.2 => ./quarshell-sdk
+	github.com/KLORQ/quarshell-cli v0.1.7 => ./quarshell-cli
+	github.com/KLORQ/quarshell-core v0.5.2 => ./quarshell-core
+	github.com/KLORQ/quarshell-driver v0.2.10 => ./quarshell-driver
+	github.com/KLORQ/quarshell-driver v0.2.5 => ./quarshell-driver
+	github.com/KLORQ/quarshell-driver-vm v0.1.11 => ./quarshell-driver-vm
+	github.com/KLORQ/quarshell-driver-vm v0.1.12 => ./quarshell-driver-vm
+	github.com/KLORQ/quarshell-gateway v0.1.11 => ./quarshell-gateway
+	github.com/KLORQ/quarshell-policy v0.2.2 => ./quarshell-policy
+	github.com/KLORQ/quarshell-proto v0.2.6 => ./quarshell-proto
+	github.com/KLORQ/quarshell-proto v0.2.7 => ./quarshell-proto
+	github.com/KLORQ/quarshell-proto v0.2.8 => ./quarshell-proto
+	github.com/KLORQ/quarshell-proxy v0.1.5 => ./quarshell-proxy
+	github.com/KLORQ/quarshell-runtime v0.1.6 => ./quarshell-runtime
+	github.com/KLORQ/quarshell-sdk v0.1.6 => ./quarshell-sdk
+	github.com/KLORQ/quarshell-sdk v0.1.7 => ./quarshell-sdk
 )

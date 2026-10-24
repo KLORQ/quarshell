@@ -8,7 +8,7 @@ Namespace: `github.com/KLORQ`.
 
 | Документ | Назначение |
 | --- | --- |
-| [CHECKLIST.md](CHECKLIST.md) | Живой чек-лист: что добавлено, что в работе, что осталось |
+| [REMAINING.md](REMAINING.md) | Актуальный review и приоритетный остаток OpenShell parity |
 | [baseline/BASELINE.md](baseline/BASELINE.md) | Замороженный baseline и состояние рабочих деревьев |
 | [inventory/README.md](inventory/README.md) | Генерация inventory из pinned checkout и плана |
 | [evidence/README.md](evidence/README.md) | Машиночитаемая evidence matrix и правила pass |
@@ -27,12 +27,13 @@ Namespace: `github.com/KLORQ`.
 
 ## Как ведётся работа
 
-1. Любое добавление или изменение продукта фиксируется в журнале `CHECKLIST.md`
-   и отмечается в соответствующем milestone.
+1. Актуальный engineering backlog и приёмка ведутся в `REMAINING.md`.
+   Исторические изменения и первоначальный план сохраняются в
+   `openshell-go-2026-10-21/` и `evidence/`.
 2. `pass` ставится только при наличии воспроизводимой команды и артефакта.
    Всё остальное — `unverified`, `partial` или `blocked`.
-3. Старая совместимость Quarshell/Quarshell не поддерживается; новый namespace — `github.com/KLORQ`. Внешний контракт —
+3. Обратная совместимость с предыдущими pre-stable API не поддерживается;
+   новый namespace — `github.com/KLORQ`. Внешний контракт —
    только pinned OpenShell baseline.
-4. Каталоги `.local-ai` больше нет. Источник истины по планам — этот каталог.
-5. Старые `.worktrees/quarshell-*` не являются частью новой реализации и удаляются
-   по мере замены модулей, а не автоматически.
+4. Источники OpenShell, evidence reports, ADR и conformance fixtures сохраняются
+   как provenance; не удалять их при очистке локальных build outputs.

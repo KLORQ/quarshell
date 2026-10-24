@@ -63,7 +63,7 @@ quarshell status
 ## 3. Скачайте sandbox image
 
 ```sh
-docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+docker pull ghcr.io/klorq/quarshell/sandboxes/base:latest
 export QUARSHELL_USE_GHCR=1
 ```
 
@@ -145,7 +145,7 @@ export QUARSHELL_GATEWAY_RUNTIME=podman
 quarshell gateway ensure
 ```
 
-Скачайте image командой `podman pull ghcr.io/quarshell/quarshell/sandboxes/base:latest`;
+Скачайте image командой `podman pull ghcr.io/klorq/quarshell/sandboxes/base:latest`;
 оставьте `QUARSHELL_USE_GHCR=1` включённым.
 
 ## Устранение неполадок

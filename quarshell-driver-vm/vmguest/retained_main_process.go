@@ -3,6 +3,7 @@
 package vmguest
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -41,8 +42,12 @@ type retainedMainProcess struct {
 	connection        net.Conn
 	output            []TerminalFrame
 	outputBytes       int
+	outputFirstSeq    uint64
+	outputNextSeq     uint64
+	outputChanged     chan struct{}
 	finished          bool
 	exitCode          int
+	stdinClosed       bool
 	outputDone        chan struct{}
 	readersLeft       atomic.Int32
 	awaitAttachment   bool
@@ -71,7 +76,7 @@ func (s *controlServer) retainMainProcess(id string, command *exec.Cmd, stdin, s
 	process := &retainedMainProcess{
 		owner: s, id: id, pid: command.Process.Pid, command: command, stdin: stdin,
 		outputFiles: []*os.File{stdout, stderr},
-		outputDone:  make(chan struct{}), awaitAttachment: awaitAttachment,
+		outputDone:  make(chan struct{}), outputChanged: make(chan struct{}), awaitAttachment: awaitAttachment,
 		attachmentChanged: make(chan struct{}), onExit: onExit,
 	}
 	process.readersLeft.Store(2)
@@ -84,6 +89,10 @@ func (s *controlServer) retainMainProcess(id string, command *exec.Cmd, stdin, s
 }
 
 func (s *controlServer) attachMainProcess(connection net.Conn, id string) {
+	s.attachMainProcessFromCursor(connection, id, 0, false)
+}
+
+func (s *controlServer) attachMainProcessFromCursor(connection net.Conn, id string, cursor uint64, cursorSet bool) {
 	s.mainProcessMu.Lock()
 	process := s.mainProcesses[id]
 	s.mainProcessMu.Unlock()
@@ -99,10 +108,10 @@ func (s *controlServer) attachMainProcess(connection net.Conn, id string) {
 			_ = writeResponse(connection, Response{Error: "main-process session not found"})
 			return
 		}
-		terminal.attach(connection)
+		terminal.attachFromCursor(connection, cursor, cursorSet)
 		return
 	}
-	process.attach(connection)
+	process.attachFromCursor(connection, cursor, cursorSet)
 }
 
 func (s *controlServer) waitForMainProcessAttachment(id string) {
@@ -146,18 +155,15 @@ func (process *retainedMainProcess) readOutput(kind string, reader *os.File) {
 func (process *retainedMainProcess) publish(frame TerminalFrame) {
 	process.mu.Lock()
 	defer process.mu.Unlock()
-	if process.connection != nil {
-		if writeTerminalFrame(process.connection, frame) == nil {
-			return
-		}
-		process.connection = nil
-	}
 	process.output = append(process.output, frame)
+	process.outputNextSeq++
 	process.outputBytes += len(frame.Data)
 	for process.outputBytes > retainedMainProcessOutputLimit && len(process.output) > 0 {
 		process.outputBytes -= len(process.output[0].Data)
 		process.output = process.output[1:]
+		process.outputFirstSeq++
 	}
+	process.notifyOutputLocked()
 }
 
 func (process *retainedMainProcess) wait() {
@@ -173,13 +179,13 @@ func (process *retainedMainProcess) wait() {
 	process.mu.Lock()
 	process.finished = true
 	process.exitCode = normalizeGuestExitCode(err)
-	if process.connection != nil {
-		if writeTerminalFrame(process.connection, TerminalFrame{Type: "exit", ExitCode: process.exitCode}) != nil {
-			process.connection = nil
-		}
+	process.notifyOutputLocked()
+	if process.stdin != nil {
+		_ = process.stdin.Close()
+		process.stdin = nil
+		process.stdinClosed = true
 	}
 	process.mu.Unlock()
-	_ = process.stdin.Close()
 	if process.onExit != nil {
 		process.onExit()
 	}
@@ -192,16 +198,101 @@ func (process *retainedMainProcess) wait() {
 	})
 }
 
-func (process *retainedMainProcess) attach(connection net.Conn) {
-	process.mu.Lock()
-	if process.connection != nil || process.activeAttachments != 0 {
+func (process *retainedMainProcess) waitForExit(ctx context.Context) (int, error) {
+	if ctx == nil {
+		return 0, fmt.Errorf("process wait context is nil")
+	}
+	for {
+		process.mu.Lock()
+		if process.finished {
+			code := process.exitCode
+			process.mu.Unlock()
+			return code, nil
+		}
+		changed := process.outputChanged
 		process.mu.Unlock()
-		_ = writeResponse(connection, Response{Error: "main process already has an input owner"})
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-changed:
+		}
+	}
+}
+
+func (process *retainedMainProcess) exitCodeValue() int {
+	process.mu.Lock()
+	defer process.mu.Unlock()
+	return process.exitCode
+}
+
+func (process *retainedMainProcess) signal(name string) error {
+	signal, ok := guestTerminalSignal(name)
+	if !ok {
+		return fmt.Errorf("unsupported process signal %q", name)
+	}
+	process.mu.Lock()
+	defer process.mu.Unlock()
+	if process.finished {
+		return nil
+	}
+	if err := syscall.Kill(-process.pid, signal); err != nil && err != syscall.ESRCH {
+		return fmt.Errorf("signal guest exec process group: %w", err)
+	}
+	return nil
+}
+
+func (process *retainedMainProcess) terminate(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("process termination context is nil")
+	}
+	process.mu.Lock()
+	finished := process.finished
+	pid := process.pid
+	process.mu.Unlock()
+	if finished {
+		return nil
+	}
+	if err := process.signal("terminate"); err != nil {
+		return err
+	}
+	_, waitErr := process.waitForExit(ctx)
+	if waitErr != nil {
+		return waitErr
+	}
+	// The leader may exit while descendants still hold inherited output pipes.
+	// The stable process-group ID remains owned until those descriptors drain.
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+		return fmt.Errorf("kill remaining guest exec descendants: %w", err)
+	}
+	return nil
+}
+
+func (process *retainedMainProcess) attach(connection net.Conn) {
+	process.attachFromCursor(connection, 0, false)
+}
+
+func (process *retainedMainProcess) attachFromCursor(connection net.Conn, cursor uint64, cursorSet bool) {
+	process.mu.Lock()
+	inputOwner := process.connection == nil && !process.stdinClosed && process.stdin != nil
+	if inputOwner {
+		process.connection = connection
+	}
+	stdinClosed := process.stdinClosed || process.stdin == nil
+	if !cursorSet {
+		cursor = process.outputFirstSeq
+	}
+	if cursor > process.outputNextSeq {
+		if inputOwner && process.connection == connection {
+			process.connection = nil
+		}
+		process.mu.Unlock()
+		_ = writeResponse(connection, Response{Error: "output cursor is ahead of retained process output"})
 		return
 	}
-	process.connection = connection
-	if err := writeResponse(connection, Response{PID: process.pid, SessionID: process.id}); err != nil {
-		process.connection = nil
+	if err := writeResponse(connection, Response{PID: process.pid, SessionID: process.id, InputOwner: inputOwner, StdinClosed: stdinClosed}); err != nil {
+		if inputOwner {
+			process.connection = nil
+		}
 		process.mu.Unlock()
 		return
 	}
@@ -210,35 +301,61 @@ func (process *retainedMainProcess) attach(connection net.Conn) {
 	process.notifyAttachmentChangedLocked()
 	defer func() {
 		process.mu.Lock()
-		if process.connection == connection {
+		if inputOwner && process.connection == connection {
 			process.connection = nil
 		}
 		process.activeAttachments--
 		process.notifyAttachmentChangedLocked()
 		process.mu.Unlock()
 	}()
-	for _, frame := range process.output {
-		if err := writeTerminalFrame(connection, frame); err != nil {
-			process.connection = nil
+	process.mu.Unlock()
+	inputDone := make(chan struct{})
+	go process.readAttachmentInput(connection, inputOwner, inputDone)
+	defer connection.Close()
+	for {
+		process.mu.Lock()
+		var frame TerminalFrame
+		var changed <-chan struct{}
+		switch {
+		case cursor < process.outputFirstSeq:
+			frame = TerminalFrame{Type: "lagged", LostChunks: process.outputFirstSeq - cursor}
+			cursor = process.outputFirstSeq
+		case cursor < process.outputNextSeq:
+			frame = process.output[cursor-process.outputFirstSeq]
+			cursor++
+			frame.Sequence = cursor
+		case process.finished:
+			frame = TerminalFrame{Type: "exit", ExitCode: process.exitCode}
 			process.mu.Unlock()
-			return
-		}
-	}
-	process.output = nil
-	process.outputBytes = 0
-	if process.finished {
-		if err := writeTerminalFrame(connection, TerminalFrame{Type: "exit", ExitCode: process.exitCode}); err != nil {
-			process.mu.Unlock()
-			return
-		}
-		process.mu.Unlock()
-		for {
-			if _, err := ReadFrame(connection); err != nil {
+			if err := writeTerminalFrame(connection, frame); err != nil {
 				return
 			}
+			return
+		default:
+			changed = process.outputChanged
+		}
+		process.mu.Unlock()
+		if frame.Type != "" {
+			if err := writeTerminalFrame(connection, frame); err != nil {
+				return
+			}
+			continue
+		}
+		select {
+		case <-changed:
+		case <-inputDone:
+			return
 		}
 	}
-	process.mu.Unlock()
+}
+
+func (process *retainedMainProcess) notifyOutputLocked() {
+	close(process.outputChanged)
+	process.outputChanged = make(chan struct{})
+}
+
+func (process *retainedMainProcess) readAttachmentInput(connection net.Conn, inputOwner bool, done chan<- struct{}) {
+	defer close(done)
 	for {
 		payload, err := ReadFrame(connection)
 		if err != nil {
@@ -253,14 +370,28 @@ func (process *retainedMainProcess) attach(connection net.Conn) {
 		process.mu.Lock()
 		switch frame.Type {
 		case "stdin":
-			if len(frame.Data) > 0 {
+			if inputOwner && process.connection == connection && !process.stdinClosed && len(frame.Data) > 0 {
 				_, err = process.stdin.Write(frame.Data)
+				if err != nil {
+					process.stdin = nil
+					process.stdinClosed = true
+					process.connection = nil
+					err = nil
+				}
 			}
 		case "eof":
-			err = process.stdin.Close()
+			if inputOwner && process.connection == connection && !process.stdinClosed {
+				err = process.stdin.Close()
+				process.stdinClosed = true
+				process.stdin = nil
+				process.connection = nil
+			}
 		case "resize":
 			// Pipe based canonical processes have no terminal dimensions.
 		case "signal":
+			if !inputOwner || process.connection != connection {
+				break
+			}
 			if signal, ok := guestTerminalSignal(frame.Signal); ok {
 				err = syscall.Kill(-process.pid, signal)
 			} else {
@@ -270,7 +401,7 @@ func (process *retainedMainProcess) attach(connection net.Conn) {
 			err = fmt.Errorf("unsupported main-process input frame %q", frame.Type)
 		}
 		process.mu.Unlock()
-		if err != nil || frame.Type == "eof" {
+		if err != nil {
 			return
 		}
 	}

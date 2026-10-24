@@ -31,7 +31,7 @@ task runtime:image:cli          # quarshell-sandbox:local
 task docker:agent:cursor        # quarshell-sandbox:cursor
 
 # Или каталог GHCR
-docker pull ghcr.io/quarshell/quarshell/sandboxes/base:latest
+docker pull ghcr.io/klorq/quarshell/sandboxes/base:latest
 ```
 
 Каталог и BYOC: [Справка по образам](../../reference/images.md).

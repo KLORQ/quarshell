@@ -5,6 +5,7 @@ package applicationgrpc
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	credentials "github.com/KLORQ/quarshell-gateway/credentialstore"
@@ -30,42 +31,72 @@ import (
 type Server struct {
 	gatewayv1.UnimplementedOpenShellServer
 	runtimev1.UnimplementedMainProcessServiceServer
-	Version          string
-	Workspaces       *workspace.Service
-	Sandboxes        *sandbox.Service
-	Policy           *policyapp.ChunkService
-	PolicyRevisions  *policyapp.Service
-	Templates        *template.Service
-	Settings         *settings.Service
-	Providers        *provider.Registry
-	Services         *endpoint.ServiceRegistry
-	ProviderBindings *provider.Service
-	SandboxLogs      *sandboxlogs.Service
-	Tokens           *tokenapp.Service
-	SupervisorHub    *sshrelay.Hub
-	sshMu            sync.RWMutex
-	sshSessions      map[string]sshSession
-	Credentials      *providercred.Store
-	OAuthExchange    *credentials.OAuthExchange
-	stagingMu        sync.Mutex
-	staging          map[string]stagingUpload
-	RootfsStaging    func(context.Context) (string, uint64, error)
-	RuntimeBackendID string
-	GatewayHost      string
-	GatewayPort      int
-	GatewayScheme    string
-	now              func() time.Time
-	logMu            sync.RWMutex
-	sandboxLogs      map[string][]*gatewayv1.SandboxLogLine
-	logWatchers      map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}
-	logCursorMu      sync.Mutex
-	logCursorEpoch   string
-	logCursorSeq     map[string]uint64
+	Version            string
+	Workspaces         *workspace.Service
+	Sandboxes          *sandbox.Service
+	Policy             *policyapp.ChunkService
+	PolicyRevisions    *policyapp.Service
+	Templates          *template.Service
+	Settings           *settings.Service
+	Providers          *provider.Registry
+	Services           *endpoint.ServiceRegistry
+	ProviderBindings   *provider.Service
+	SandboxLogs        *sandboxlogs.Service
+	Tokens             *tokenapp.Service
+	SupervisorHub      *sshrelay.Hub
+	ReplicaRouting     *ReplicaRing
+	draining           atomic.Bool
+	readinessSessionMu sync.RWMutex
+	readinessSessions  map[string]string
+	sshMu              sync.RWMutex
+	sshSessions        map[string]sshSession
+	Credentials        *providercred.Store
+	OAuthExchange      *credentials.OAuthExchange
+	stagingMu          sync.Mutex
+	staging            map[string]stagingUpload
+	RootfsStaging      func(context.Context) (string, uint64, error)
+	RuntimeBackendID   string
+	GatewayHost        string
+	GatewayPort        int
+	GatewayScheme      string
+	now                func() time.Time
+	logMu              sync.RWMutex
+	sandboxLogs        map[string][]*gatewayv1.SandboxLogLine
+	logWatchers        map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}
+	logCursorMu        sync.Mutex
+	logCursorEpoch     string
+	logCursorSeq       map[string]uint64
 }
+
+// BeginDrain marks this replica unavailable for new supervisor sessions.
+func (s *Server) BeginDrain() { s.draining.Store(true) }
 
 // New returns a server with explicit unimplemented gaps.
 func New(version string, workspaces *workspace.Service, sandboxes *sandbox.Service, policy *policyapp.ChunkService, templates *template.Service, settings *settings.Service, providers *provider.Registry, services *endpoint.ServiceRegistry) *Server {
-	return &Server{Version: version, Workspaces: workspaces, Sandboxes: sandboxes, Policy: policy, Templates: templates, Settings: settings, Providers: providers, Services: services, SupervisorHub: sshrelay.NewHub(), sandboxLogs: make(map[string][]*gatewayv1.SandboxLogLine), logWatchers: make(map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}), logCursorEpoch: randomSessionID(), logCursorSeq: make(map[string]uint64), sshSessions: make(map[string]sshSession), staging: make(map[string]stagingUpload), now: time.Now, Credentials: defaultCredentialStore()}
+	return &Server{Version: version, Workspaces: workspaces, Sandboxes: sandboxes, Policy: policy, Templates: templates, Settings: settings, Providers: providers, Services: services, SupervisorHub: sshrelay.NewHub(), readinessSessions: make(map[string]string), sandboxLogs: make(map[string][]*gatewayv1.SandboxLogLine), logWatchers: make(map[string]map[chan *gatewayv1.SandboxStreamEvent]struct{}), logCursorEpoch: randomSessionID(), logCursorSeq: make(map[string]uint64), sshSessions: make(map[string]sshSession), staging: make(map[string]stagingUpload), now: time.Now, Credentials: defaultCredentialStore()}
+}
+
+func (s *Server) setReadinessSession(sandboxID, sessionID string) {
+	s.readinessSessionMu.Lock()
+	defer s.readinessSessionMu.Unlock()
+	if s.readinessSessions == nil {
+		s.readinessSessions = make(map[string]string)
+	}
+	s.readinessSessions[sandboxID] = sessionID
+}
+
+func (s *Server) clearReadinessSession(sandboxID, sessionID string) {
+	s.readinessSessionMu.Lock()
+	defer s.readinessSessionMu.Unlock()
+	if s.readinessSessions[sandboxID] == sessionID {
+		delete(s.readinessSessions, sandboxID)
+	}
+}
+
+func (s *Server) readinessSession(sandboxID string) string {
+	s.readinessSessionMu.RLock()
+	defer s.readinessSessionMu.RUnlock()
+	return s.readinessSessions[sandboxID]
 }
 
 func defaultCredentialStore() *providercred.Store {

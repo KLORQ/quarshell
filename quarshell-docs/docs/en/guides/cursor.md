@@ -9,7 +9,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ```bash
 task docker:agent:cursor
-# or: docker pull ghcr.io/quarshell/quarshell/sandboxes/cursor:latest
+# or: docker pull ghcr.io/klorq/quarshell/sandboxes/cursor:latest
 ```
 
 ## Providers and policy

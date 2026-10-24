@@ -37,7 +37,7 @@ function ControlApp() {
   const [actionBusy, setActionBusy] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createImage, setCreateImage] = useState("ghcr.io/quarshell/quarshell/sandboxes/base:latest");
+  const [createImage, setCreateImage] = useState("ghcr.io/klorq/quarshell/sandboxes/base:latest");
   const [notice, setNotice] = useState("");
   const [page, setPage] = useState<"sandboxes" | "policies" | "providers">("sandboxes");
   const [error, setError] = useState("");
