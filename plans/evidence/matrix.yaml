@@ -343,16 +343,16 @@ rows:
   feature_id: OS-OBS
   owner: telemetry + владельцы событий
   required: true
-  backend: null
-  host_profile: null
+  backend: OTLP gRPC traces and metrics; bounded gateway observation log ring; OCSF audit events; slogx redaction
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: Consistent schema и доказанный bounded buffering
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: OCSF, logs, events, traces, metrics, redaction
+  source_digest: fe0687e95d69eb8ee1186f7f3af8b97268a5c01c16ce546c7500ae482943c56f
+  command: go test -race ./... && go vet ./... (quarshell-gateway, quarshell-runtime); go test -race ./slogx && go vet ./slogx (quarshell-core)
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/observability-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: OTLP trace and workload-exit metric export verified against a local gRPC collector; W3C parent propagation, OCSF event schema/defaults, corporate redaction, and bounded ring/line payload limits verified. Metrics avoid user or credential labels.
 - id: OS-CLI
   feature_id: OS-CLI
   owner: CLI

@@ -6,7 +6,7 @@ Generated from `matrix.yaml` by `tools/cmd/quarshell-tools evidence-report`.
 - Upstream SHA: `5a7728c304b5528e954e9ae900cf21f84e1a12b1`
 - Rows: 29 (required 29)
 - Promotion: NOT READY
-- Counts: pass=9, unverified=20
+- Counts: pass=10, unverified=19
 
 | ID | Owner | Required | Result | Level | Backend | Host | Artifact |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ Generated from `matrix.yaml` by `tools/cmd/quarshell-tools evidence-report`.
 | OS-CRED-DRIVERS | credentials | yes | pass | integration | PostgreSQL 16 + Kubernetes fake client + Vault-compatible httptest server | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25.md |
 | OS-PEER | gateway | yes | unverified | - | - | - | - |
 | OS-PROVER | prover | yes | pass | integration | Z3 5.3.1 | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25.md |
-| OS-OBS | telemetry + владельцы событий | yes | unverified | - | - | - | - |
+| OS-OBS | telemetry + владельцы событий | yes | pass | integration | OTLP gRPC traces and metrics; bounded gateway observation log ring; OCSF audit events; slogx redaction | Darwin arm64, Go 1.27.3 | plans/evidence/runs/observability-2026-10-25.md |
 | OS-CLI | CLI | yes | pass | unit | Quarshell CLI command tree and local test suite | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25-b.md |
 | OS-SDK | SDK + client packages | yes | unverified | - | - | - | - |
 | OS-DISTRIBUTION | release tooling | yes | unverified | - | - | - | - |

@@ -24,6 +24,8 @@ import (
 	"github.com/KLORQ/quarshell-runtime/supervisorcontrol"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type processEventMonitor interface {
@@ -42,31 +44,39 @@ const (
 // Run starts a parsed workload argv, forwards termination signals to its
 // process group, reaps adopted children, and returns the workload exit code.
 func Run(args []string) (int, error) {
-	provider, tracer, parent, err := configureSupervisorTelemetry(context.Background(), os.Getenv(supervisorOTLPEndpointEnv), os.Getenv(supervisorTraceParentEnv), os.Getenv(supervisorTraceStateEnv))
+	provider, metrics, tracer, workloadExits, parent, err := configureSupervisorTelemetry(context.Background(), os.Getenv(supervisorOTLPEndpointEnv), os.Getenv(supervisorTraceParentEnv), os.Getenv(supervisorTraceStateEnv))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "quarshell-supervisor: OTLP tracing disabled: %v\n", err)
+		fmt.Fprintf(os.Stderr, "quarshell-supervisor: OTLP telemetry disabled: %v\n", err)
 	}
-	if provider != nil {
+	if provider != nil || metrics != nil {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), supervisorTelemetryShutdownTimeout)
 			defer cancel()
-			if err := provider.Shutdown(ctx); err != nil {
-				fmt.Fprintln(os.Stderr, "quarshell-supervisor: OTLP tracer shutdown failed")
+			if provider != nil && provider.Shutdown(ctx) != nil {
+				fmt.Fprintln(os.Stderr, "quarshell-supervisor: OTLP trace shutdown failed")
+			}
+			if metrics != nil && metrics.Shutdown(ctx) != nil {
+				fmt.Fprintln(os.Stderr, "quarshell-supervisor: OTLP metric shutdown failed")
 			}
 		}()
 	}
+	var span trace.Span
 	if tracer != nil {
-		_, span := tracer.Start(parent, "supervisor.run")
-		code, runErr := runWorkload(args)
+		_, span = tracer.Start(parent, "supervisor.run")
+	}
+	code, runErr := runWorkload(args)
+	if workloadExits != nil {
+		workloadExits.Add(context.Background(), 1, metric.WithAttributes(attribute.Int("process.exit.code", code)))
+	}
+	if span != nil {
 		if runErr != nil {
 			span.SetAttributes(attribute.String("error.type", fmt.Sprintf("%T", runErr)))
 			span.SetStatus(codes.Error, "supervisor failed")
 		}
 		span.SetAttributes(attribute.Int("process.exit.code", code))
 		span.End()
-		return code, runErr
 	}
-	return runWorkload(args)
+	return code, runErr
 }
 
 func runWorkload(args []string) (int, error) {
