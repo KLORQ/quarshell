@@ -103,7 +103,7 @@ func TestListSandboxPoliciesRPC(t *testing.T) {
 	if status.Code(err) != codes.NotFound || missing != nil {
 		t.Fatalf("missing policy status = %+v err=%v", missing, err)
 	}
-	if _, err := server.ListSandboxPolicies(ctx, &gatewayv1.ListSandboxPoliciesRequest{WorkspaceScope: selector, Sandbox: "sb", Global: true}); status.Code(err) != codes.Unimplemented {
-		t.Fatalf("global history status = %v", err)
+	if _, err := server.ListSandboxPolicies(ctx, &gatewayv1.ListSandboxPoliciesRequest{WorkspaceScope: selector, Sandbox: "sb", Global: true}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("mixed global/sandbox history status = %v", err)
 	}
 }

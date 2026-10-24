@@ -80,12 +80,12 @@ func (s *Server) ListSandboxPolicies(ctx context.Context, request *gatewayv1.Lis
 	if s.PolicyRevisions == nil {
 		return nil, status.Error(codes.Unavailable, "policy revision service is not configured")
 	}
-	if request.GetGlobal() {
-		return nil, status.Error(codes.Unimplemented, "global policy history is not migrated")
-	}
 	sandbox := strings.TrimSpace(request.GetSandbox())
-	if sandbox == "" {
+	if !request.GetGlobal() && sandbox == "" {
 		return nil, status.Error(codes.InvalidArgument, "sandbox is required")
+	}
+	if request.GetGlobal() && sandbox != "" {
+		return nil, status.Error(codes.InvalidArgument, "sandbox must be empty for global policy history")
 	}
 	pageSize := int(request.GetPageSize())
 	if pageSize < 0 {
@@ -130,12 +130,12 @@ func (s *Server) GetSandboxPolicyStatus(ctx context.Context, request *gatewayv1.
 	if s.PolicyRevisions == nil {
 		return nil, status.Error(codes.Unavailable, "policy revision service is not configured")
 	}
-	if request.GetGlobal() {
-		return nil, status.Error(codes.Unimplemented, "global policy history is not migrated")
-	}
 	sandbox := strings.TrimSpace(request.GetSandbox())
-	if sandbox == "" {
+	if !request.GetGlobal() && sandbox == "" {
 		return nil, status.Error(codes.InvalidArgument, "sandbox is required")
+	}
+	if request.GetGlobal() && sandbox != "" {
+		return nil, status.Error(codes.InvalidArgument, "sandbox must be empty for global policy status")
 	}
 	scope := policyScopeFor(request.GetWorkspaceScope(), sandbox)
 	if !scope.Valid() {
