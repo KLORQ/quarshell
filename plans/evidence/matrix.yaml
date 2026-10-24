@@ -338,7 +338,7 @@ rows:
   evidence_level: null
   artifact: null
   last_verified: null
-  notes: Policy containment, risk queries, counterexample, coverage, timeout. Risk findings now use sorted network-policy traversal and have a repeated determinism regression test (quarshell-policy/prover/risk_test.go); full parity remains unverified.
+  notes: Policy containment, risk queries, counterexample, coverage, timeout. Risk and containment diagnostics use stable map traversal; containment continues after uncertain candidates to find a definitive covering grant and fails closed as Unsupported for network middleware, binary constraints, and endpoint IP constraints not modeled by the prover (quarshell-policy/prover/containment.go; regression tests in prover/containment_test.go); Z3 timeout and upstream corpus coverage remain open, so full parity remains unverified.
 - id: OS-OBS
   feature_id: OS-OBS
   owner: telemetry + владельцы событий

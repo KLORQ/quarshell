@@ -51,7 +51,35 @@ func Containment(query Query) (Report, error) {
 func containmentCheck(query Query, report *Report) {
 	checkFilesystem(query, report)
 	checkProcess(query, report)
+	checkUnsupportedNetworkFeatures(query, report)
 	checkNetwork(query, report)
+}
+
+func checkUnsupportedNetworkFeatures(query Query, report *Report) {
+	for _, document := range []*policy.Policy{query.Allowed, query.Requested} {
+		if document.NetworkMiddlewares.HasValue() && len(document.NetworkMiddlewares.Value) > 0 {
+			report.raise(Unsupported, "network middleware is outside bounded containment", "network_middlewares")
+		}
+		if !document.NetworkPolicies.HasValue() {
+			continue
+		}
+		names := make([]string, 0, len(document.NetworkPolicies.Value))
+		for name := range document.NetworkPolicies.Value {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			rule := document.NetworkPolicies.Value[name]
+			if len(rule.Binaries) > 0 {
+				report.raise(Unsupported, "network binary constraints are outside bounded containment", "network_policies."+name+".binaries")
+			}
+			for _, endpoint := range rule.Endpoints {
+				if len(endpoint.AllowedIPs) > 0 {
+					report.raise(Unsupported, "endpoint IP constraints are outside bounded containment", endpointHost(endpoint))
+				}
+			}
+		}
+	}
 }
 
 func checkFilesystem(query Query, report *Report) {
@@ -105,19 +133,23 @@ func checkProcess(query Query, report *Report) {
 	if !allowed.HasValue() {
 		return
 	}
-	for field, values := range map[string][2]domain.Field[string]{
-		"run_as_user":  {allowed.Value.RunAsUser, requested.Value.RunAsUser},
-		"run_as_group": {allowed.Value.RunAsGroup, requested.Value.RunAsGroup},
+	for _, check := range []struct {
+		field     string
+		allowed   domain.Field[string]
+		requested domain.Field[string]
+	}{
+		{field: "run_as_user", allowed: allowed.Value.RunAsUser, requested: requested.Value.RunAsUser},
+		{field: "run_as_group", allowed: allowed.Value.RunAsGroup, requested: requested.Value.RunAsGroup},
 	} {
-		if !values[0].HasValue() {
+		if !check.allowed.HasValue() {
 			continue
 		}
-		if !values[1].HasValue() {
-			report.raise(Inconclusive, "requested process identity is omitted while allowed identity is fixed", field)
+		if !check.requested.HasValue() {
+			report.raise(Inconclusive, "requested process identity is omitted while allowed identity is fixed", check.field)
 			continue
 		}
-		if values[0].Value != values[1].Value {
-			report.raise(Exceeds, "requested process identity differs from the allowed identity", field)
+		if check.allowed.Value != check.requested.Value {
+			report.raise(Exceeds, "requested process identity differs from the allowed identity", check.field)
 		}
 	}
 }
@@ -149,23 +181,34 @@ func flattenEndpoints(p *policy.Policy) []policy.NetworkEndpoint {
 	if !p.NetworkPolicies.HasValue() {
 		return nil
 	}
+	names := make([]string, 0, len(p.NetworkPolicies.Value))
+	for name := range p.NetworkPolicies.Value {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	var result []policy.NetworkEndpoint
-	for _, rule := range p.NetworkPolicies.Value {
+	for _, name := range names {
+		rule := p.NetworkPolicies.Value[name]
 		result = append(result, rule.Endpoints...)
 	}
 	return result
 }
 
 func coveredByAny(allowed []policy.NetworkEndpoint, requested policy.NetworkEndpoint, report *Report) bool {
+	inconclusive := false
 	for _, candidate := range allowed {
-		covered, inconclusive := endpointCovers(candidate, requested)
-		if inconclusive {
-			report.raise(Inconclusive, "endpoint matcher is too complex for bounded containment", endpointHost(requested))
-			return true
+		covered, uncertain := endpointCovers(candidate, requested)
+		if uncertain {
+			inconclusive = true
+			continue
 		}
 		if covered {
 			return true
 		}
+	}
+	if inconclusive {
+		report.raise(Inconclusive, "endpoint matcher is too complex for bounded containment", endpointHost(requested))
+		return true
 	}
 	return false
 }

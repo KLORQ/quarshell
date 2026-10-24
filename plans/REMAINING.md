@@ -128,6 +128,12 @@ upgrade/install rollback и оставшиеся Gateway/runtime acceptance сц
 - Risk report теперь обходит network policies по отсортированным именам; тест
   `TestRiskFindingsAreDeterministicAcrossNetworkPolicyMapOrder` проверяет стабильный
   порядок findings. Это закрывает воспроизводимость вывода, но не полный prover parity.
+- Containment теперь продолжает поиск после `Inconclusive` endpoint-кандидата и
+  принимает только если найдено доказанное покрытие; map-based endpoint и process
+  diagnostics сортируются/проверяются regression tests. Network middleware,
+  binary-ограничения и endpoint IP ограничения, которые prover пока не моделирует,
+  переводят результат в `Unsupported`. Z3 timeout/solver failure, контрпримерная
+  полнота и весь upstream corpus ещё требуют acceptance.
 - Проверить provider profiles, examples и agent tooling по поведению, не только
   по наличию файлов.
 
