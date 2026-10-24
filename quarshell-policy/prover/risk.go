@@ -1,6 +1,7 @@
 package prover
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/KLORQ/quarshell-policy"
@@ -48,7 +49,13 @@ func Analyze(policyDocument *policy.Policy) RiskReport {
 		}
 	}
 	if policyDocument.NetworkPolicies.HasValue() {
-		for _, rule := range policyDocument.NetworkPolicies.Value {
+		names := make([]string, 0, len(policyDocument.NetworkPolicies.Value))
+		for name := range policyDocument.NetworkPolicies.Value {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			rule := policyDocument.NetworkPolicies.Value[name]
 			for _, endpoint := range rule.Endpoints {
 				if endpoint.Host == "*" || endpoint.Host == "**" {
 					add("net.wildcard_host", "high", "endpoint allows every host", 40)

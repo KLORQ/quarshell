@@ -338,7 +338,7 @@ rows:
   evidence_level: null
   artifact: null
   last_verified: null
-  notes: Policy containment, risk queries, counterexample, coverage, timeout
+  notes: Policy containment, risk queries, counterexample, coverage, timeout. Risk findings now use sorted network-policy traversal and have a repeated determinism regression test (quarshell-policy/prover/risk_test.go); full parity remains unverified.
 - id: OS-OBS
   feature_id: OS-OBS
   owner: telemetry + владельцы событий

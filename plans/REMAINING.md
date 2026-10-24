@@ -125,6 +125,9 @@ upgrade/install rollback и оставшиеся Gateway/runtime acceptance сц
   generated source проверять только через закреплённую генерацию.
 - Расширить symbolic prover за текущие bounded/risk/Z3 plumbing; `Inconclusive`
   и solver failure не должны превращаться в разрешение policy.
+- Risk report теперь обходит network policies по отсортированным именам; тест
+  `TestRiskFindingsAreDeterministicAcrossNetworkPolicyMapOrder` проверяет стабильный
+  порядок findings. Это закрывает воспроизводимость вывода, но не полный prover parity.
 - Проверить provider profiles, examples и agent tooling по поведению, не только
   по наличию файлов.
 
