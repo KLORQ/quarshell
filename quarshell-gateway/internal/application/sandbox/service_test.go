@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -389,20 +390,65 @@ func TestCreateValidatesRequest(t *testing.T) {
 }
 
 func TestReplayAfterRestart(t *testing.T) {
-	store := lifecycle.NewMemoryStore()
-	first, _ := NewService(store)
-	if _, _, err := first.Create(context.Background(), testRequest()); err != nil {
-		t.Fatalf("Create: %v", err)
+	ctx := context.Background()
+	database := filepath.Join(t.TempDir(), "sandbox-lifecycle.sqlite")
+	store, err := lifecycle.NewSQLiteStore(ctx, database)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
 	}
-	restarted, _ := NewService(store)
-	result, replayed, err := restarted.Create(context.Background(), testRequest())
-	if err != nil || !replayed || result.Sandbox != "sb" {
-		t.Fatalf("replay after restart = %+v replayed=%v err=%v", result, replayed, err)
+	first, err := NewService(store)
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
 	}
-	reconciler := &lifecycle.Reconciler{Store: store, Handler: func(context.Context, lifecycle.OutboxMessage) error { return nil }}
-	pass, err := reconciler.RunOnce(context.Background())
+	created, replayed, err := first.Create(ctx, testRequest())
+	if err != nil || replayed || created.State != "requested" {
+		t.Fatalf("first Create = %+v replayed=%v err=%v", created, replayed, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close before restart: %v", err)
+	}
+
+	reopened, err := lifecycle.NewSQLiteStore(ctx, database)
+	if err != nil {
+		t.Fatalf("reopen SQLite: %v", err)
+	}
+	defer reopened.Close()
+	restarted, err := NewService(reopened)
+	if err != nil {
+		t.Fatalf("NewService after restart: %v", err)
+	}
+	result, replayed, err := restarted.Create(ctx, testRequest())
+	if err != nil || !replayed || result.Sandbox != created.Sandbox || result.Generation != created.Generation {
+		t.Fatalf("replay after SQLite restart = %+v replayed=%v err=%v", result, replayed, err)
+	}
+	if err := reopened.View(ctx, func(tx lifecycle.ReadTx) error {
+		records, err := tx.List(recordKind)
+		if err != nil {
+			return err
+		}
+		if len(records) != 1 {
+			t.Fatalf("sandbox records after replay = %d, want 1", len(records))
+		}
+		if tx.PendingOutbox() != 1 {
+			t.Fatalf("pending outbox after replay = %d, want 1", tx.PendingOutbox())
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("verify durable replay state: %v", err)
+	}
+
+	reconciler := &lifecycle.Reconciler{Store: reopened, Handler: func(context.Context, lifecycle.OutboxMessage) error { return nil }}
+	pass, err := reconciler.RunOnce(ctx)
 	if err != nil || pass.Acknowledged != 1 {
-		t.Fatalf("reconcile after restart = %+v err=%v", pass, err)
+		t.Fatalf("reconcile durable create after restart = %+v err=%v", pass, err)
+	}
+	if err := reopened.View(ctx, func(tx lifecycle.ReadTx) error {
+		if tx.PendingOutbox() != 0 {
+			t.Fatalf("pending outbox after reconcile = %d, want 0", tx.PendingOutbox())
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("verify outbox acknowledgement: %v", err)
 	}
 }
 

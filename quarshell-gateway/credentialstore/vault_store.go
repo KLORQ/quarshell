@@ -245,7 +245,7 @@ func (s *VaultStore) do(request *http.Request) (*http.Response, error) {
 	}
 	response, err := s.client.Do(request)
 	if err != nil {
-		return nil, domain.Wrap(err, "credentials.vault", "request failed")
+		return nil, domain.New(domain.CodeUnavailable, "credentials.vault", "vault request failed")
 	}
 	return response, nil
 }

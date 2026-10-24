@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/KLORQ/quarshell-core/domain"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/moby/moby/client"
 
 	core "github.com/KLORQ/quarshell-core"
@@ -53,7 +55,10 @@ func (d *Driver) Inspect(ctx context.Context, nameOrID string) (driver.Info, err
 	for _, id := range candidates {
 		c, err := d.cli.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 		if err != nil {
-			continue
+			if cerrdefs.IsNotFound(err) {
+				continue
+			}
+			return driver.Info{}, err
 		}
 		if c.Container.Config.Labels[labelSandbox] != "1" && !strings.HasPrefix(strings.TrimPrefix(c.Container.Name, "/"), "quarshell-") {
 			continue
@@ -71,7 +76,7 @@ func (d *Driver) Inspect(ctx context.Context, nameOrID string) (driver.Info, err
 			Status:  string(c.Container.State.Status),
 		}, nil
 	}
-	return driver.Info{}, fmt.Errorf("docker inspect: sandbox %q not found", nameOrID)
+	return driver.Info{}, domain.Wrap(domain.ErrNotFound, "driver.docker.inspect", fmt.Sprintf("sandbox %q not found", nameOrID))
 }
 
 // ContainerIP returns the sandbox container IP on its quarshell network.

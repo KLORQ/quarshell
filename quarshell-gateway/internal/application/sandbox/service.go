@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -604,6 +605,41 @@ func (s *Service) StartRuntime(ctx context.Context, runtime sandboxruntime.Runti
 		return err
 	}
 	return s.observeRuntimeWorkloadIdentity(ctx, runtime, current)
+}
+
+// EnsureCreatedRuntime recreates a requested sandbox after a restart. It first
+// inspects the deterministic sandbox identity so a crash after backend creation
+// does not create a duplicate runtime resource.
+func (s *Service) EnsureCreatedRuntime(ctx context.Context, runtime sandboxruntime.Runtime, current Sandbox) error {
+	if runtime == nil {
+		return domain.Invalidf("sandbox.reconcile.create", "runtime is required")
+	}
+	input := runtimeInput(current)
+	info, inspectErr := runtime.Inspect(ctx, input)
+	if inspectErr == nil {
+		if info.ID != "" {
+			return s.setRuntimeID(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, string(info.ID))
+		}
+		return nil
+	}
+	if !errors.Is(inspectErr, domain.ErrNotFound) {
+		return domain.Wrap(inspectErr, "sandbox.reconcile.inspect", "inspect requested runtime")
+	}
+
+	runtimeID, createErr := runtime.Create(ctx, input)
+	if createErr != nil {
+		// The backend may have created the resource before the connection failed.
+		// A successful follow-up inspect proves that retrying creation is unsafe.
+		info, inspectErr = runtime.Inspect(ctx, input)
+		if inspectErr != nil {
+			return domain.Wrap(createErr, "sandbox.reconcile.create", "ensure runtime")
+		}
+		runtimeID = string(info.ID)
+	}
+	if runtimeID == "" {
+		return nil
+	}
+	return s.setRuntimeID(ctx, domain.SandboxRef{Workspace: current.Workspace, Sandbox: current.Sandbox}, runtimeID)
 }
 
 func (s *Service) observeRuntimeWorkloadIdentity(ctx context.Context, runtime sandboxruntime.Runtime, current Sandbox) error {

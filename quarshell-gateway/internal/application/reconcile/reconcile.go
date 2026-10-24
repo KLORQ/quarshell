@@ -26,6 +26,11 @@ func Run(ctx context.Context, workspaces *workspace.Service, sandboxes *sandbox.
 			return err
 		}
 		for _, current := range list {
+			if current.State == "requested" {
+				if err := sandboxes.EnsureCreatedRuntime(ctx, runtime, current); err != nil {
+					return err
+				}
+			}
 			input := sandboxruntime.Sandbox{
 				Workspace: current.Workspace, Sandbox: current.Sandbox, RuntimeID: current.RuntimeID,
 				Image: current.Image, Command: append([]string(nil), current.Command...), TTY: current.TTY,

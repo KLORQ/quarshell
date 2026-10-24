@@ -75,3 +75,22 @@ func TestPostgresConfigValidation(t *testing.T) {
 		t.Fatalf("short key accepted")
 	}
 }
+
+func TestPostgresStoreOutageIsUnavailable(t *testing.T) {
+	url := os.Getenv("QUARSHELL_POSTGRES_URL")
+	if url == "" {
+		t.Skip("QUARSHELL_POSTGRES_URL is not set")
+	}
+	store, err := NewPostgresStore(context.Background(), PostgresConfig{
+		URL: url, Table: "quarshell_credentials_outage_it", Key: []byte("0123456789abcdef0123456789abcdef"),
+	})
+	if err != nil {
+		t.Fatalf("NewPostgresStore: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if _, err := store.Get(context.Background(), "credential"); domain.CodeOf(err) != domain.CodeUnavailable {
+		t.Fatalf("Get after database outage = %v, want unavailable", err)
+	}
+}

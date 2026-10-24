@@ -47,13 +47,13 @@ func CheckPortsContained(ctx context.Context, allowed, requested []uint16, solve
 func buildPortScript(allowed, requested []uint16) string {
 	var builder strings.Builder
 	builder.WriteString("(set-logic QF_LIA)\n(declare-const p Int)\n(assert (or")
-	for _, port := range allowed {
+	for _, port := range requested {
 		builder.WriteString(" (= p ")
 		builder.WriteString(strconv.Itoa(int(port)))
 		builder.WriteString(")")
 	}
 	builder.WriteString("))\n(assert (not (or")
-	for _, port := range requested {
+	for _, port := range allowed {
 		builder.WriteString(" (= p ")
 		builder.WriteString(strconv.Itoa(int(port)))
 		builder.WriteString(")")

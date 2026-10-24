@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/KLORQ/quarshell-core"
+	"github.com/KLORQ/quarshell-core/domain"
 	"github.com/KLORQ/quarshell-driver/driver"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -105,7 +106,7 @@ func (d *Driver) inspect(ctx context.Context, nameOrID string) (driver.Info, err
 		match = &items[i]
 	}
 	if match == nil {
-		return driver.Info{}, fmt.Errorf("kubernetes sandbox %q not found", nameOrID)
+		return driver.Info{}, domain.Wrap(domain.ErrNotFound, "driver.kubernetes.inspect", fmt.Sprintf("sandbox %q not found", nameOrID))
 	}
 	return *match, nil
 }
@@ -129,7 +130,7 @@ func (d *Driver) inspectRuntimeIdentity(ctx context.Context, identity sandboxRun
 	}
 	object, err := apiClient.GetSandboxObject(ctx, version, identity.Namespace, identity.Name)
 	if apierrors.IsNotFound(err) {
-		return driver.Info{}, fmt.Errorf("kubernetes sandbox runtime ID %q not found", kubernetesRuntimeID(identity))
+		return driver.Info{}, domain.Wrap(domain.ErrNotFound, "driver.kubernetes.inspect", fmt.Sprintf("sandbox runtime ID %q not found", kubernetesRuntimeID(identity)))
 	}
 	if err != nil {
 		return driver.Info{}, fmt.Errorf("get Agent Sandbox %s/%s: %w", identity.Namespace, identity.Name, err)

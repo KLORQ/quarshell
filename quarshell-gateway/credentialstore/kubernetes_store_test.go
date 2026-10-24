@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func newKubernetesStore(t *testing.T, namespace string) (*KubernetesStore, *fake.Clientset) {
@@ -91,5 +94,15 @@ func TestKubernetesSecretNameIsDNS1123(t *testing.T) {
 		if strings.ContainsAny(name, "/ _") {
 			t.Fatalf("invalid characters in %q", name)
 		}
+	}
+}
+
+func TestKubernetesStoreOutageIsUnavailable(t *testing.T) {
+	store, client := newKubernetesStore(t, "team")
+	client.PrependReactor("get", "secrets", func(k8stesting.Action) (bool, k8sruntime.Object, error) {
+		return true, nil, fmt.Errorf("api server timeout")
+	})
+	if _, err := store.Get(context.Background(), "cred-1"); domain.CodeOf(err) != domain.CodeUnavailable {
+		t.Fatalf("Get during Kubernetes API outage = %v, want unavailable", err)
 	}
 }

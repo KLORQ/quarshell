@@ -197,6 +197,20 @@ func TestVaultStoreConfigValidation(t *testing.T) {
 	}
 }
 
+func TestVaultStoreOutageIsUnavailableAndDoesNotExposeRequestData(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	store := newVaultStore(t, server, "vault-test-token")
+	server.Close()
+
+	_, err := store.Get(context.Background(), "credential-with-secret-material")
+	if domain.CodeOf(err) != domain.CodeUnavailable {
+		t.Fatalf("Get during Vault outage error code = %q, want unavailable", domain.CodeOf(err))
+	}
+	if strings.Contains(err.Error(), "vault-test-token") || strings.Contains(err.Error(), "credential-with-secret-material") {
+		t.Fatalf("Vault outage error leaked request data: %v", err)
+	}
+}
+
 func TestVaultStoreIntegrationLive(t *testing.T) {
 	address := os.Getenv("QUARSHELL_VAULT_ADDR")
 	token := os.Getenv("QUARSHELL_VAULT_TOKEN")

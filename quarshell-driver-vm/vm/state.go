@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KLORQ/quarshell-core/domain"
 	corepaths "github.com/KLORQ/quarshell-core/paths"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
@@ -94,7 +95,11 @@ func (s sandboxState) workloadImageSource() imageSourceProvenance {
 
 func (s *stateStore) find(nameOrID string) (sandboxState, error) {
 	if validSandboxID(nameOrID) {
-		return s.load(nameOrID)
+		state, err := s.load(nameOrID)
+		if errors.Is(err, os.ErrNotExist) {
+			return sandboxState{}, domain.Wrap(domain.ErrNotFound, "driver.vm.inspect", "sandbox state not found")
+		}
+		return state, err
 	}
 	states, err := s.list()
 	if err != nil {
@@ -105,7 +110,7 @@ func (s *stateStore) find(nameOrID string) (sandboxState, error) {
 			return state, nil
 		}
 	}
-	return sandboxState{}, fmt.Errorf("VM sandbox %q not found", nameOrID)
+	return sandboxState{}, domain.Wrap(domain.ErrNotFound, "driver.vm.inspect", fmt.Sprintf("sandbox %q not found", nameOrID))
 }
 
 type stateStore struct{ root string }

@@ -1,8 +1,12 @@
 package provider
 
 import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -67,6 +71,119 @@ func TestCompatProviderProfileFixtures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPinnedUpstreamProviderExamples(t *testing.T) {
+	const fixtureDir = "testdata/upstream"
+	wantFiles := []string{
+		"README.md", "anthropic.yaml", "aws-bedrock.yaml", "aws-s3.yaml", "aws.yaml",
+		"claude-code.yaml", "codex.yaml", "copilot.yaml", "cursor.yaml", "deepinfra.yaml",
+		"github.yaml", "google-cloud.yaml", "google-vertex-ai.yaml", "nvidia.yaml",
+		"oci-genai.yaml", "openai.yaml", "openrouter.yaml", "pypi.yaml",
+	}
+	entries, err := os.ReadDir(fixtureDir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	gotFiles := make([]string, 0, len(entries)-1)
+	for _, entry := range entries {
+		if entry.Name() != "SHA256SUMS" {
+			gotFiles = append(gotFiles, entry.Name())
+		}
+	}
+	if !equalStringSlices(gotFiles, wantFiles) {
+		t.Fatalf("pinned upstream fixture files = %v, want %v", gotFiles, wantFiles)
+	}
+
+	manifest, err := os.Open(filepath.Join(fixtureDir, "SHA256SUMS"))
+	if err != nil {
+		t.Fatalf("open fixture manifest: %v", err)
+	}
+	defer manifest.Close()
+	checksums := map[string]string{}
+	scanner := bufio.NewScanner(manifest)
+	for scanner.Scan() {
+		parts := strings.Fields(scanner.Text())
+		if len(parts) != 2 || len(parts[0]) != sha256.Size*2 {
+			t.Fatalf("invalid checksum manifest line %q", scanner.Text())
+		}
+		if _, err := hex.DecodeString(parts[0]); err != nil {
+			t.Fatalf("invalid checksum in manifest: %v", err)
+		}
+		checksums[parts[1]] = parts[0]
+	}
+	if err := scanner.Err(); err != nil {
+		t.Fatalf("read fixture manifest: %v", err)
+	}
+	if len(checksums) != len(wantFiles) {
+		t.Fatalf("checksum entries = %d, want %d", len(checksums), len(wantFiles))
+	}
+
+	profileIDs := make([]string, 0, len(wantFiles)-1)
+	for _, name := range wantFiles {
+		data, err := os.ReadFile(filepath.Join(fixtureDir, name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		digest := sha256.Sum256(data)
+		if got := hex.EncodeToString(digest[:]); got != checksums[name] {
+			t.Fatalf("%s sha256 = %s, want pinned %s", name, got, checksums[name])
+		}
+		if !strings.HasSuffix(name, ".yaml") {
+			continue
+		}
+		profile, err := LoadFile(filepath.Join(fixtureDir, name))
+		if err != nil {
+			t.Fatalf("LoadFile(%s): %v", name, err)
+		}
+		wantID := strings.TrimSuffix(name, ".yaml")
+		if profile.ID != wantID {
+			t.Errorf("%s profile id = %q, want %q", name, profile.ID, wantID)
+		}
+		if len(profile.DiscoveryCredentials()) != len(profile.Discovery.Credentials) {
+			t.Errorf("%s discovery credentials = %v, want %v", name, profile.DiscoveryCredentials(), profile.Discovery.Credentials)
+		}
+		profileIDs = append(profileIDs, profile.ID)
+	}
+	sort.Strings(profileIDs)
+	wantIDs := make([]string, 0, len(wantFiles)-1)
+	for _, name := range wantFiles {
+		if strings.HasSuffix(name, ".yaml") {
+			wantIDs = append(wantIDs, strings.TrimSuffix(name, ".yaml"))
+		}
+	}
+	sort.Strings(wantIDs)
+	if !equalStringSlices(profileIDs, wantIDs) {
+		t.Fatalf("loaded upstream provider IDs = %v, want %v", profileIDs, wantIDs)
+	}
+}
+
+func TestBuiltinProviderCatalog(t *testing.T) {
+	catalog, err := LoadDir("../profiles")
+	if err != nil {
+		t.Fatalf("LoadDir(builtins): %v", err)
+	}
+	wantIDs := []string{"claude-code", "cursor", "github", "nvidia"}
+	gotIDs := make([]string, 0, len(catalog))
+	for id := range catalog {
+		gotIDs = append(gotIDs, id)
+	}
+	sort.Strings(gotIDs)
+	if !equalStringSlices(gotIDs, wantIDs) {
+		t.Fatalf("builtin provider IDs = %v, want %v", gotIDs, wantIDs)
+	}
+}
+
+func equalStringSlices(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestCompatExtendedProfileFieldsRoundTrip(t *testing.T) {

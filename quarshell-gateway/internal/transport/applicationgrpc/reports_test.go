@@ -13,6 +13,7 @@ import (
 	"github.com/KLORQ/quarshell-proto/gen/go/openshell/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestReportProviderReadinessRequiresActiveSessionAndKeepsPendingStartup(t *testing.T) {
@@ -69,30 +70,25 @@ func TestReportProviderReadinessRequiresActiveSessionAndKeepsPendingStartup(t *t
 		t.Fatalf("incomplete report changed readiness to %q, err=%v", binding.Readiness, err)
 	}
 
-	wrongSession := *request
-	wrongObservation := *request.Observation
-	wrongObservation.SessionId = "stale-session"
-	wrongSession.Observation = &wrongObservation
-	if _, err := server.ReportProviderReadiness(sandboxCtx, &wrongSession); status.Code(err) != codes.FailedPrecondition {
+	wrongSession := proto.Clone(request).(*gatewayv1.ReportProviderReadinessRequest)
+	wrongSession.GetObservation().SessionId = "stale-session"
+	if _, err := server.ReportProviderReadiness(sandboxCtx, wrongSession); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("stale session status = %v err=%v", status.Code(err), err)
 	}
-	missingSequence := *request
-	missingObservation := *request.Observation
-	missingObservation.Sequence = 0
-	missingSequence.Observation = &missingObservation
-	if _, err := server.ReportProviderReadiness(sandboxCtx, &missingSequence); status.Code(err) != codes.InvalidArgument {
+	missingSequence := proto.Clone(request).(*gatewayv1.ReportProviderReadinessRequest)
+	missingSequence.GetObservation().Sequence = 0
+	if _, err := server.ReportProviderReadiness(sandboxCtx, missingSequence); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("missing sequence status = %v err=%v", status.Code(err), err)
 	}
 
-	ready := *request
-	readyObservation := *request.Observation
+	ready := proto.Clone(request).(*gatewayv1.ReportProviderReadinessRequest)
+	readyObservation := ready.GetObservation()
 	readyObservation.Sequence = 2
 	readyObservation.Reason = gatewayv1.ProviderReadinessReason_PROVIDER_READINESS_REASON_UNSPECIFIED
 	readyObservation.CredentialsInstalled = true
 	readyObservation.PolicyActive = true
 	readyObservation.LaunchEnvironmentInstalled = true
-	ready.Observation = &readyObservation
-	if _, err := server.ReportProviderReadiness(sandboxCtx, &ready); err != nil {
+	if _, err := server.ReportProviderReadiness(sandboxCtx, ready); err != nil {
 		t.Fatalf("ready report: %v", err)
 	}
 	binding, err = bindings.Get(ctx, ref, "provider-a")

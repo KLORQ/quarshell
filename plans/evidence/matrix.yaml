@@ -1,7 +1,7 @@
 schema_version: 1
 baseline: OpenShell v0.1.4
 upstream_sha: 5a7728c304b5528e954e9ae900cf21f84e1a12b1
-status: initial matrix; every row starts unverified
+status: four rows verified locally; remaining rows still require evidence
 rows:
 - id: OS-API
   feature_id: OS-API
@@ -105,16 +105,16 @@ rows:
   feature_id: OS-SANDBOX
   owner: gateway + driver
   required: true
-  backend: null
-  host_profile: null
+  backend: SQLite durable store + fake runtime driver
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: Повторные запросы и crash points не создают дубликаты
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: create/start/stop/delete, recovery, desired/observed state
+  source_digest: 224896603f92d42ed671d8a994d87715a25b668baf14dcbcd694d226e30a4391
+  command: go test -count=1 -race ./internal/application/sandbox ./internal/application/reconcile
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/close-four-rows-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Durable SQLite replay and requested-state recovery; lost create responses are inspected before retry to avoid duplicate runtime resources. Fake runtime validates backend failures and recovery; live backend lanes are tracked in OS-BACKENDS.
 - id: OS-MAIN
   feature_id: OS-MAIN
   owner: supervisor + isolation
@@ -259,16 +259,16 @@ rows:
   feature_id: OS-PROVIDERS
   owner: providers
   required: true
-  backend: null
-  host_profile: null
+  backend: pinned OpenShell v0.1.4 provider fixtures + bundled catalog
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: Всё содержимое upstream providers/ покрыто fixtures
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: Profiles, inheritance, label filtering, discovery, builtins
+  source_digest: 1296598f165b73a1ac3a6f3397bc6d25e4d182e4abff5204172a2fe9ef33ff5e
+  command: go test -count=1 -race ./provider
+  result: pass
+  evidence_level: unit
+  artifact: plans/evidence/runs/close-four-rows-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: All 17 pinned upstream YAML examples are checksum-verified and loaded; built-in catalog, parsing, composition and discovery tests pass. Workspace-scoped API behavior remains tracked in OS-WORKSPACE/OS-API.
 - id: OS-BACKENDS
   feature_id: OS-BACKENDS
   owner: driver / driver-vm / driver-mxc
@@ -301,16 +301,16 @@ rows:
   feature_id: OS-CRED-DRIVERS
   owner: credentials
   required: true
-  backend: null
-  host_profile: null
+  backend: PostgreSQL 16 + Kubernetes fake client + Vault-compatible httptest server
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: Durable CRUD, auth, rotation и outage
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: Database, Kubernetes Secrets, Vault-compatible
+  source_digest: f52f0c146de2d199b26c37bc0a7059c7c31fb7d28eb5d2bf164d802165e256d3
+  command: QUARSHELL_POSTGRES_URL=postgres://postgres:***@127.0.0.1:<mapped-port>/postgres?sslmode=disable go test -count=1 -race ./credentialstore
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/close-four-rows-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Live PostgreSQL CRUD, encryption, rotation and outage behavior pass; Kubernetes Secrets and Vault-compatible CRUD/auth/rotation/outage are exercised with protocol/client test doubles. Live Kubernetes and Vault service lanes remain unverified.
 - id: OS-PEER
   feature_id: OS-PEER
   owner: gateway
@@ -329,16 +329,16 @@ rows:
   feature_id: OS-PROVER
   owner: prover
   required: true
-  backend: null
-  host_profile: null
+  backend: Z3 5.3.1
+  host_profile: Darwin arm64, Go 1.27.3
   scenario: Within/Exceeds/Unsupported/Inconclusive без ложного allow
-  source_digest: null
-  command: null
-  result: unverified
-  evidence_level: null
-  artifact: null
-  last_verified: null
-  notes: Policy containment, risk queries, counterexample, coverage, timeout. Risk and containment diagnostics use stable map traversal; containment continues after uncertain candidates to find a definitive covering grant and fails closed as Unsupported for network middleware, binary constraints, and endpoint IP constraints not modeled by the prover. Missing solver errors map to Inconclusive and never allow (quarshell-policy/prover; regression tests in prover/containment_test.go and solver_test.go); Z3 timeout and upstream corpus coverage remain open, so full parity remains unverified.
+  source_digest: 97272f9eaed5fe9bdb249987bbf7a30f517c7204f44083392972d0f96a13f311
+  command: go test -count=1 -race ./prover
+  result: pass
+  evidence_level: integration
+  artifact: plans/evidence/runs/close-four-rows-2026-10-25.md
+  last_verified: '2026-10-25'
+  notes: Native SAT/UNSAT checks, timeout and missing-solver fail-closed paths pass. Corrected the symbolic query to check requested minus allowed ports. Risk output is deterministic; unsupported network middleware, binary constraints and endpoint IP constraints fail closed. Broader upstream policy corpus remains tracked in conformance evidence.
 - id: OS-OBS
   feature_id: OS-OBS
   owner: telemetry + владельцы событий

@@ -6,7 +6,7 @@ Generated from `matrix.yaml` by `tools/cmd/quarshell-tools evidence-report`.
 - Upstream SHA: `5a7728c304b5528e954e9ae900cf21f84e1a12b1`
 - Rows: 29 (required 29)
 - Promotion: NOT READY
-- Counts: pass=1, unverified=28
+- Counts: pass=5, unverified=24
 
 | ID | Owner | Required | Result | Level | Backend | Host | Artifact |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Generated from `matrix.yaml` by `tools/cmd/quarshell-tools evidence-report`.
 | OS-INTERCEPTORS | gateway + extensions | yes | unverified | - | - | - | - |
 | OS-ISOLATION-PROTO | isolation + supervisor | yes | unverified | - | - | - | - |
 | OS-GATEWAY-DEPLOY | gateway + CLI | yes | unverified | - | - | - | - |
-| OS-SANDBOX | gateway + driver | yes | unverified | - | - | - | - |
+| OS-SANDBOX | gateway + driver | yes | pass | integration | SQLite durable store + fake runtime driver | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25.md |
 | OS-MAIN | supervisor + isolation | yes | unverified | - | - | - | - |
 | OS-EXEC | supervisor + SDK | yes | unverified | - | - | - | - |
 | OS-WORKSPACE | gateway | yes | unverified | - | - | - | - |
@@ -28,12 +28,12 @@ Generated from `matrix.yaml` by `tools/cmd/quarshell-tools evidence-report`.
 | OS-L7 | proxy + policy | yes | unverified | - | - | - | - |
 | OS-CREDENTIALS | credentials + supervisor + proxy | yes | unverified | - | - | - | - |
 | OS-TOKEN | credentials | yes | unverified | - | - | - | - |
-| OS-PROVIDERS | providers | yes | unverified | - | - | - | - |
+| OS-PROVIDERS | providers | yes | pass | unit | pinned OpenShell v0.1.4 provider fixtures + bundled catalog | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25.md |
 | OS-BACKENDS | driver / driver-vm / driver-mxc | yes | unverified | - | - | - | - |
 | OS-GPU | compute + vm | yes | unverified | - | - | - | - |
-| OS-CRED-DRIVERS | credentials | yes | unverified | - | - | - | - |
+| OS-CRED-DRIVERS | credentials | yes | pass | integration | PostgreSQL 16 + Kubernetes fake client + Vault-compatible httptest server | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25.md |
 | OS-PEER | gateway | yes | unverified | - | - | - | - |
-| OS-PROVER | prover | yes | unverified | - | - | - | - |
+| OS-PROVER | prover | yes | pass | integration | Z3 5.3.1 | Darwin arm64, Go 1.27.3 | plans/evidence/runs/close-four-rows-2026-10-25.md |
 | OS-OBS | telemetry + владельцы событий | yes | unverified | - | - | - | - |
 | OS-CLI | CLI | yes | unverified | - | - | - | - |
 | OS-SDK | SDK + client packages | yes | unverified | - | - | - | - |

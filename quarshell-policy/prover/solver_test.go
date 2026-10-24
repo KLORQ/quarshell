@@ -3,10 +3,13 @@ package prover
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/KLORQ/quarshell-core/domain"
 )
@@ -38,7 +41,7 @@ func TestCheckPortsContainedFallback(t *testing.T) {
 
 func TestCheckPortsContainedSolver(t *testing.T) {
 	solver := &fakeSolver{answer: Unsat}
-	contained, err := CheckPortsContained(context.Background(), []uint16{443}, []uint16{443, 8443}, solver)
+	contained, err := CheckPortsContained(context.Background(), []uint16{443, 8443}, []uint16{443}, solver)
 	if err != nil || !contained {
 		t.Fatalf("unsat = %v %v", contained, err)
 	}
@@ -92,6 +95,25 @@ func TestMissingZ3IsUnsupportedAndCannotAllow(t *testing.T) {
 	report := SymbolicReport(contained, err)
 	if report.Relation != Inconclusive || report.Allows() {
 		t.Fatalf("SymbolicReport() = %+v; unavailable solver must fail closed", report)
+	}
+}
+
+func TestZ3TimeoutIsInconclusiveAndFailsClosed(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script solver fixture is Unix-only")
+	}
+	binary := filepath.Join(t.TempDir(), "slow-z3")
+	if err := os.WriteFile(binary, []byte("#!/bin/sh\nexec /bin/sleep 2\n"), 0o700); err != nil {
+		t.Fatalf("write fake solver: %v", err)
+	}
+	solver := &Z3{Binary: binary, Timeout: 25 * time.Millisecond}
+	contained, err := CheckPortsContained(context.Background(), []uint16{443}, []uint16{443}, solver)
+	if contained || err == nil {
+		t.Fatalf("CheckPortsContained() = %v, %v; timed-out solver must not prove containment", contained, err)
+	}
+	report := SymbolicReport(contained, err)
+	if report.Relation != Inconclusive || report.Allows() {
+		t.Fatalf("timeout report = %+v; timeout must fail closed", report)
 	}
 }
 
